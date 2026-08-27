@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#f27d63">
   <title>MyTrip Shared Planner</title>
   <meta name="description" content="A shared trip planner with itinerary, writer-attributed experiences, Google Maps, expenses and print reports.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4.7.0">
+  <link rel="stylesheet" href="styles.css?v=4.7.0-sticky3">
 </head>
 <body>
   <section class="access-screen" id="accessScreen">
@@ -31,6 +34,8 @@
         <div class="demo-choice"><button class="demo-button" id="adminDemoButton" type="button">Administrator demo</button><button class="demo-button" id="travellerDemoButton" type="button">Traveller demo</button></div>
         <button class="text-button" id="showCreateButton" type="button">＋ Create a new trip</button>
         <div class="backend-status" id="backendStatus"><span><i></i><b>Google backend not connected</b></span><button id="connectBackendButton" type="button">Connect</button></div>
+        <button class="cache-clear-button" id="clearAppCache" type="button">↻ Clear cache &amp; reload</button>
+        <p class="cache-clear-note">Use this if an old dashboard remains visible. Your backend connection and sticky notes will be kept.</p>
         <div class="version-strip" aria-label="Application versions"><span>FRONTEND <b id="loginFrontendVersion">v4.7.0</b></span><span>BACKEND <b id="loginBackendVersion">Not connected</b></span></div>
         <p class="access-note">One Administrator PIN opens every trip. Every named traveller can have one personal PIN for all assigned trips.</p>
       </div>
@@ -42,7 +47,8 @@
       <a class="brand" href="#"><i>↗</i> mytrip</a>
       <nav id="mainNav">
         <button data-tab="overview" class="active"><i>⌂</i><span>Overview</span></button>
-        <button data-tab="itinerary"><i>▦</i><span>Itinerary & Notes</span></button>
+        <button data-tab="itinerary"><i>▦</i><span>Itinerary</span></button>
+        <button data-tab="experiences"><i>✍</i><span>Experiences</span></button>
         <button data-tab="places"><i>⌖</i><span>Places & Map</span></button>
         <button data-tab="expenses"><i>₹</i><span>Expenses</span></button>
         <button data-tab="people"><i>♙</i><span>Travellers</span></button>
@@ -79,11 +85,27 @@
     </main>
   </section>
 
+  <button class="sticky-edge-tab hidden" id="stickyEdgeTab" type="button" aria-controls="stickyPanel" aria-expanded="false">
+    <i>✦</i><span>Sticky notes</span><b id="stickyEdgeCount">0</b>
+  </button>
+  <div class="sticky-panel-backdrop hidden" id="stickyPanelBackdrop"></div>
+  <aside class="sticky-panel hidden" id="stickyPanel" aria-hidden="true">
+    <header>
+      <div><span class="kicker">RIGHT UTILITY PANEL</span><h2>Trip sticky notes</h2><p>Targets and reminders without occupying dashboard space.</p></div>
+      <button id="closeStickyPanel" type="button" aria-label="Collapse sticky notes">×</button>
+    </header>
+    <div class="sticky-panel-toolbar"><div><b>📌 Active stickies</b><small id="stickyActiveCount">0 active</small></div><button id="addStickyNote" type="button">＋ Add sticky</button></div>
+    <p class="sticky-device-note">Active notes stay on this device. Completed notes are saved in the trip’s <b>StickyNoteDiary</b> Google Sheet.</p>
+    <div class="sticky-panel-list" id="stickyActiveList"></div>
+    <section class="sticky-diary-section"><div><span class="kicker">STICKY NOTE DIARY · GOOGLE SHEET</span><h3>Completed history</h3><small id="stickyCompletedCount">0 completed</small></div><p>Completed entries are permanently stored separately from Experiences.</p><div class="sticky-diary-list" id="stickyDiaryList"></div></section>
+  </aside>
+  <div class="floating-sticky-layer hidden" id="floatingStickyLayer" aria-live="polite"></div>
+
   <div class="modal hidden" id="modal" role="presentation"><section role="dialog" aria-modal="true" aria-labelledby="modalTitle"><header><div><span class="kicker">MYTRIP</span><h2 id="modalTitle">Add</h2></div><button id="closeModal" aria-label="Close">×</button></header><div id="modalBody"></div></section></div>
   <div class="toast hidden" id="toast" role="status"></div>
   <section class="print-area" id="printArea"></section>
 
-  <script src="config.js?v=4.7.0"></script>
-  <script src="app.js?v=4.7.0"></script>
+  <script src="config.js?v=4.7.0-sticky3"></script>
+  <script src="app.js?v=4.7.0-sticky3"></script>
 </body>
 </html>

@@ -58,7 +58,15 @@
   };
 
   const state = { data: null, tab: "overview", pin: "", travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "Goa, India", currentUser: "Traveller", accessRole: "traveller", permissions: {} };
-  const labels = { overview: "Overview", itinerary: "Itinerary & Notes", places: "Places & Map", expenses: "Expenses", people: "Travellers", print: "Print & Export" };
+  const stickyStoragePrefix = "mytrip_trip_stickies_v1";
+  const stickyColours = ["yellow", "rose", "blue", "green", "violet"];
+  const idleLogoutMs = 5 * 60 * 1000;
+  let stickyNotes = [];
+  let idleTimer = 0;
+  let idleDeadline = 0;
+  let lastActivitySignal = 0;
+  let stickyMigrationRunning = false;
+  const labels = { overview: "Overview", itinerary: "Itinerary", experiences: "Experiences", places: "Places & Map", expenses: "Expenses", people: "Travellers", print: "Print & Export" };
   const demoTrips = [
     { tripId: "GOA26", name: "Goa Escape", destination: "Goa", startDate: "2026-11-19", endDate: "2026-11-23", budget: 85000, spent: 32450, travellerCount: 6, assignedTravellerCount: 3, assignedTravellerIds: ["ANITA-101", "ROHAN-202", "MEERA-303"], enabled: true, createdBy: "Sarada" },
     { tripId: "KER27", name: "Kerala Backwaters", destination: "Alappuzha", startDate: "2027-01-14", endDate: "2027-01-18", budget: 72000, spent: 8400, travellerCount: 4, assignedTravellerCount: 1, assignedTravellerIds: ["ANITA-101"], enabled: true, createdBy: "Sarada" },
@@ -101,7 +109,7 @@
 
   function backendUpgradeError(version) {
     const shownVersion = version ? `version ${version}` : "an old version";
-    const error = new Error(`Your Google backend is ${shownVersion}. Replace Code.gs with MyTrip version ${requiredBackendVersion}, run setupMyTrip(), then deploy a New version in Apps Script.`);
+    const error = new Error(`Your Google backend is ${shownVersion}, but the Sticky Note Diary capability is missing. Replace Code.gs with the MyTrip ${requiredBackendVersion} Sticky build, run setupMyTrip(), then deploy a New version in Apps Script.`);
     error.code = "BACKEND_UPGRADE_REQUIRED";
     return error;
   }
@@ -109,7 +117,7 @@
   async function verifyBackendVersion(url = apiUrl) {
     const info = await requestAt(url, "ping");
     backendVersion = String(info && info.version || "");
-    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion)) throw backendUpgradeError(backendVersion);
+    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true) throw backendUpgradeError(backendVersion);
     return info;
   }
 
@@ -132,8 +140,72 @@
     return requestAt(apiUrl, action, payload);
   }
 
+  function stopIdleTimer() {
+    clearTimeout(idleTimer);
+    idleTimer = 0;
+    idleDeadline = 0;
+  }
+
+  function performLogout(message = "Signed out. Login is required again.") {
+    stopIdleTimer();
+    state.data = null; state.pin = ""; state.travellerId = ""; state.loginMode = "trip";
+    state.demoMode = false; state.currentUser = "Traveller"; state.accessRole = "traveller"; state.permissions = {};
+    stickyNotes = [];
+    closeStickyPanel(); setStickyControlsVisible(false); closeModal();
+    $("#floatingStickyLayer").innerHTML = ""; $("#floatingStickyLayer").classList.add("hidden");
+    $("#dashboard").classList.add("hidden"); $("#accessScreen").classList.remove("hidden");
+    $("#joinForm").reset();
+    try { history.replaceState({}, "", location.pathname); } catch {}
+    toast(message);
+  }
+
+  function checkIdleTimeout() {
+    if (!state.data || !idleDeadline) return;
+    const remaining = idleDeadline - Date.now();
+    if (remaining <= 0) return performLogout("Closed after 5 minutes of inactivity. Please log in again.");
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(checkIdleTimeout, Math.min(remaining, 30000));
+  }
+
+  function recordActivity() {
+    if (!state.data) return;
+    const now = Date.now();
+    if (now - lastActivitySignal < 900) return;
+    lastActivitySignal = now;
+    idleDeadline = now + idleLogoutMs;
+    checkIdleTimeout();
+  }
+
+  function startIdleTimer() {
+    stopIdleTimer();
+    lastActivitySignal = Date.now();
+    idleDeadline = lastActivitySignal + idleLogoutMs;
+    checkIdleTimeout();
+  }
+
+  async function clearAppCacheAndReload() {
+    const button = $("#clearAppCache");
+    button.disabled = true; button.textContent = "Clearing…";
+    try {
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      }
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+      }
+      try { sessionStorage.clear(); } catch {}
+      const separator = location.pathname.includes("?") ? "&" : "?";
+      location.replace(`${location.pathname}${separator}refresh=${Date.now()}`);
+    } catch (error) {
+      button.disabled = false; button.textContent = "↻ Clear cache & reload";
+      toast("Cache could not be cleared automatically. Use a browser hard refresh.", true);
+    }
+  }
+
   function normalize(data) {
-    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: data.itinerary || [], experiences: data.experiences || [], expenses: (data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
+    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: data.itinerary || [], experiences: data.experiences || [], stickyDiary: data.stickyDiary || [], expenses: (data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
   }
 
   function isAdmin() { return state.accessRole === "administrator"; }
@@ -143,6 +215,7 @@
   function canViewExpenses() { return isAdmin() || state.permissions.viewExpenses !== false; }
   function canViewTravellers() { return isAdmin() || state.permissions.viewTravellers !== false; }
   function canPrintReports() { return isAdmin() || state.permissions.printReports !== false; }
+  function canWriteStickyNotes() { return isAdmin() || state.permissions.writeStickyNotes === true; }
   function canAdd(type) {
     const allowed = { plan: canViewItinerary(), experience: canViewExperiences(), place: canViewPlaces(), expense: canViewExpenses(), travellers: isAdmin(), member: isAdmin() };
     return allowed[type] !== false && (isAdmin() || state.permissions[`add${type[0].toUpperCase()}${type.slice(1)}`] !== false);
@@ -154,7 +227,10 @@
   }
   function authPayload(payload = {}) { return { tripId: state.data.trip.tripId, pin: state.pin, ...(state.travellerId ? { travellerId: state.travellerId } : {}), ...payload }; }
   function visibleTripMembers() { return state.data ? state.data.members : []; }
-  function assignmentAllows(assignment, field) { return !assignment || String(assignment[field]).toUpperCase() !== "FALSE"; }
+  function assignmentAllows(assignment, field) {
+    if (field === "canWriteStickyNotes") return Boolean(assignment) && String(assignment[field]).toUpperCase() === "TRUE";
+    return !assignment || String(assignment[field]).toUpperCase() !== "FALSE";
+  }
   function assignmentForTraveller(travellerId) { return (state.data.assignments || []).find((item) => String(item.travellerId || "").toUpperCase() === String(travellerId || "").toUpperCase()); }
   function tripPhotoUrl(value) {
     const url = String(value || "").trim();
@@ -183,7 +259,9 @@
     state.travellerId = travellerId; state.loginMode = loginMode;
     state.permissions = data.permissions || {};
     $("#accessScreen").classList.add("hidden"); $("#dashboard").classList.remove("hidden");
+    loadStickyNotes(); setStickyControlsVisible(true); startIdleTimer();
     setTab("overview"); hydrateShell(); updatePrintArea();
+    migrateCompletedStickyNotes();
   }
 
   function hydrateShell() {
@@ -208,7 +286,8 @@
     $("#tripStatusButton").classList.toggle("hidden", !isAdmin());
     $("#deleteTripButton").classList.toggle("hidden", !isAdmin());
     const tabAccess = {
-      itinerary: canViewItinerary() || canViewExperiences(),
+      itinerary: canViewItinerary(),
+      experiences: canViewExperiences(),
       places: canViewPlaces(),
       expenses: canViewExpenses(),
       people: canViewTravellers(),
@@ -224,7 +303,7 @@
   }
 
   function setTab(tab) {
-    const allowed = { itinerary: canViewItinerary() || canViewExperiences(), places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() };
+    const allowed = { itinerary: canViewItinerary(), experiences: canViewExperiences(), places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() };
     if (allowed[tab] === false) return toast("This feature is hidden for your Traveller ID by the Administrator", true);
     state.tab = tab; $("#crumbLabel").textContent = labels[tab];
     $$('[data-tab]').forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
@@ -260,11 +339,14 @@
 
   function renderItinerary() {
     const items = [...state.data.itinerary].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+    return `${heading("DAY BY DAY", "Trip itinerary", "Plan each day and keep the group organised.", "plan")}<div class="filter-row"><button class="active">All days</button>${[...new Set(items.map((item) => item.date))].map((date) => `<button>${displayDate(date, { weekday: "short", day: "numeric" })}</button>`).join("")}</div><div class="plan-list">${items.map((item) => `<article class="plan-item"><span class="date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b></span><time>${displayTime(item.time)}</time><div><h3>${esc(item.title)}</h3><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">⌖ ${esc(item.place)}</a><p>${esc(item.notes || "")}</p></div><span class="record-actions">${canEditRecords("Itinerary") ? `<button class="edit-control" data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control" data-delete data-sheet="Itinerary" data-id="${esc(item.id)}">Delete</button>` : ""}</span></article>`).join("") || `<div class="empty-trip-members"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}</div>`;
+  }
+
+  function renderExperiences() {
+    if (!canViewExperiences()) return `<section class="feature-locked"><i>✍</i><h2>Experiences hidden</h2><p>The Administrator has not enabled this feature for your Traveller ID.</p></section>`;
     const experiences = [...state.data.experiences].sort((a, b) => `${a.date}${a.createdAt || ""}`.localeCompare(`${b.date}${b.createdAt || ""}`));
-    const experienceCards = experiences.map((item) => `<article class="experience-card"><div class="experience-date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b><span>${displayDate(item.date, { month: "short" })}</span></div><div class="experience-copy"><span class="experience-place">${item.place ? `⌖ ${esc(item.place)}` : "TRIP MEMORY"}</span><p>${esc(item.note)}</p><strong>✍ Written by ${esc(item.writer || "Trip member")}</strong></div><span class="record-actions">${canEditRecords("ExperienceNotes") ? `<button class="edit-control" data-edit data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control" data-delete data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Delete</button>` : ""}</span></article>`).join("");
-    const planSection = canViewItinerary() ? `${heading("DAY BY DAY", "Trip itinerary", "Plan each day and keep the group organised.", "plan")}<div class="filter-row"><button class="active">All days</button>${[...new Set(items.map((item) => item.date))].map((date) => `<button>${displayDate(date, { weekday: "short", day: "numeric" })}</button>`).join("")}</div><div class="plan-list">${items.map((item) => `<article class="plan-item"><span class="date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b></span><time>${displayTime(item.time)}</time><div><h3>${esc(item.title)}</h3><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">⌖ ${esc(item.place)}</a><p>${esc(item.notes || "")}</p></div><span class="record-actions">${canEditRecords("Itinerary") ? `<button class="edit-control" data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control" data-delete data-sheet="Itinerary" data-id="${esc(item.id)}">Delete</button>` : ""}</span></article>`).join("") || `<div class="empty-trip-members"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}</div>` : "";
-    const experienceSection = canViewExperiences() ? `<section class="experience-section"><div class="experience-heading"><div><span class="kicker">TRAVEL JOURNAL</span><h2>Trip experience notes</h2><p>Write what happened, where it happened and who wrote it.</p></div><button class="primary" data-add="experience">＋ Add experience note</button></div><div class="experience-list">${experienceCards || `<div class="empty-experiences"><b>No experience notes yet</b><p>During the visit, admin or travellers can add a memory here with the writer’s name.</p></div>`}</div></section>` : "";
-    return planSection + experienceSection;
+    const experienceCards = experiences.map((item, index) => `<article class="experience-card colour-${index % 5}"><div class="experience-date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b><span>${displayDate(item.date, { month: "short" })}</span></div><div class="experience-copy"><span class="experience-place">${item.place ? `⌖ ${esc(item.place)}` : "TRIP MEMORY"}</span><p>${esc(item.note)}</p><strong>✍ Written by ${esc(item.writer || "Trip member")}</strong></div><span class="record-actions">${canEditRecords("ExperienceNotes") ? `<button class="edit-control" data-edit data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control" data-delete data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Delete</button>` : ""}</span></article>`).join("");
+    return `<section class="experience-section experience-page"><div class="experience-hero"><div><span class="kicker">COLOURFUL TRAVEL JOURNAL</span><h2>Experiences worth remembering</h2><p>Keep every place, feeling and story together in a separate journal.</p></div>${canAdd("experience") ? `<button class="primary" data-add="experience">＋ Add experience</button>` : ""}</div><div class="experience-summary"><article><i>✍</i><div><small>MEMORIES</small><b>${experiences.length}</b></div></article><article><i>⌖</i><div><small>PLACES</small><b>${new Set(experiences.map((item) => item.place).filter(Boolean)).size}</b></div></article><article><i>☀</i><div><small>WRITERS</small><b>${new Set(experiences.map((item) => item.writer).filter(Boolean)).size}</b></div></article></div><div class="experience-list">${experienceCards || `<div class="empty-experiences"><b>No experience notes yet</b><p>Add the first colourful memory from this trip.</p></div>`}</div></section>`;
   }
 
   function renderPlaces() {
@@ -287,11 +369,11 @@
     if (!canViewTravellers()) return `<section class="feature-locked"><i>♙</i><h2>Traveller list hidden</h2><p>The Administrator has not enabled this feature for your Traveller ID.</p></section>`;
     const members = visibleTripMembers();
     const totals = Object.fromEntries(members.map((member) => [member.name, state.data.expenses.filter((expense) => expense.paidBy === member.name).reduce((sum, expense) => sum + Number(expense.amount), 0)]));
-    const accessFields = ["canViewItinerary", "canViewExperiences", "canViewPlaces", "canViewExpenses", "canViewTravellers", "canPrint"];
+    const accessFields = ["canViewItinerary", "canViewExperiences", "canViewPlaces", "canViewExpenses", "canViewTravellers", "canPrint", "canWriteStickyNotes"];
     const cards = members.map((member) => {
       const assignment = member.travellerId ? assignmentForTraveller(member.travellerId) : null;
       const enabledFeatures = accessFields.filter((field) => assignmentAllows(assignment, field)).length;
-      const accessBadge = isAdmin() && member.travellerId ? `<div class="feature-access-badge"><b>${enabledFeatures}/6 FEATURES VISIBLE</b><button data-feature-access="${esc(member.id)}">Control access</button></div>` : "";
+      const accessBadge = isAdmin() && member.travellerId ? `<div class="feature-access-badge"><b>${enabledFeatures}/7 ACCESS OPTIONS</b><button data-feature-access="${esc(member.id)}">Control access</button></div>` : "";
       const paidTotal = canViewExpenses() ? `<span><small>PAID FOR TRIP</small><b>${money.format(totals[member.name] || 0)}</b></span>` : `<span><small>TRIP ACCESS</small><b>${esc(member.role)}</b></span>`;
       return `<article class="person ${member.travellerId ? "personal-access" : "shared-only"}"><i>${esc(initials(member.name))}</i><div><h3>${esc(member.name)}</h3><p>${member.travellerId ? `Traveller ID · ${esc(member.travellerId)}` : (member.role === "Organiser" ? "Trip organiser" : "Trip member without personal PIN")}</p></div><span>${esc(member.role)}</span><div class="person-access-badge ${member.travellerId ? "enabled" : "pending"}">${isAdmin() ? (member.travellerId ? "ENABLED FOR THIS TRIP" : (member.role === "Organiser" ? "ADMIN" : "PIN REQUIRED")) : (member.travellerId ? "TRAVELLER PROFILE" : (member.role === "Organiser" ? "ORGANISER" : "TRIP MEMBER"))}</div>${accessBadge}<footer>${paidTotal}<span class="person-footer-actions">${isAdmin() && member.travellerId ? `<button class="pin-reset-control" data-reset-member-pin="${esc(member.id)}" aria-label="Edit PIN for ${esc(member.name)}">✎ Edit PIN</button>` : ""}${isAdmin() && !member.travellerId && member.role !== "Organiser" ? `<button class="pin-reset-control" data-give-pin="${esc(member.id)}" aria-label="Create PIN for ${esc(member.name)}">＋ Create PIN</button>` : ""}${isAdmin() && member.role !== "Organiser" ? `<button class="delete-control trip-disable-control" data-remove-trip-member="${esc(member.id)}">Remove from trip</button>` : ""}</span></footer></article>`;
     }).join("");
@@ -307,7 +389,7 @@
 
   function render() {
     if (!state.data) return;
-    const renderers = { overview: renderOverview, itinerary: renderItinerary, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint };
+    const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint };
     $("#view").innerHTML = accessNotice() + renderers[state.tab](); bindViewActions();
   }
 
@@ -337,6 +419,226 @@
   function closeModal() { $("#modal").classList.add("hidden"); $("#modalBody").innerHTML = ""; }
   const actions = `<div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save for everyone</button></div>`;
 
+  function stickyStorageKey() {
+    const tripId = state.data && state.data.trip ? String(state.data.trip.tripId || "TRIP") : "TRIP";
+    return `${stickyStoragePrefix}:${tripId}`;
+  }
+
+  function normaliseSticky(note, index) {
+    const value = note || {};
+    return {
+      id: String(value.id || uid()),
+      type: value.type === "Reminder" ? "Reminder" : "Target",
+      title: String(value.title || "Untitled note").slice(0, 120),
+      body: String(value.body || value.details || "").slice(0, 2000),
+      dueDate: /^\d{4}-\d{2}-\d{2}$/.test(String(value.dueDate || "")) ? String(value.dueDate) : "",
+      colour: stickyColours.includes(value.colour) ? value.colour : stickyColours[index % stickyColours.length],
+      pinned: Boolean(value.pinned),
+      completed: Boolean(value.completed),
+      x: Number.isFinite(Number(value.x)) ? Number(value.x) : Math.max(270, innerWidth - 390 - index * 22),
+      y: Number.isFinite(Number(value.y)) ? Number(value.y) : 118 + index * 28,
+      width: Math.min(520, Math.max(260, Number(value.width) || 330)),
+      height: Math.min(620, Math.max(190, Number(value.height) || 260)),
+      createdAt: String(value.createdAt || new Date().toISOString()),
+      completedAt: String(value.completedAt || ""),
+      completedBy: String(value.completedBy || "")
+    };
+  }
+
+  function loadStickyNotes() {
+    let parsed = [];
+    try { parsed = JSON.parse(localStorage.getItem(stickyStorageKey()) || "[]"); } catch { parsed = []; }
+    stickyNotes = Array.isArray(parsed) ? parsed.map(normaliseSticky) : [];
+    renderStickyNotes();
+  }
+
+  function saveStickyNotes() {
+    try { localStorage.setItem(stickyStorageKey(), JSON.stringify(stickyNotes)); }
+    catch { toast("This browser could not save sticky notes", true); }
+  }
+
+  function setStickyControlsVisible(visible) {
+    $("#stickyEdgeTab").classList.toggle("hidden", !visible);
+    if (!visible) closeStickyPanel();
+    renderStickyNotes();
+  }
+
+  function openStickyPanel() {
+    const panel = $("#stickyPanel");
+    clearTimeout(openStickyPanel.hideTimer);
+    panel.classList.remove("hidden");
+    $("#stickyPanelBackdrop").classList.remove("hidden");
+    requestAnimationFrame(() => panel.classList.add("open"));
+    panel.setAttribute("aria-hidden", "false");
+    $("#stickyEdgeTab").setAttribute("aria-expanded", "true");
+  }
+
+  function closeStickyPanel() {
+    const panel = $("#stickyPanel");
+    if (!panel) return;
+    panel.classList.remove("open");
+    panel.setAttribute("aria-hidden", "true");
+    $("#stickyPanelBackdrop").classList.add("hidden");
+    $("#stickyEdgeTab").setAttribute("aria-expanded", "false");
+    clearTimeout(openStickyPanel.hideTimer);
+    openStickyPanel.hideTimer = setTimeout(() => { if (!panel.classList.contains("open")) panel.classList.add("hidden"); }, 260);
+  }
+
+  function stickyDueText(note) {
+    if (!note.dueDate) return "No due date";
+    const today = new Date().toISOString().slice(0, 10);
+    const prefix = note.dueDate < today && !note.completed ? "Overdue · " : "Due · ";
+    return prefix + displayDate(note.dueDate, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function stickyPanelCard(note) {
+    const controls = canWriteStickyNotes() ? `<footer><button data-sticky-pin="${esc(note.id)}">📌 ${note.pinned ? "Unpin" : "Pin"}</button><button class="complete" data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button class="delete" data-sticky-delete="${esc(note.id)}">Delete</button></footer>` : `<span class="sticky-readonly">VIEW ONLY · Writing disabled by Administrator</span>`;
+    return `<article class="sticky-card colour-${esc(note.colour)}"><header><span>${esc(note.type)}</span><small>${esc(stickyDueText(note))}</small></header><h4>${esc(note.title)}</h4><p>${esc(note.body || "No additional details")}</p>${controls}</article>`;
+  }
+
+  function stickyDiaryCard(note) {
+    const completedOn = note.completedAt ? new Date(note.completedAt).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "Completed";
+    const byline = note.completedBy ? ` · ${esc(note.completedBy)}` : "";
+    const controls = isAdmin() ? `<footer><button data-sticky-diary-reopen="${esc(note.id)}">Reopen</button><button data-sticky-diary-delete="${esc(note.id)}">Delete</button></footer>` : "";
+    return `<article class="sticky-diary-card colour-${esc(note.colour)}"><small>✓ COMPLETED · ${esc(completedOn)}${byline}</small><span>${esc(note.type)} · ${esc(stickyDueText(note))}</span><b>${esc(note.title)}</b><p>${esc(note.body || note.details || "No additional details")}</p>${controls}</article>`;
+  }
+
+  function floatingStickyCard(note) {
+    const safeWidth = Math.min(note.width, Math.max(260, innerWidth - 8));
+    const safeX = Math.max(4, Math.min(innerWidth - safeWidth - 4, note.x));
+    const safeY = Math.max(76, Math.min(innerHeight - 120, note.y));
+    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(note.height)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>↕ Move note</span><button data-sticky-pin="${esc(note.id)}" title="Unpin and return to panel">×</button></header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3>${esc(note.title)}</h3><p>${esc(note.body || "No additional details")}</p></div><footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer></article>`;
+  }
+
+  function renderStickyNotes() {
+    if (!$("#stickyActiveList")) return;
+    const active = stickyNotes.filter((note) => !note.completed);
+    const remoteCompleted = state.data ? (state.data.stickyDiary || []).map((note, index) => normaliseSticky({ ...note, body: note.details, completed: true }, index)) : [];
+    const remoteIds = new Set(remoteCompleted.map((note) => String(note.id)));
+    const legacyCompleted = stickyNotes.filter((note) => note.completed && !remoteIds.has(String(note.id)));
+    const completed = [...remoteCompleted, ...legacyCompleted].sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)));
+    $("#stickyEdgeCount").textContent = active.length;
+    $("#stickyActiveCount").textContent = `${active.length} active`;
+    $("#stickyCompletedCount").textContent = `${completed.length} completed`;
+    $("#addStickyNote").classList.toggle("hidden", !canWriteStickyNotes());
+    $(".sticky-device-note").innerHTML = canWriteStickyNotes() ? `Active notes stay on this device. Completed notes are saved in the trip’s <b>StickyNoteDiary</b> Google Sheet.` : `View-only access. The Administrator controls who can write sticky notes. Completed history comes from the <b>StickyNoteDiary</b> Google Sheet.`;
+    $("#stickyActiveList").innerHTML = active.map(stickyPanelCard).join("") || `<div class="sticky-empty"><b>No active sticky notes</b><p>${canWriteStickyNotes() ? "Add a target or reminder whenever something needs attention." : "The Administrator has not added an active note on this device."}</p></div>`;
+    $("#stickyDiaryList").innerHTML = completed.map(stickyDiaryCard).join("") || `<div class="sticky-empty compact"><b>No completed notes yet</b></div>`;
+    const pinned = canWriteStickyNotes() ? active.filter((note) => note.pinned) : [];
+    const layer = $("#floatingStickyLayer");
+    layer.classList.toggle("hidden", !state.data || !pinned.length);
+    layer.innerHTML = pinned.map(floatingStickyCard).join("");
+    bindStickyActions();
+  }
+
+  function updateSticky(id, changes) {
+    if (!canWriteStickyNotes()) return toast("Sticky-note writing is disabled by the Administrator", true);
+    const note = stickyNotes.find((item) => item.id === id);
+    if (!note) return;
+    Object.assign(note, changes); saveStickyNotes(); renderStickyNotes();
+  }
+
+  function showStickyEditor(note) {
+    if (!canWriteStickyNotes()) return toast("Sticky-note writing is disabled by the Administrator", true);
+    const editing = Boolean(note);
+    const current = note || normaliseSticky({ colour: stickyColours[stickyNotes.length % stickyColours.length] }, stickyNotes.length);
+    showModal(editing ? "Edit sticky note" : "Add sticky note", `<form class="modal-form sticky-editor-form" id="stickyEditorForm"><div class="sticky-editor-preview colour-${esc(current.colour)}"><i>✦</i><div><b>${editing ? "UPDATE THIS NOTE" : "NEW TRIP STICKY"}</b><span>Colourful target or reminder</span></div></div><div class="form-row"><label>Note type<select name="type"><option ${current.type === "Target" ? "selected" : ""}>Target</option><option ${current.type === "Reminder" ? "selected" : ""}>Reminder</option></select></label><label>Due date <small>(optional)</small><input name="dueDate" type="date" value="${esc(current.dueDate)}"></label></div><label>Title<input name="title" maxlength="120" value="${editing ? esc(current.title) : ""}" placeholder="What needs attention?" required></label><label>Details<textarea name="body" rows="5" maxlength="2000" placeholder="Use multiple lines for tasks, ideas or preparation notes.">${editing ? esc(current.body) : ""}</textarea></label><label>Sticky colour<select name="colour">${stickyColours.map((colour) => `<option value="${colour}" ${current.colour === colour ? "selected" : ""}>${colour[0].toUpperCase() + colour.slice(1)}</option>`).join("")}</select></label><label class="sticky-pin-choice"><input name="pinned" type="checkbox" ${current.pinned ? "checked" : ""}><span><b>Pin above dashboard</b><small>You can drag and resize it after saving.</small></span></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">${editing ? "Save changes" : "Add sticky"}</button></div></form>`);
+    const form = $("#stickyEditorForm");
+    const colourInput = form.elements.colour;
+    colourInput.addEventListener("change", () => { const preview = $(".sticky-editor-preview", form); stickyColours.forEach((colour) => preview.classList.remove(`colour-${colour}`)); preview.classList.add(`colour-${colourInput.value}`); });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const values = Object.fromEntries(new FormData(form).entries());
+      const changes = { type: values.type, dueDate: values.dueDate || "", title: values.title, body: values.body || "", colour: values.colour, pinned: Boolean(values.pinned) };
+      if (editing) Object.assign(note, changes);
+      else stickyNotes.push(normaliseSticky({ ...current, ...changes }, stickyNotes.length));
+      saveStickyNotes(); closeModal(); renderStickyNotes(); toast(editing ? "Sticky note updated" : "Sticky note added");
+    });
+    $("[data-cancel]").addEventListener("click", closeModal);
+  }
+
+  async function archiveStickyRecord(note, silent = false) {
+    if (!note || !canWriteStickyNotes()) {
+      if (!silent) toast("Sticky-note writing is disabled by the Administrator", true);
+      return false;
+    }
+    const alreadySaved = (state.data.stickyDiary || []).find((item) => String(item.id) === String(note.id));
+    try {
+      const record = { id: note.id, type: note.type, title: note.title, details: note.body, dueDate: note.dueDate, colour: note.colour, createdAt: note.createdAt, completedBy: state.currentUser };
+      const saved = alreadySaved || (state.demoMode ? { ...record, tripId: state.data.trip.tripId, completedAt: new Date().toISOString() } : await api("archiveStickyNote", authPayload({ record })));
+      if (!alreadySaved) state.data.stickyDiary.push(saved);
+      stickyNotes = stickyNotes.filter((item) => String(item.id) !== String(note.id));
+      saveStickyNotes(); renderStickyNotes();
+      if (!silent) toast("Completed note saved in the StickyNoteDiary Google Sheet");
+      return true;
+    } catch (error) {
+      if (!silent) toast(error.message, true);
+      return false;
+    }
+  }
+
+  async function completeStickyNote(id) {
+    const note = stickyNotes.find((item) => String(item.id) === String(id));
+    await archiveStickyRecord(note);
+  }
+
+  async function migrateCompletedStickyNotes() {
+    if (stickyMigrationRunning || !state.data || !canWriteStickyNotes()) return;
+    const legacy = stickyNotes.filter((note) => note.completed);
+    if (!legacy.length) return;
+    stickyMigrationRunning = true;
+    let migrated = 0;
+    for (const note of legacy) if (await archiveStickyRecord(note, true)) migrated++;
+    stickyMigrationRunning = false;
+    if (migrated) toast(`${migrated} completed sticky ${migrated === 1 ? "entry" : "entries"} moved to Google Sheet`);
+  }
+
+  async function reopenStickyDiary(id) {
+    if (!isAdmin()) return toast("Only the Administrator can reopen completed sticky notes", true);
+    const note = (state.data.stickyDiary || []).find((item) => String(item.id) === String(id));
+    if (!note) return toast("Completed sticky note not found", true);
+    try {
+      if (!state.demoMode) await api("deleteRecord", authPayload({ sheet: "StickyNoteDiary", id }));
+      state.data.stickyDiary = state.data.stickyDiary.filter((item) => String(item.id) !== String(id));
+      stickyNotes.push(normaliseSticky({ ...note, body: note.details, completed: false, completedAt: "", pinned: false }, stickyNotes.length));
+      saveStickyNotes(); renderStickyNotes(); toast("Sticky note reopened on this device");
+    } catch (error) { toast(error.message, true); }
+  }
+
+  async function deleteStickyDiary(id) {
+    if (!isAdmin()) return toast("Only the Administrator can delete completed sticky notes", true);
+    const note = (state.data.stickyDiary || []).find((item) => String(item.id) === String(id));
+    if (!note || !confirm(`Delete completed sticky note “${note.title}” from Google Sheet?`)) return;
+    try {
+      if (!state.demoMode) await api("deleteRecord", authPayload({ sheet: "StickyNoteDiary", id }));
+      state.data.stickyDiary = state.data.stickyDiary.filter((item) => String(item.id) !== String(id));
+      renderStickyNotes(); toast("Completed sticky note deleted from Google Sheet");
+    } catch (error) { toast(error.message, true); }
+  }
+
+  function bindStickyActions() {
+    $$('[data-sticky-pin]').forEach((button) => button.addEventListener("click", (event) => { event.stopPropagation(); const note = stickyNotes.find((item) => item.id === button.dataset.stickyPin); if (note) updateSticky(note.id, { pinned: !note.pinned }); }));
+    $$('[data-sticky-complete]').forEach((button) => button.addEventListener("click", () => completeStickyNote(button.dataset.stickyComplete)));
+    $$('[data-sticky-diary-reopen]').forEach((button) => button.addEventListener("click", () => reopenStickyDiary(button.dataset.stickyDiaryReopen)));
+    $$('[data-sticky-diary-delete]').forEach((button) => button.addEventListener("click", () => deleteStickyDiary(button.dataset.stickyDiaryDelete)));
+    $$('[data-sticky-edit]').forEach((button) => button.addEventListener("click", () => showStickyEditor(stickyNotes.find((item) => item.id === button.dataset.stickyEdit))));
+    $$('[data-sticky-delete]').forEach((button) => button.addEventListener("click", () => { const note = stickyNotes.find((item) => item.id === button.dataset.stickyDelete); if (note && confirm(`Delete sticky note “${note.title}”?`)) { stickyNotes = stickyNotes.filter((item) => item.id !== note.id); saveStickyNotes(); renderStickyNotes(); toast("Sticky note deleted"); } }));
+    $$('[data-sticky-autofit]').forEach((button) => button.addEventListener("click", () => { const note = stickyNotes.find((item) => item.id === button.dataset.stickyAutofit), element = $(`[data-floating-sticky="${button.dataset.stickyAutofit}"]`); if (!note || !element) return; element.style.height = "auto"; element.style.width = `${Math.min(430, Math.max(290, element.scrollWidth + 8))}px`; element.style.height = `${Math.min(520, Math.max(190, element.scrollHeight + 8))}px`; const box = element.getBoundingClientRect(); updateSticky(note.id, { width: box.width, height: box.height }); }));
+    $$('[data-sticky-drag]').forEach((handle) => {
+      handle.addEventListener("pointerdown", (event) => {
+        if (event.target.closest("button")) return;
+        const note = stickyNotes.find((item) => item.id === handle.dataset.stickyDrag), element = handle.closest(".floating-sticky");
+        if (!note || !element) return;
+        event.preventDefault(); handle.setPointerCapture(event.pointerId);
+        const rect = element.getBoundingClientRect(), offsetX = event.clientX - rect.left, offsetY = event.clientY - rect.top;
+        const move = (moveEvent) => { const x = Math.max(4, Math.min(innerWidth - element.offsetWidth - 4, moveEvent.clientX - offsetX)); const y = Math.max(76, Math.min(innerHeight - 70, moveEvent.clientY - offsetY)); element.style.left = `${x}px`; element.style.top = `${y}px`; note.x = x; note.y = y; };
+        const finish = () => { handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", finish); handle.removeEventListener("pointercancel", finish); saveStickyNotes(); };
+        handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", finish); handle.addEventListener("pointercancel", finish);
+      });
+    });
+    $$('.floating-sticky').forEach((element) => element.addEventListener("pointerup", () => { const note = stickyNotes.find((item) => item.id === element.dataset.floatingSticky); if (!note) return; const box = element.getBoundingClientRect(); note.width = box.width; note.height = box.height; saveStickyNotes(); }));
+  }
+
   function updateVersionLabels() {
     const backendLabel = backendVersion ? `v${backendVersion}` : (backendState === "checking" ? "Checking…" : "Not connected");
     if ($("#loginFrontendVersion")) $("#loginFrontendVersion").textContent = `v${frontendVersion}`;
@@ -362,7 +664,7 @@
   }
 
   function showBackendSetup(afterConnect) {
-    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend version 4.6 required</b><p>Replace your Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. Version 4.6 adds complete per-traveller feature access and Google Drive trip-photo uploads.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. The connection and backend version are checked before they are saved.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test version 4.6 & connect</button></div></form>`);
+    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v4.6.0 Sticky build required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This creates the <code>StickyNoteDiary</code> Google Sheet and adds Administrator-controlled sticky writing access.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. The connection, version and Sticky Note Diary capability are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test v4.6.0 Sticky build</button></div></form>`);
     const form = $("#backendForm");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -467,8 +769,8 @@
       const details = [];
       if (permissions.viewTravellers !== false && typeof trip.travellerCount !== "undefined") details.push(`${Number(trip.travellerCount || 0)} travellers`);
       if (permissions.viewExpenses !== false && typeof trip.spent !== "undefined") details.push(`${money.format(Number(trip.spent || 0))} spent`);
-      const featureCount = ["viewItinerary", "viewExperiences", "viewPlaces", "viewExpenses", "viewTravellers", "printReports"].filter((key) => permissions[key] !== false).length;
-      details.push(`${featureCount}/6 features available`);
+      const featureCount = ["viewItinerary", "viewExperiences", "viewPlaces", "viewExpenses", "viewTravellers", "printReports", "writeStickyNotes"].filter((key) => permissions[key] === true || (key !== "writeStickyNotes" && permissions[key] !== false)).length;
+      details.push(`${featureCount}/7 access options available`);
       return `<article class="trip-library-card"><i>♙</i><div><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>${details.join(" · ")}</small></div><button data-open-my-trip="${esc(trip.tripId)}" type="button">Open →</button></article>`;
     }).join("");
     showModal("Traveller profile · My trips", `<div class="all-trips-modal"><div class="self-profile-card"><i>${esc(initials(traveller.name))}</i><div><span>TRAVELLER ID · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b>${trips.length} ${trips.length === 1 ? "ALLOWED TRIP" : "ALLOWED TRIPS"}</b></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this personal PIN</h3></div></div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>Ask the administrator to assign trips to Traveller ID ${esc(traveller.travellerId)}.</p></div>`}</div><p class="global-access-note">♙ This permanent profile automatically shows every active trip assigned now or in the future.</p></div>`);
@@ -791,9 +1093,10 @@
       ["viewPlaces", "canViewPlaces", "Places & Map", "Saved places and Google Maps tools"],
       ["viewExpenses", "canViewExpenses", "Expenses", "Budget, payments and traveller totals"],
       ["viewTravellers", "canViewTravellers", "Traveller list", "Names, roles and Traveller IDs in this trip"],
-      ["printReports", "canPrint", "Print & Export", "Printable reports for other enabled sections"]
+      ["printReports", "canPrint", "Print & Export", "Printable reports for other enabled sections"],
+      ["writeStickyNotes", "canWriteStickyNotes", "Write sticky notes", "Add, edit and complete targets or reminders; completed entries save to Google Sheet"]
     ];
-    showModal("Control traveller access", `<form class="modal-form" id="featureAccessForm"><div class="profile-id-banner"><span>TRAVELLER ID</span><b>${esc(member.travellerId)}</b><small>${esc(member.name)}</small></div><div class="security-note"><i>◆</i><p>Choose exactly what this personal Traveller ID can see in <b>${esc(state.data.trip.name)}</b>. Hidden data is not sent by the backend. This does not change shared trip-PIN access.</p></div><div class="feature-access-list">${options.map(([permission, field, label, help]) => `<label class="feature-access-option"><input type="checkbox" name="${permission}" ${assignmentAllows(assignment, field) ? "checked" : ""}><span><b>${label}</b><small>${help}</small></span><em>ALLOW</em></label>`).join("")}</div><div class="feature-access-actions"><button type="button" id="allowAllFeatures">Allow all</button><button type="button" id="hideAllFeatures">Hide all</button></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save access</button></div></form>`);
+    showModal("Control traveller access", `<form class="modal-form" id="featureAccessForm"><div class="profile-id-banner"><span>TRAVELLER ID</span><b>${esc(member.travellerId)}</b><small>${esc(member.name)}</small></div><div class="security-note"><i>◆</i><p>Choose exactly what this personal Traveller ID can see or write in <b>${esc(state.data.trip.name)}</b>. Sticky writing is off until the Administrator enables it. Shared trip-PIN users remain view-only for sticky notes.</p></div><div class="feature-access-list">${options.map(([permission, field, label, help]) => `<label class="feature-access-option"><input type="checkbox" name="${permission}" ${assignmentAllows(assignment, field) ? "checked" : ""}><span><b>${label}</b><small>${help}</small></span><em>ALLOW</em></label>`).join("")}</div><div class="feature-access-actions"><button type="button" id="allowAllFeatures">Allow all</button><button type="button" id="hideAllFeatures">Hide all</button></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save access</button></div></form>`);
     const form = $("#featureAccessForm");
     $("#allowAllFeatures").addEventListener("click", () => $$('input[type="checkbox"]', form).forEach((input) => { input.checked = true; }));
     $("#hideAllFeatures").addEventListener("click", () => $$('input[type="checkbox"]', form).forEach((input) => { input.checked = false; }));
@@ -989,7 +1292,7 @@
 
   async function refreshTrip() {
     if (state.demoMode) return toast("Demo data is already up to date");
-    try { const data = await api("getTrip", authPayload()); state.data = normalize(data); state.accessRole = data.accessRole; state.permissions = data.permissions || {}; hydrateShell(); render(); updatePrintArea(); toast("Latest trip data loaded"); } catch (error) { toast(error.message, true); }
+    try { const data = await api("getTrip", authPayload()); state.data = normalize(data); state.accessRole = data.accessRole; state.permissions = data.permissions || {}; hydrateShell(); render(); renderStickyNotes(); updatePrintArea(); migrateCompletedStickyNotes(); toast("Latest trip data loaded"); } catch (error) { toast(error.message, true); }
   }
 
   function showCreateTrip() {
@@ -1008,7 +1311,7 @@
   }
 
   $("#joinForm").addEventListener("submit", (event) => { if (!apiUrlReady()) { event.preventDefault(); event.stopImmediatePropagation(); showBackendSetup(() => $("#joinForm").requestSubmit()); } }, true);
-  $("#joinForm").addEventListener("submit", async (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); try { const trip = await api("getTrip", { tripId: String(data.get("tripId")).trim().toUpperCase(), pin: String(data.get("pin")) }); await openTrip(trip, String(data.get("pin")), false, "", "", "", "trip"); } catch (error) { toast(error.message, true); } });
+  $("#joinForm").addEventListener("submit", async (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); try { await ensureCurrentBackend(); const trip = await api("getTrip", { tripId: String(data.get("tripId")).trim().toUpperCase(), pin: String(data.get("pin")) }); await openTrip(trip, String(data.get("pin")), false, "", "", "", "trip"); } catch (error) { toast(error.message, true); } });
   $("#adminDemoButton").addEventListener("click", () => openTrip(demo, "654321", true, "Sarada", "administrator"));
   $("#travellerDemoButton").addEventListener("click", () => openTrip(demo, "1234", true, "Anita", "traveller", "ANITA-101", "personal"));
   $("#showAllTripsButton").addEventListener("click", showAllTrips);
@@ -1020,8 +1323,18 @@
   });
   $("#closeModal").addEventListener("click", closeModal); $("#modal").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeModal(); });
   $("#mainNav").addEventListener("click", (event) => { const button = event.target.closest("[data-tab]"); if (button) setTab(button.dataset.tab); });
-  $("#inviteButton").addEventListener("click", showInvite); $("#allTripsButton").addEventListener("click", () => isAdmin() ? showAllTrips() : showMyTrips()); $("#connectBackendButton").addEventListener("click", () => showBackendSetup()); $("#editTripButton").addEventListener("click", showEditTrip); $("#tripPhotoButton").addEventListener("click", showTripPhotoSettings); $("#tripStatusButton").addEventListener("click", toggleCurrentTripStatus); $("#deleteTripButton").addEventListener("click", () => showDeleteTripConfirmation(state.data.trip.tripId)); $("#syncButton").addEventListener("click", refreshTrip); $("#leaveTrip").addEventListener("click", () => location.reload());
+  $("#stickyEdgeTab").addEventListener("click", openStickyPanel);
+  $("#closeStickyPanel").addEventListener("click", closeStickyPanel);
+  $("#stickyPanelBackdrop").addEventListener("click", closeStickyPanel);
+  $("#addStickyNote").addEventListener("click", () => showStickyEditor());
+  $("#clearAppCache").addEventListener("click", clearAppCacheAndReload);
+  $("#inviteButton").addEventListener("click", showInvite); $("#allTripsButton").addEventListener("click", () => isAdmin() ? showAllTrips() : showMyTrips()); $("#connectBackendButton").addEventListener("click", () => showBackendSetup()); $("#editTripButton").addEventListener("click", showEditTrip); $("#tripPhotoButton").addEventListener("click", showTripPhotoSettings); $("#tripStatusButton").addEventListener("click", toggleCurrentTripStatus); $("#deleteTripButton").addEventListener("click", () => showDeleteTripConfirmation(state.data.trip.tripId)); $("#syncButton").addEventListener("click", refreshTrip); $("#leaveTrip").addEventListener("click", () => performLogout());
   $$('[data-add]').forEach((button) => button.addEventListener("click", () => showAddModal(button.dataset.add)));
+
+  ["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) => addEventListener(eventName, recordActivity, { passive: true }));
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkIdleTimeout(); });
+  addEventListener("pagehide", () => { state.pin = ""; stopIdleTimer(); });
+  addEventListener("pageshow", (event) => { if (event.persisted && state.data) performLogout("Page restored securely. Please log in again."); });
 
   const inviteQuery = new URLSearchParams(location.search);
   const invitedApi = inviteQuery.get("api");
