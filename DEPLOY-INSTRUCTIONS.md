@@ -13,7 +13,11 @@ Existing trips, travellers, assignments, plans, places, expenses, experiences an
 - After login, the account dashboard lists every active trip available to that account.
 - Optional shared one-trip access remains collapsed below the common account form.
 - Frontend and backend versions are shown on the login page, account dashboard and trip dashboard.
-- **Sign out** is at the top left on desktop, in the mobile top bar, and in the account dashboard header.
+- The redundant **Google backend connected** sentence has been removed; the separate **FRONTEND** and **BACKEND** version badges are the authoritative status.
+- The password field has a **Show/Hide** control and a collapsible guide explaining which username and password to use.
+- **Save username and password on this device** is optional and should be selected only on a private phone or computer. Clear the checkbox to remove the saved login.
+- **Sign out** is prominently placed at the top right in the trip dashboard and account dashboard, including mobile.
+- The Administrator can change a traveller's username and password from **Traveller profiles → Open profile → Edit login**. Username changes move every trip assignment to the new login while preserving historical expenses and diary entries.
 - Five minutes without activity signs the user out. Closing or restoring the browser page also requires login again.
 
 ## Other included upgrades
@@ -38,7 +42,7 @@ The supplied backend must be deployed even if the live page already reports **Ba
 4. Choose **Deploy → Manage deployments → Edit**.
 5. Select **New version**, then click **Deploy**.
 6. Keep access as **Anyone** and keep the same `/exec` URL.
-7. Open `YOUR-EXEC-URL?action=ping` and confirm it contains `"version":"4.6.0"`, `"accountLogin":true`, and `"stickyNoteDiary":true`.
+7. Open `YOUR-EXEC-URL?action=ping` and confirm it contains `"version":"4.6.0"`, `"accountLogin":true`, `"stickyNoteDiary":true`, and `"travellerCredentialEdit":true`.
 
 ## Step 2 — Update GitHub Pages
 
@@ -50,13 +54,18 @@ Replace these repository-root files:
 
 Keep the existing `config.js` so the connected `/exec` URL is unchanged. Wait about two minutes, use **Clear cache & reload** on the login page, and reopen the site.
 
+Deploy the supplied `backend/Code.gs` for Administrator-controlled traveller username changes, even if the visible backend badge already says `4.6.0`. The visible version remains unchanged.
+
 ## Verification checklist
 
 1. Confirm one common Username + Password form appears with no role selector.
-2. Sign in as `administrator` using the existing Administrator password and confirm all trips appear.
-3. Sign in with a Traveller ID and its personal password and confirm only assigned trips appear.
-4. Confirm **Frontend v4.7.0 · Backend v4.6.0** appears inside the app.
-5. Open Expenses and test View, Row edit, Edit and Administrator Delete.
-6. Complete a sticky note and confirm a row appears in `StickyNoteDiary`.
-7. Confirm the colourful Experiences tab is separate from Itinerary.
-8. Leave the app idle for five minutes and confirm it returns to login.
+2. Confirm **Show/Hide**, optional device saving, and the username/password help panel work on the login page.
+3. Sign in as `administrator` using the existing Administrator password and confirm all trips appear.
+4. Sign in with a Traveller ID and its personal password and confirm only assigned trips appear.
+5. Confirm **Sign out** is the rightmost control in the top header on desktop and mobile.
+6. As Administrator, open a Traveller profile, select **Edit login**, and verify the new username/password works.
+7. Confirm **Frontend v4.7.0 · Backend v4.6.0** appears inside the app.
+8. Open Expenses and test View, Row edit, Edit and Administrator Delete.
+9. Complete a sticky note and confirm a row appears in `StickyNoteDiary`.
+10. Confirm the colourful Experiences tab is separate from Itinerary.
+11. Leave the app idle for five minutes and confirm it returns to login.

@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4.7.0-account1">
+  <link rel="stylesheet" href="styles.css?v=4.7.0-account3">
 </head>
 <body>
   <section class="access-screen" id="accessScreen">
@@ -25,15 +25,17 @@
         <p>One username and password opens every trip and feature permitted for your account.</p>
         <form id="accountLoginForm" class="account-login-form">
           <label>Username<input name="username" id="loginUsername" maxlength="40" autocomplete="username" placeholder="Enter your username" required></label>
-          <label>Password<input name="password" type="password" minlength="4" maxlength="64" autocomplete="current-password" placeholder="Enter your password" required></label>
+          <label>Password<span class="password-input-wrap"><input name="password" id="loginPassword" type="password" minlength="4" maxlength="64" autocomplete="current-password" placeholder="Enter your password" required><button id="toggleLoginPassword" type="button" aria-pressed="false">Show</button></span></label>
+          <div class="login-save-option"><label><input name="rememberLogin" id="rememberLogin" type="checkbox"><span>Save username and password on this device</span></label><small>Use only on your private phone or computer.</small></div>
           <button class="primary" type="submit">Sign in &amp; view my trips →</button>
         </form>
+        <details class="login-account-help"><summary>Where do I find my username and password?</summary><div><p><b>Existing Administrator:</b> username <code>administrator</code> and the same Administrator password/PIN already used.</p><p><b>Traveller:</b> the permanent Traveller ID is the username. Use the personal password created or reset by the Administrator.</p><p>Passwords cannot be displayed after creation. A forgotten traveller password must be reset by the Administrator.</p></div></details>
         <details class="shared-trip-login"><summary>Open one trip with shared access</summary><form id="joinForm"><label>Trip code<input name="tripId" id="joinTripId" placeholder="e.g. GOA26" autocomplete="off" required></label><label>Shared trip password<input name="pin" type="password" maxlength="64" placeholder="Enter the shared trip password" required></label><button class="secondary" type="submit">Open shared trip →</button></form></details>
         <button class="demo-button unified-demo" id="previewDemoButton" type="button">Preview dashboard demo</button>
         <button class="text-button" id="showCreateButton" type="button">＋ Create a new trip</button>
-        <div class="backend-status" id="backendStatus"><span><i></i><b>Google backend not connected</b></span><button id="connectBackendButton" type="button">Connect</button></div>
+        <button class="backend-settings-link" id="connectBackendButton" type="button">Backend settings</button>
         <button class="cache-clear-button" id="clearAppCache" type="button">↻ Clear cache &amp; reload</button>
-        <p class="cache-clear-note">Use this if an old dashboard remains visible. Your backend connection and sticky notes will be kept.</p>
+        <p class="cache-clear-note">Use this if an old dashboard remains visible. Your backend connection, saved login and sticky notes will be kept.</p>
         <div class="version-strip" aria-label="Application versions"><span>FRONTEND <b id="loginFrontendVersion">v4.7.0</b></span><span>BACKEND <b id="loginBackendVersion">Not connected</b></span></div>
         <p class="access-note">Your username opens one secure dashboard containing every trip and feature assigned to your account.</p>
       </div>
@@ -41,13 +43,12 @@
   </section>
 
   <section class="account-hub hidden" id="accountHub">
-    <header class="account-hub-topbar"><button class="account-signout" id="hubSignOut" type="button">↪ Sign out</button><a class="brand" href="#"><i>↗</i> mytrip</a><div><span id="hubAccountLabel">MY ACCOUNT</span><b id="hubVersion">Frontend v4.7.0 · Backend —</b></div></header>
+    <header class="account-hub-topbar"><a class="brand" href="#"><i>↗</i> mytrip</a><div><span id="hubAccountLabel">MY ACCOUNT</span><b id="hubVersion">Frontend v4.7.0 · Backend —</b></div><button class="account-signout" id="hubSignOut" type="button">↪ Sign out</button></header>
     <main id="accountHubContent"></main>
   </section>
 
   <section class="dashboard hidden" id="dashboard">
     <aside class="sidebar">
-      <button class="sidebar-signout" id="leaveTrip" type="button">↪ Sign out</button>
       <a class="brand" href="#"><i>↗</i> mytrip</a>
       <nav id="mainNav">
         <button data-tab="overview" class="active"><i>⌂</i><span>Overview</span></button>
@@ -64,7 +65,6 @@
 
     <main class="workspace">
       <header class="topbar">
-        <button class="mobile-top-signout" id="mobileSignOut" type="button" aria-label="Sign out">↪</button>
         <div class="mobile-brand"><i>↗</i><span>mytrip</span></div>
         <div class="top-trip-summary" aria-label="Current trip">
           <span class="trip-status" id="tripStatus">● ACTIVE</span>
@@ -82,6 +82,7 @@
             <summary aria-label="Manage trip">••• <span>Manage</span></summary>
             <div class="trip-tools-menu"><button class="secondary" id="editTripButton">✎ Edit trip</button><button class="secondary" id="tripPhotoButton">▣ Trip photo</button><button class="secondary status-control" id="tripStatusButton">Disable trip</button><button class="secondary" id="syncButton">↻ Refresh data</button><button class="danger-button" id="deleteTripButton">Delete trip</button></div>
           </details>
+          <button class="topbar-signout" id="leaveTrip" type="button" aria-label="Sign out"><span>↪</span><b>Sign out</b></button>
         </div>
       </header>
       <div class="content">
@@ -110,7 +111,7 @@
   <div class="toast hidden" id="toast" role="status"></div>
   <section class="print-area" id="printArea"></section>
 
-  <script src="config.js?v=4.7.0-account1"></script>
-  <script src="app.js?v=4.7.0-account1"></script>
+  <script src="config.js?v=4.7.0-account3"></script>
+  <script src="app.js?v=4.7.0-account3"></script>
 </body>
 </html>

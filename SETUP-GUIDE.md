@@ -21,12 +21,16 @@ Existing data and passwords are preserved.
 7. Choose **Deploy → Manage deployments → Edit**.
 8. Select **New version** and click **Deploy**.
 9. Keep web-app access as **Anyone** and retain the same `/exec` URL.
-10. Test `YOUR-EXEC-URL?action=ping`. It must return backend `4.6.0` with `accountLogin: true` and `stickyNoteDiary: true`.
+10. Test `YOUR-EXEC-URL?action=ping`. It must return backend `4.6.0` with `accountLogin: true`, `stickyNoteDiary: true` and `travellerCredentialEdit: true`.
 
 ## First login after updating
 
 - Existing Administrator: username **`administrator`** plus the existing Administrator PIN/secret as the password.
 - Existing traveller: permanent Traveller ID as username plus the existing personal PIN as the password.
 - The login screen does not contain an Administrator/Traveller selector.
+- Use **Show** to check the password while typing. On a private device, the user may optionally select **Save username and password on this device**.
+- Passwords are not readable after creation. If a traveller forgets the personal password, the Administrator must reset it from the Traveller profile.
+- The Administrator may change both credentials from **Traveller profiles → Open profile → Edit login**. The current username must be typed to confirm the change, and the replacement username must be unique.
+- A changed traveller username is automatically updated in all trip assignments; historical expenses and diary entries are preserved.
 
 Do not create a new Apps Script project or spreadsheet. Updating the existing project preserves the same data and web-app URL.
