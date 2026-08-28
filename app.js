@@ -57,7 +57,7 @@
     ]
   };
 
-  const state = { data: null, tab: "overview", pin: "", travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "Goa, India", currentUser: "Traveller", accessRole: "traveller", permissions: {} };
+  const state = { data: null, tab: "overview", pin: "", accountUsername: "", authenticated: false, travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "Goa, India", currentUser: "Traveller", accessRole: "traveller", permissions: {}, expenseRowEditId: "" };
   const stickyStoragePrefix = "mytrip_trip_stickies_v1";
   const stickyColours = ["yellow", "rose", "blue", "green", "violet"];
   const idleLogoutMs = 5 * 60 * 1000;
@@ -109,7 +109,7 @@
 
   function backendUpgradeError(version) {
     const shownVersion = version ? `version ${version}` : "an old version";
-    const error = new Error(`Your Google backend is ${shownVersion}, but the Sticky Note Diary capability is missing. Replace Code.gs with the MyTrip ${requiredBackendVersion} Sticky build, run setupMyTrip(), then deploy a New version in Apps Script.`);
+    const error = new Error(`Your Google backend is ${shownVersion}, but the unified account-login or Sticky Note Diary capability is missing. Replace Code.gs with the MyTrip ${requiredBackendVersion} account build, run setupMyTrip(), then deploy a New version in Apps Script.`);
     error.code = "BACKEND_UPGRADE_REQUIRED";
     return error;
   }
@@ -117,7 +117,7 @@
   async function verifyBackendVersion(url = apiUrl) {
     const info = await requestAt(url, "ping");
     backendVersion = String(info && info.version || "");
-    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true) throw backendUpgradeError(backendVersion);
+    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.accountLogin !== true) throw backendUpgradeError(backendVersion);
     return info;
   }
 
@@ -148,19 +148,19 @@
 
   function performLogout(message = "Signed out. Login is required again.") {
     stopIdleTimer();
-    state.data = null; state.pin = ""; state.travellerId = ""; state.loginMode = "trip";
+    state.data = null; state.pin = ""; state.accountUsername = ""; state.authenticated = false; state.travellerId = ""; state.loginMode = "trip"; state.expenseRowEditId = "";
     state.demoMode = false; state.currentUser = "Traveller"; state.accessRole = "traveller"; state.permissions = {};
     stickyNotes = [];
     closeStickyPanel(); setStickyControlsVisible(false); closeModal();
     $("#floatingStickyLayer").innerHTML = ""; $("#floatingStickyLayer").classList.add("hidden");
-    $("#dashboard").classList.add("hidden"); $("#accessScreen").classList.remove("hidden");
-    $("#joinForm").reset();
+    $("#dashboard").classList.add("hidden"); $("#accountHub").classList.add("hidden"); $("#accessScreen").classList.remove("hidden");
+    $("#joinForm").reset(); $("#accountLoginForm").reset();
     try { history.replaceState({}, "", location.pathname); } catch {}
     toast(message);
   }
 
   function checkIdleTimeout() {
-    if (!state.data || !idleDeadline) return;
+    if (!state.authenticated || !idleDeadline) return;
     const remaining = idleDeadline - Date.now();
     if (remaining <= 0) return performLogout("Closed after 5 minutes of inactivity. Please log in again.");
     clearTimeout(idleTimer);
@@ -168,7 +168,7 @@
   }
 
   function recordActivity() {
-    if (!state.data) return;
+    if (!state.authenticated) return;
     const now = Date.now();
     if (now - lastActivitySignal < 900) return;
     lastActivitySignal = now;
@@ -225,7 +225,8 @@
     const visible = { Itinerary: canViewItinerary(), ExperienceNotes: canViewExperiences(), Places: canViewPlaces(), Expenses: canViewExpenses() };
     return state.permissions.editRecords !== false && (sheet ? visible[sheet] !== false : true);
   }
-  function authPayload(payload = {}) { return { tripId: state.data.trip.tripId, pin: state.pin, ...(state.travellerId ? { travellerId: state.travellerId } : {}), ...payload }; }
+  function authPayload(payload = {}) { return { tripId: state.data.trip.tripId, username: state.accountUsername, password: state.pin, pin: state.pin, ...(state.travellerId ? { travellerId: state.travellerId } : {}), ...payload }; }
+  function adminAuth(password = state.pin) { return { username: state.accountUsername, password, pin: password }; }
   function visibleTripMembers() { return state.data ? state.data.members : []; }
   function assignmentAllows(assignment, field) {
     if (field === "canWriteStickyNotes") return Boolean(assignment) && String(assignment[field]).toUpperCase() === "TRUE";
@@ -252,13 +253,22 @@
     return [...totals.values()].filter((row) => row.total > 0).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
   }
 
+  function showAccountHub(role, accountLabel) {
+    state.authenticated = true; state.accessRole = role; state.demoMode = Boolean(state.demoMode);
+    $("#accessScreen").classList.add("hidden"); $("#dashboard").classList.add("hidden"); $("#accountHub").classList.remove("hidden");
+    $("#hubAccountLabel").textContent = accountLabel;
+    closeModal(); updateVersionLabels(); startIdleTimer();
+  }
+
   async function openTrip(data, pin, demoMode, name, roleOverride, travellerId = "", loginMode = "trip") {
     state.data = normalize(clone(data)); state.pin = pin; state.demoMode = demoMode;
     state.accessRole = roleOverride || data.accessRole || "traveller";
     state.currentUser = name || (state.accessRole === "administrator" ? (data.trip.createdBy || "Administrator") : "Traveller");
     state.travellerId = travellerId; state.loginMode = loginMode;
+    if (!state.accountUsername) state.accountUsername = travellerId || (state.accessRole === "administrator" ? "administrator" : "shared");
+    state.authenticated = true;
     state.permissions = data.permissions || {};
-    $("#accessScreen").classList.add("hidden"); $("#dashboard").classList.remove("hidden");
+    $("#accessScreen").classList.add("hidden"); $("#accountHub").classList.add("hidden"); $("#dashboard").classList.remove("hidden");
     loadStickyNotes(); setStickyControlsVisible(true); startIdleTimer();
     setTab("overview"); hydrateShell(); updatePrintArea();
     migrateCompletedStickyNotes();
@@ -325,7 +335,7 @@
     const planQuickAction = canViewItinerary() ? `<button data-add="plan"><i>＋</i><span><b>Add plan</b><small>Itinerary</small></span></button>` : "";
     const expenseQuickAction = canViewExpenses() ? `<button data-add="expense"><i>₹</i><span><b>Add expense</b><small>Spending</small></span></button>` : "";
     const placeQuickAction = canViewPlaces() ? `<button data-add="place"><i>⌖</i><span><b>Add place</b><small>Map</small></span></button>` : "";
-    const peopleQuickAction = state.travellerId && !isAdmin() ? `<button data-my-trips><i>♙</i><span><b>My trips</b><small>All assigned trips</small></span></button>` : (canViewTravellers() ? `<button data-go="people"><i>♙</i><span><b>Travellers</b><small>PINs & access</small></span></button>` : "");
+    const peopleQuickAction = state.travellerId && !isAdmin() ? `<button data-my-trips><i>♙</i><span><b>My trips</b><small>All assigned trips</small></span></button>` : (canViewTravellers() ? `<button data-go="people"><i>♙</i><span><b>Travellers</b><small>Passwords & access</small></span></button>` : "");
     const experienceQuickAction = canViewExperiences() ? `<button data-add="experience"><i>✍</i><span><b>Add experience</b><small>Travel journal</small></span></button>` : "";
     const printQuickAction = canPrintReports() ? `<button data-go="print"><i>▤</i><span><b>Print</b><small>Reports</small></span></button>` : "";
     const expenseStat = canViewExpenses() ? `<article class="stat"><i>₹</i><div><small>TOTAL BUDGET</small><strong>${money.format(budget)}</strong><span>${money.format(remaining())} remaining</span></div></article>` : "";
@@ -362,7 +372,53 @@
       const percent = total ? Math.round(row.total / total * 100) : 0;
       return `<article class="traveller-expense-card"><i>${esc(initials(row.name))}</i><div><b>${esc(row.name)}</b><small>${row.count} ${row.count === 1 ? "payment" : "payments"} · ${percent}% of total</small><span><em style="width:${percent}%"></em></span></div><strong>${money.format(row.total)}</strong></article>`;
     }).join("");
-    return `${heading("EXPENSE TRACKER", "Expenses and payments", "Travellers can record and edit payments. The administrator can also delete entries.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section><section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Separate total paid by each traveller. This is a payment summary, not a final settlement.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No travellers or expenses found.</p>`}</div></section><section class="table-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>Detailed expense statement</h2></div>${canPrintReports() ? `<button data-print="expenses">▤ Print expenses</button>` : ""}</div><div class="expense-table"><div class="expense-table-header"><span>DESCRIPTION</span><span>DATE</span><span>CATEGORY</span><span>PAID BY</span><span>AMOUNT</span></div>${state.data.expenses.map((expense) => `<div class="expense-row"><span><i>₹</i>${esc(expense.label)}</span><span>${displayDate(expense.date)}</span><span>${esc(expense.category)}</span><span>${esc(expense.paidBy)}</span><span class="amount-cell"><strong>${money.format(expense.amount)}</strong>${canEditRecords("Expenses") ? `<button class="edit-control mini" data-edit data-sheet="Expenses" data-id="${esc(expense.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control mini" data-delete data-sheet="Expenses" data-id="${esc(expense.id)}">×</button>` : ""}</span></div>`).join("")}</div></section>`;
+    const rows = [...state.data.expenses].sort((a, b) => `${b.date || ""}${b.id || ""}`.localeCompare(`${a.date || ""}${a.id || ""}`)).map((expense) => {
+      if (String(state.expenseRowEditId) === String(expense.id)) return renderExpenseRowEditor(expense);
+      const editActions = canEditRecords("Expenses") ? `<button class="row-edit" data-row-edit-expense="${esc(expense.id)}">Row edit</button><button data-edit data-sheet="Expenses" data-id="${esc(expense.id)}">Edit</button>` : "";
+      const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
+      return `<div class="expense-row"><span class="expense-description"><i>₹</i><b>${esc(expense.label)}</b></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${editActions}${deleteAction}</span></div>`;
+    }).join("");
+    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section><section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section><section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>Detailed expense statement</h2><p>Use Row edit for a quick change or Edit for every field.</p></div>${canPrintReports() ? `<button data-print="expenses">▤ Print expenses</button>` : ""}</div><div class="expense-table expense-action-table"><div class="expense-table-header"><span>DESCRIPTION</span><span>DATE</span><span>CATEGORY</span><span>PAID BY</span><span>AMOUNT</span><span>ACTIONS</span></div>${rows || `<div class="expense-empty-row"><b>No expenses recorded</b><p>Add the first trip payment.</p></div>`}</div></section>`;
+  }
+
+  function renderExpenseRowEditor(expense) {
+    const categories = ["Food", "Stay", "Travel", "Local travel", "Activities", "Shopping", "Other"];
+    if (expense.category && !categories.includes(expense.category)) categories.push(expense.category);
+    const payers = [...new Set([...visibleTripMembers().map((member) => member.name), expense.paidBy, state.currentUser || "Traveller"].filter(Boolean))];
+    return `<form class="expense-row expense-row-editing" data-expense-row-form="${esc(expense.id)}"><label><small>DESCRIPTION</small><input name="label" maxlength="180" value="${esc(expense.label)}" required></label><label><small>DATE</small><input name="date" type="date" value="${esc(expense.date)}" required></label><label><small>CATEGORY</small><select name="category">${categories.map((category) => `<option ${category === expense.category ? "selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label><small>PAID BY</small><select name="paidBy" required>${payers.map((payer) => `<option ${payer === expense.paidBy ? "selected" : ""}>${esc(payer)}</option>`).join("")}</select></label><label><small>AMOUNT</small><input name="amount" type="number" min="0.01" step="0.01" value="${esc(expense.amount)}" required></label><span class="expense-row-actions editing"><button class="save" type="submit">Save row</button><button type="button" data-cancel-expense-row>Cancel</button></span></form>`;
+  }
+
+  function showExpenseDetails(id) {
+    const expense = state.data.expenses.find((item) => String(item.id) === String(id));
+    if (!expense) return toast("Expense not found", true);
+    showModal("Expense details", `<div class="expense-view-card"><span class="expense-view-icon">₹</span><div><small>EXPENSE</small><h3>${esc(expense.label)}</h3><p>${esc(expense.notes || "No additional note")}</p></div><dl><div><dt>DATE</dt><dd>${displayDate(expense.date)}</dd></div><div><dt>CATEGORY</dt><dd>${esc(expense.category || "Other")}</dd></div><div><dt>PAID BY</dt><dd>${esc(expense.paidBy || "Not specified")}</dd></div><div><dt>AMOUNT</dt><dd>${money.format(expense.amount)}</dd></div></dl><div class="form-actions"><button id="closeExpenseView" type="button">Close</button>${canEditRecords("Expenses") ? `<button id="editExpenseFromView" type="button">Edit expense</button>` : ""}</div></div>`);
+    $("#closeExpenseView").addEventListener("click", closeModal);
+    if ($("#editExpenseFromView")) $("#editExpenseFromView").addEventListener("click", () => showEditRecord("Expenses", expense.id));
+  }
+
+  async function saveExpenseRow(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const id = form.dataset.expenseRowForm;
+    const expense = state.data.expenses.find((item) => String(item.id) === String(id));
+    if (!expense || !canEditRecords("Expenses")) return toast("Expense editing is not allowed for this account", true);
+    const update = Object.fromEntries(new FormData(form).entries());
+    update.amount = Number(update.amount);
+    const submit = form.querySelector('button[type="submit"]');
+    submit.disabled = true; submit.textContent = "Saving…";
+    try {
+      if (!state.demoMode) await api("updateRecord", authPayload({ sheet: "Expenses", id, record: update }));
+      Object.assign(expense, update); state.expenseRowEditId = ""; render(); hydrateShell(); updatePrintArea(); toast("Expense row saved to Google Sheet");
+    } catch (error) { submit.disabled = false; submit.textContent = "Save row"; toast(error.message, true); }
+  }
+
+  function showDeleteExpenseConfirmation(id) {
+    if (!isAdmin()) return toast("Administrator access is required to delete an expense", true);
+    const expense = state.data.expenses.find((item) => String(item.id) === String(id));
+    if (!expense) return toast("Expense not found", true);
+    showModal("Delete expense", `<div class="delete-confirmation expense-delete-confirmation"><div class="security-note danger-note"><i>!</i><p>Delete <b>${esc(expense.label)}</b> for <b>${money.format(expense.amount)}</b>? This removes the row from the Expenses Google Sheet.</p></div><div class="form-actions"><button id="cancelExpenseDelete" type="button">Cancel</button><button class="danger-button" id="confirmExpenseDelete" type="button">Delete expense</button></div></div>`);
+    $("#cancelExpenseDelete").addEventListener("click", closeModal);
+    $("#confirmExpenseDelete").addEventListener("click", async () => { closeModal(); await deleteItem("Expenses", expense.id); });
   }
 
   function renderPeople() {
@@ -375,9 +431,9 @@
       const enabledFeatures = accessFields.filter((field) => assignmentAllows(assignment, field)).length;
       const accessBadge = isAdmin() && member.travellerId ? `<div class="feature-access-badge"><b>${enabledFeatures}/7 ACCESS OPTIONS</b><button data-feature-access="${esc(member.id)}">Control access</button></div>` : "";
       const paidTotal = canViewExpenses() ? `<span><small>PAID FOR TRIP</small><b>${money.format(totals[member.name] || 0)}</b></span>` : `<span><small>TRIP ACCESS</small><b>${esc(member.role)}</b></span>`;
-      return `<article class="person ${member.travellerId ? "personal-access" : "shared-only"}"><i>${esc(initials(member.name))}</i><div><h3>${esc(member.name)}</h3><p>${member.travellerId ? `Traveller ID · ${esc(member.travellerId)}` : (member.role === "Organiser" ? "Trip organiser" : "Trip member without personal PIN")}</p></div><span>${esc(member.role)}</span><div class="person-access-badge ${member.travellerId ? "enabled" : "pending"}">${isAdmin() ? (member.travellerId ? "ENABLED FOR THIS TRIP" : (member.role === "Organiser" ? "ADMIN" : "PIN REQUIRED")) : (member.travellerId ? "TRAVELLER PROFILE" : (member.role === "Organiser" ? "ORGANISER" : "TRIP MEMBER"))}</div>${accessBadge}<footer>${paidTotal}<span class="person-footer-actions">${isAdmin() && member.travellerId ? `<button class="pin-reset-control" data-reset-member-pin="${esc(member.id)}" aria-label="Edit PIN for ${esc(member.name)}">✎ Edit PIN</button>` : ""}${isAdmin() && !member.travellerId && member.role !== "Organiser" ? `<button class="pin-reset-control" data-give-pin="${esc(member.id)}" aria-label="Create PIN for ${esc(member.name)}">＋ Create PIN</button>` : ""}${isAdmin() && member.role !== "Organiser" ? `<button class="delete-control trip-disable-control" data-remove-trip-member="${esc(member.id)}">Remove from trip</button>` : ""}</span></footer></article>`;
+      return `<article class="person ${member.travellerId ? "personal-access" : "shared-only"}"><i>${esc(initials(member.name))}</i><div><h3>${esc(member.name)}</h3><p>${member.travellerId ? `Username · ${esc(member.travellerId)}` : (member.role === "Organiser" ? "Trip organiser" : "Trip member without an account")}</p></div><span>${esc(member.role)}</span><div class="person-access-badge ${member.travellerId ? "enabled" : "pending"}">${isAdmin() ? (member.travellerId ? "ENABLED FOR THIS TRIP" : (member.role === "Organiser" ? "ADMIN" : "ACCOUNT REQUIRED")) : (member.travellerId ? "TRAVELLER ACCOUNT" : (member.role === "Organiser" ? "ORGANISER" : "TRIP MEMBER"))}</div>${accessBadge}<footer>${paidTotal}<span class="person-footer-actions">${isAdmin() && member.travellerId ? `<button class="pin-reset-control" data-reset-member-pin="${esc(member.id)}" aria-label="Edit password for ${esc(member.name)}">✎ Edit password</button>` : ""}${isAdmin() && !member.travellerId && member.role !== "Organiser" ? `<button class="pin-reset-control" data-give-pin="${esc(member.id)}" aria-label="Create account for ${esc(member.name)}">＋ Create account</button>` : ""}${isAdmin() && member.role !== "Organiser" ? `<button class="delete-control trip-disable-control" data-remove-trip-member="${esc(member.id)}">Remove from trip</button>` : ""}</span></footer></article>`;
     }).join("");
-    return `${heading("YOUR TRAVEL GROUP", isAdmin() ? "Travellers, PINs and feature access" : "Travellers and trip members", isAdmin() ? "Open Control access on a traveller to show or hide each dashboard feature." : "The complete trip member list is shown here.", "travellers")}<div class="share-banner"><div><h3>${isAdmin() ? "Trip-specific traveller access" : `${members.length} trip ${members.length === 1 ? "member" : "members"}`}</h3><p>Trip ID <b>${esc(state.data.trip.tripId)}</b> · ${isAdmin() ? "Feature controls apply to personal Traveller ID login; shared trip PIN access remains common" : "Full traveller and member list"}</p></div>${isAdmin() ? `<span class="banner-actions"><button data-add-existing-travellers>＋ Existing traveller</button><button data-add="travellers">＋ New traveller</button><button data-manage-current-trip>Manage access</button><button data-all-trips>All trips</button></span>` : `<span class="readonly-label">TRIP GROUP</span>`}</div><div class="people-grid">${cards || `<div class="empty-trip-members"><b>No trip members yet</b><p>No traveller or member has been added to this trip.</p></div>`}</div>`;
+    return `${heading("YOUR TRAVEL GROUP", isAdmin() ? "Traveller accounts and feature access" : "Travellers and trip members", isAdmin() ? "Open Control access on a traveller to show or hide each dashboard feature." : "The complete trip member list is shown here.", "travellers")}<div class="share-banner"><div><h3>${isAdmin() ? "Trip-specific traveller access" : `${members.length} trip ${members.length === 1 ? "member" : "members"}`}</h3><p>Trip ID <b>${esc(state.data.trip.tripId)}</b> · ${isAdmin() ? "Feature controls apply to each personal username; shared trip access remains separate" : "Full traveller and member list"}</p></div>${isAdmin() ? `<span class="banner-actions"><button data-add-existing-travellers>＋ Existing traveller</button><button data-add="travellers">＋ New traveller</button><button data-manage-current-trip>Manage access</button><button data-all-trips>All trips</button></span>` : `<span class="readonly-label">TRIP GROUP</span>`}</div><div class="people-grid">${cards || `<div class="empty-trip-members"><b>No trip members yet</b><p>No traveller or member has been added to this trip.</p></div>`}</div>`;
   }
 
   function renderPrint() {
@@ -403,6 +459,11 @@
     $$('[data-my-trips]').forEach((button) => button.addEventListener("click", showMyTrips));
     $$('[data-security]').forEach((button) => button.addEventListener("click", showSecurity));
     $$('[data-edit]').forEach((button) => button.addEventListener("click", () => showEditRecord(button.dataset.sheet, button.dataset.id)));
+    $$('[data-view-expense]').forEach((button) => button.addEventListener("click", () => showExpenseDetails(button.dataset.viewExpense)));
+    $$('[data-row-edit-expense]').forEach((button) => button.addEventListener("click", () => { state.expenseRowEditId = button.dataset.rowEditExpense; render(); }));
+    $$('[data-cancel-expense-row]').forEach((button) => button.addEventListener("click", () => { state.expenseRowEditId = ""; render(); }));
+    $$('[data-expense-row-form]').forEach((form) => form.addEventListener("submit", saveExpenseRow));
+    $$('[data-delete-expense]').forEach((button) => button.addEventListener("click", () => showDeleteExpenseConfirmation(button.dataset.deleteExpense)));
     $$('[data-give-pin]').forEach((button) => button.addEventListener("click", () => showAddTravellersToCurrentTrip(state.data.members.find((member) => String(member.id) === String(button.dataset.givePin)))));
     $$('[data-reset-member-pin]').forEach((button) => button.addEventListener("click", () => showResetCurrentTravellerPin(state.data.members.find((member) => String(member.id) === String(button.dataset.resetMemberPin)))));
     $$('[data-feature-access]').forEach((button) => button.addEventListener("click", () => showTravellerFeatureAccess(state.data.members.find((member) => String(member.id) === String(button.dataset.featureAccess)))));
@@ -415,7 +476,17 @@
   }
 
   function openMap(query) { window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer"); }
-  function showModal(title, html) { $("#modalTitle").textContent = title; $("#modalBody").innerHTML = html; $("#modal").classList.remove("hidden"); }
+  function showModal(title, html) {
+    const accountWording = String(html)
+      .replaceAll("Edit PIN", "Edit password")
+      .replaceAll("personal PIN", "personal password")
+      .replaceAll("Their PIN", "Their password")
+      .replaceAll("their PIN", "their password")
+      .replaceAll("Traveller PIN", "shared trip password")
+      .replaceAll("shared trip-PIN users", "shared one-trip users")
+      .replaceAll("password/PIN", "password");
+    $("#modalTitle").textContent = title; $("#modalBody").innerHTML = accountWording; $("#modal").classList.remove("hidden");
+  }
   function closeModal() { $("#modal").classList.add("hidden"); $("#modalBody").innerHTML = ""; }
   const actions = `<div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save for everyone</button></div>`;
 
@@ -644,6 +715,7 @@
     if ($("#loginFrontendVersion")) $("#loginFrontendVersion").textContent = `v${frontendVersion}`;
     if ($("#loginBackendVersion")) $("#loginBackendVersion").textContent = backendLabel;
     if ($("#dashboardVersion")) $("#dashboardVersion").textContent = `Frontend v${frontendVersion} · Backend ${backendLabel}`;
+    if ($("#hubVersion")) $("#hubVersion").textContent = `Frontend v${frontendVersion} · Backend ${backendLabel}`;
   }
 
   function updateBackendStatus() {
@@ -664,7 +736,7 @@
   }
 
   function showBackendSetup(afterConnect) {
-    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v4.6.0 Sticky build required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This creates the <code>StickyNoteDiary</code> Google Sheet and adds Administrator-controlled sticky writing access.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. The connection, version and Sticky Note Diary capability are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test v4.6.0 Sticky build</button></div></form>`);
+    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v4.6.0 account build required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This enables the common username/password login and creates the <code>StickyNoteDiary</code> Google Sheet.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. Account login, version and Sticky Note Diary capabilities are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test v4.6.0 account build</button></div></form>`);
     const form = $("#backendForm");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -695,7 +767,7 @@
         const bundle = clone(demo); bundle.trip = { ...bundle.trip, ...summary };
         closeModal(); await openTrip(bundle, pin, true, traveller ? traveller.name : summary.createdBy, role, traveller ? traveller.travellerId : "", traveller ? "personal" : "admin");
       } else {
-        const payload = { tripId, pin, ...(traveller ? { travellerId: traveller.travellerId } : {}) };
+        const payload = { tripId, username: state.accountUsername, password: pin, pin, ...(traveller ? { travellerId: traveller.travellerId } : {}) };
         const bundle = await api("getTrip", payload);
         closeModal(); await openTrip(bundle, pin, false, traveller ? traveller.name : bundle.trip.createdBy, role, traveller ? traveller.travellerId : "", traveller ? "personal" : "admin");
       }
@@ -704,7 +776,8 @@
 
   function renderAllTrips(trips, administratorSecret, demoMode) {
     const items = trips || [];
-    showModal("Administrator · All trips", `<div class="all-trips-modal"><div class="all-trips-summary"><span><small>ADMINISTRATOR LIBRARY</small><b>${items.length} ${items.length === 1 ? "trip" : "trips"}</b></span><span class="summary-actions"><button id="manageTravellerAccounts" class="secondary-action" type="button">♙ Traveller profiles</button><button id="createFromTrips" type="button">＋ Create trip</button></span></div><div class="trip-library admin-library">${items.map((trip) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}"><i>⌖</i><div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button data-open-admin-trip="${esc(trip.tripId)}" type="button">Open</button><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">Edit</button><button data-assign-trip="${esc(trip.tripId)}" type="button">Travellers</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "Disable" : "Enable"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete</button></div></article>`).join("") || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip with this Administrator password/PIN.</p></div>`}</div><p class="global-access-note">◆ This one Administrator PIN controls every trip. Traveller profiles can exist without any trip assignment.</p></div>`);
+    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="all-trips-summary"><span><small>ADMINISTRATOR LIBRARY</small><b>${items.length} ${items.length === 1 ? "trip" : "trips"}</b></span><span class="summary-actions"><button id="manageTravellerAccounts" class="secondary-action" type="button">♙ Traveller profiles</button><button id="createFromTrips" type="button">＋ Create trip</button></span></div><div class="trip-library admin-library">${items.map((trip) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}"><i>⌖</i><div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button data-open-admin-trip="${esc(trip.tripId)}" type="button">Open</button><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">Edit</button><button data-assign-trip="${esc(trip.tripId)}" type="button">Travellers</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "Disable" : "Enable"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete</button></div></article>`).join("") || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip with this Administrator account.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
+    showAccountHub("administrator", `ADMINISTRATOR · ${state.accountUsername}`);
     $("#createFromTrips").addEventListener("click", () => { closeModal(); showCreateTrip(); });
     $("#manageTravellerAccounts").addEventListener("click", () => loadTravellerAccounts(administratorSecret, items, demoMode));
     $$('[data-open-admin-trip]').forEach((button) => button.addEventListener("click", () => openListedTrip(button.dataset.openAdminTrip, administratorSecret, demoMode, "administrator")));
@@ -714,7 +787,7 @@
       const tripId = button.dataset.toggleTrip, enabled = button.dataset.enabled !== "true";
       try {
         if (demoMode) { const trip = demoTrips.find((item) => item.tripId === tripId); if (trip) trip.enabled = enabled; }
-        else await api("setTripEnabled", { tripId, pin: administratorSecret, enabled });
+        else await api("setTripEnabled", { tripId, username: state.accountUsername, password: administratorSecret, pin: administratorSecret, enabled });
         toast(`Trip ${enabled ? "enabled" : "disabled"}`); await loadAllTrips(administratorSecret, demoMode);
       } catch (error) { toast(error.message, true); }
     }));
@@ -728,37 +801,32 @@
       if (confirmation !== tripId) return toast(`Type ${tripId} exactly`, true);
       try {
         if (demoMode) { const index = demoTrips.findIndex((trip) => trip.tripId === tripId); if (index >= 0) demoTrips.splice(index, 1); }
-        else await api("deleteTrip", { tripId, pin: administratorSecret, confirmTripId: confirmation });
+        else await api("deleteTrip", { tripId, username: state.accountUsername, password: administratorSecret, pin: administratorSecret, confirmTripId: confirmation });
         toast(`Trip ${tripId} deleted`); await loadAllTrips(administratorSecret, demoMode);
       } catch (error) { toast(error.message, true); }
     });
     $('[data-cancel]').addEventListener("click", closeModal);
   }
 
-  async function loadAllTrips(administratorSecret, demoMode) {
+  async function loadAllTrips(administratorSecret, demoMode, username = state.accountUsername || "administrator") {
     try {
       if (!demoMode) await ensureCurrentBackend();
-      const trips = demoMode ? demoTrips : (await api("listTrips", { pin: administratorSecret })).trips;
+      state.accountUsername = String(username || "administrator").trim().toLowerCase(); state.pin = administratorSecret; state.demoMode = demoMode; state.authenticated = true; state.accessRole = "administrator";
+      const trips = demoMode ? demoTrips : (await api("listTrips", { username: state.accountUsername, password: administratorSecret, pin: administratorSecret })).trips;
       renderAllTrips(trips, administratorSecret, demoMode);
     } catch (error) { toast(error.message, true); }
   }
 
   function showAllTrips() {
-    if (!apiUrlReady() && !state.demoMode) return showBackendSetup(showAllTrips);
-    if (state.data && isAdmin()) return loadAllTrips(state.pin, state.demoMode);
-    showModal("Administrator · All trips", `<form class="modal-form" id="allTripsLoginForm"><div class="security-note"><i>◆</i><p>Use your one global Administrator password/PIN to see every trip. Traveller PINs cannot open this list.</p></div><label>Global Administrator password/PIN<input name="adminPin" type="password" minlength="4" maxlength="64" autocomplete="current-password" placeholder="Your administrator access" required></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">View all trips</button></div></form>`);
-    $("#allTripsLoginForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const secret = String(new FormData(event.currentTarget).get("adminPin") || "");
-      await loadAllTrips(secret, false);
-    });
-    $('[data-cancel]').addEventListener("click", closeModal);
+    if (state.authenticated && isAdmin()) return loadAllTrips(state.pin, state.demoMode, state.accountUsername);
+    performLogout("Please sign in with your username and password.");
   }
 
   async function loadMyTrips(pin, traveller, demoMode) {
     try {
       if (!demoMode) await ensureCurrentBackend();
-      const result = demoMode ? { traveller, trips: demoTrips.filter((trip) => tripEnabled(trip) && traveller.tripIds.includes(trip.tripId)) } : await api("listMyTrips", { travellerId: traveller.travellerId, pin });
+      state.accountUsername = String(traveller.travellerId || state.accountUsername || "").trim().toUpperCase(); state.pin = pin; state.demoMode = demoMode; state.authenticated = true; state.accessRole = "traveller"; state.travellerId = state.accountUsername;
+      const result = demoMode ? { traveller, trips: demoTrips.filter((trip) => tripEnabled(trip) && traveller.tripIds.includes(trip.tripId)) } : await api("listMyTrips", { username: state.accountUsername, password: pin, travellerId: state.accountUsername, pin });
       renderMyTrips(result.trips || [], pin, result.traveller || traveller, demoMode);
     } catch (error) { toast(error.message, true); }
   }
@@ -773,24 +841,19 @@
       details.push(`${featureCount}/7 access options available`);
       return `<article class="trip-library-card"><i>♙</i><div><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>${details.join(" · ")}</small></div><button data-open-my-trip="${esc(trip.tripId)}" type="button">Open →</button></article>`;
     }).join("");
-    showModal("Traveller profile · My trips", `<div class="all-trips-modal"><div class="self-profile-card"><i>${esc(initials(traveller.name))}</i><div><span>TRAVELLER ID · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b>${trips.length} ${trips.length === 1 ? "ALLOWED TRIP" : "ALLOWED TRIPS"}</b></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this personal PIN</h3></div></div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>Ask the administrator to assign trips to Traveller ID ${esc(traveller.travellerId)}.</p></div>`}</div><p class="global-access-note">♙ This permanent profile automatically shows every active trip assigned now or in the future.</p></div>`);
+    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero traveller"><div><span>MY TRAVEL DASHBOARD</span><h1>Every permitted trip</h1><p>Signed in as <b>${esc(traveller.travellerId)}</b>. Open a trip to view and manage every feature allowed by the Administrator.</p></div><strong>${trips.length} ${trips.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="self-profile-card"><i>${esc(initials(traveller.name))}</i><div><span>USERNAME · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b>${trips.length} ${trips.length === 1 ? "ALLOWED TRIP" : "ALLOWED TRIPS"}</b></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this account</h3></div></div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>Ask the Administrator to assign trips to username ${esc(traveller.travellerId)}.</p></div>`}</div><p class="global-access-note">♙ This account automatically shows every active trip assigned now or in the future.</p></div></section>`;
+    showAccountHub("traveller", `TRAVELLER · ${traveller.travellerId}`);
     $$('[data-open-my-trip]').forEach((button) => button.addEventListener("click", () => openListedTrip(button.dataset.openMyTrip, pin, demoMode, "traveller", traveller)));
   }
 
   function showMyTrips() {
-    if (!apiUrlReady() && !state.demoMode) return showBackendSetup(showMyTrips);
-    if (state.travellerId) return loadMyTrips(state.pin, { travellerId: state.travellerId, name: state.currentUser, tripIds: demoTraveller.tripIds || ["GOA26", "KER27"] }, state.demoMode);
-    showModal("Traveller · My trips", `<form class="modal-form" id="myTripsLoginForm"><div class="security-note traveller-note"><i>♙</i><p>Enter the Traveller ID and personal PIN created by your administrator. One login shows every trip assigned to you.</p></div><label>Traveller ID<input name="travellerId" maxlength="30" autocomplete="username" placeholder="e.g. ANITA-101" required></label><label>Personal Traveller PIN<input name="pin" type="password" inputmode="numeric" minlength="4" maxlength="8" autocomplete="current-password" placeholder="4–8 digits" required></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">View my trips</button></div></form>`);
-    $("#myTripsLoginForm").addEventListener("submit", async (event) => {
-      event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-      await loadMyTrips(String(values.pin), { travellerId: String(values.travellerId).trim().toUpperCase(), name: "Traveller", tripIds: [] }, false);
-    });
-    $('[data-cancel]').addEventListener("click", closeModal);
+    if (state.authenticated && state.travellerId) return loadMyTrips(state.pin, { travellerId: state.travellerId, name: state.currentUser, tripIds: demoTraveller.tripIds || ["GOA26", "KER27"] }, state.demoMode);
+    performLogout("Please sign in with your username and password.");
   }
 
   async function loadTravellerAccounts(administratorSecret, trips, demoMode) {
     try {
-      const travellers = demoMode ? demoTravellerAccounts : (await api("listTravellerAccounts", { pin: administratorSecret })).travellers;
+      const travellers = demoMode ? demoTravellerAccounts : (await api("listTravellerAccounts", { ...adminAuth(administratorSecret) })).travellers;
       renderTravellerAccounts(travellers || [], trips || [], administratorSecret, demoMode);
     } catch (error) { toast(error.message, true); }
   }
@@ -807,7 +870,7 @@
       const travellerId = button.dataset.toggleAccount, active = button.dataset.active !== "true";
       try {
         if (demoMode) { const account = demoTravellerAccounts.find((item) => item.travellerId === travellerId); if (account) account.active = active; }
-        else await api("setTravellerActive", { pin: administratorSecret, travellerId, active });
+        else await api("setTravellerActive", { ...adminAuth(administratorSecret), travellerId, active });
         toast(active ? "Traveller profile enabled across assigned trips" : "Traveller profile disabled everywhere"); await loadTravellerAccounts(administratorSecret, trips, demoMode);
       } catch (error) { toast(error.message, true); }
     }));
@@ -830,7 +893,7 @@
           demo.assignments = (demo.assignments || []).filter((item) => item.travellerId !== traveller.travellerId);
           demo.members = (demo.members || []).filter((item) => item.travellerId !== traveller.travellerId);
           if (state.data) { state.data.assignments = (state.data.assignments || []).filter((item) => item.travellerId !== traveller.travellerId); state.data.members = (state.data.members || []).filter((item) => item.travellerId !== traveller.travellerId); }
-        } else await api("deleteTravellerAccount", { pin: administratorSecret, travellerId: traveller.travellerId, confirmTravellerId });
+        } else await api("deleteTravellerAccount", { ...adminAuth(administratorSecret), travellerId: traveller.travellerId, confirmTravellerId });
         toast(`Duplicate profile ${traveller.travellerId} deleted. Historical expenses were preserved.`);
         await loadTravellerAccounts(administratorSecret, trips, demoMode);
       } catch (error) { submit.disabled = false; submit.textContent = "Delete profile permanently"; toast(error.message, true); }
@@ -874,7 +937,7 @@
   async function showCurrentTripTravellerAccess() {
     if (!isAdmin()) return toast("Administrator access required", true);
     try {
-      const travellers = state.demoMode ? demoTravellerAccounts : (await api("listTravellerAccounts", { pin: state.pin })).travellers || [];
+      const travellers = state.demoMode ? demoTravellerAccounts : (await api("listTravellerAccounts", { ...adminAuth() })).travellers || [];
       const current = currentTripTravellerIds();
       showModal(`Trip access · ${state.data.trip.tripId}`, `<form class="modal-form assignment-form" id="currentTripTravellerAccessForm"><div class="security-note traveller-note"><i>♙</i><p>Choose the traveller profiles allowed to open <b>${esc(state.data.trip.name)}</b>.</p></div><p class="trip-access-note"><b>Trip-specific control:</b> unchecking a traveller disables only this trip. Their personal PIN, profile and other trip assignments are not changed.</p><div class="check-list">${travellers.map((traveller) => { const travellerId = String(traveller.travellerId).trim().toUpperCase(); return `<label class="check-card ${traveller.active ? "" : "inactive"}"><input type="checkbox" name="travellerIds" value="${esc(travellerId)}" ${current.has(travellerId) ? "checked" : ""}><span><b>${esc(traveller.name)}</b><small>${esc(travellerId)} · ${traveller.active ? "Profile active" : "Profile globally disabled"}</small></span></label>`; }).join("") || `<p>No traveller profiles exist yet. Add a traveller profile first.</p>`}</div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save trip access</button></div></form>`);
       $("#currentTripTravellerAccessForm").addEventListener("submit", async (event) => {
@@ -899,7 +962,7 @@
   async function showAddExistingTravellersToCurrentTrip() {
     if (!isAdmin()) return toast("Administrator access required", true);
     try {
-      const travellers = state.demoMode ? demoTravellerAccounts : (await api("listTravellerAccounts", { pin: state.pin })).travellers || [];
+      const travellers = state.demoMode ? demoTravellerAccounts : (await api("listTravellerAccounts", { ...adminAuth() })).travellers || [];
       const current = currentTripTravellerIds();
       const available = travellers.filter((traveller) => !current.has(String(traveller.travellerId || "").trim().toUpperCase()));
       showModal("Add existing traveller", `<form class="modal-form assignment-form" id="addExistingTravellerForm"><div class="security-note traveller-note"><i>♙</i><p>Select saved traveller profiles to add to <b>${esc(state.data.trip.name)}</b>. Their existing Traveller ID and personal PIN will continue to work.</p></div><p class="trip-access-note"><b>Reusable profile:</b> adding a traveller here does not remove or alter any of their other trips.</p><div class="check-list">${available.map((traveller) => { const tripIds = (traveller.tripIds || []).filter((id) => String(id).trim().toUpperCase() !== String(state.data.trip.tripId).trim().toUpperCase()); return `<label class="check-card ${traveller.active ? "" : "inactive"}"><input type="checkbox" name="travellerIds" value="${esc(traveller.travellerId)}" ${traveller.active ? "" : "disabled"}><span><b>${esc(traveller.name)}</b><small>${esc(traveller.travellerId)} · ${tripIds.length ? `Already in: ${tripIds.map(esc).join(", ")}` : "Saved profile · no other trip"}${traveller.active ? "" : " · Profile disabled"}</small></span></label>`; }).join("") || `<div class="empty-trips"><b>No available traveller profiles</b><p>Every saved profile is already assigned to this trip, or no profiles have been created.</p></div>`}</div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit" ${available.some((traveller) => traveller.active) ? "" : "disabled"}>Add selected travellers</button></div></form>`);
@@ -944,13 +1007,13 @@
   }
 
   function showCreateTravellerAccount(trips, administratorSecret, demoMode) {
-    showModal("Add traveller profile", `<form class="modal-form" id="createTravellerAccountForm"><div class="security-note traveller-note"><i>♙</i><p>This saves an independent traveller profile. <b>No trip will be assigned automatically.</b></p></div><div class="form-row"><label>Traveller name<input name="name" maxlength="80" placeholder="e.g. Anita Sutar" required></label><label>Traveller ID <small>(optional)</small><input name="travellerId" maxlength="30" placeholder="Generated if blank"></label></div><div class="form-row"><label>Phone<input name="phone" type="tel" maxlength="30" placeholder="e.g. +91 98765 43210"></label><label>Email<input name="email" type="email" maxlength="120" placeholder="name@example.com"></label></div><label>City or location<input name="city" maxlength="80" placeholder="e.g. Bengaluru"></label><label>Emergency contact<input name="emergencyContact" maxlength="120" placeholder="Name and phone number"></label><label>Notes<textarea name="notes" rows="3" maxlength="1000" placeholder="Food preference, accessibility requirement or other useful note"></textarea></label><label>Personal PIN<input name="pin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" placeholder="4–8 digits" required></label><p class="form-help">After saving, the profile will show <b>No trip assigned</b>. Assign one or more trips only when required.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save without trip</button></div></form>`);
+    showModal("Add traveller account", `<form class="modal-form" id="createTravellerAccountForm"><div class="security-note traveller-note"><i>♙</i><p>This creates an independent username and password. <b>No trip will be assigned automatically.</b></p></div><div class="form-row"><label>Traveller name<input name="name" maxlength="80" placeholder="e.g. Anita Sutar" required></label><label>Username <small>(optional)</small><input name="travellerId" maxlength="30" placeholder="Generated if blank"></label></div><div class="form-row"><label>Phone<input name="phone" type="tel" maxlength="30" placeholder="e.g. +91 98765 43210"></label><label>Email<input name="email" type="email" maxlength="120" placeholder="name@example.com"></label></div><label>City or location<input name="city" maxlength="80" placeholder="e.g. Bengaluru"></label><label>Emergency contact<input name="emergencyContact" maxlength="120" placeholder="Name and phone number"></label><label>Notes<textarea name="notes" rows="3" maxlength="1000" placeholder="Food preference, accessibility requirement or other useful note"></textarea></label><label>Personal password<input name="pin" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="4–64 characters" required></label><p class="form-help">The permanent username is the Traveller ID. After saving, assign one or more trips when required.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Create account</button></div></form>`);
     $("#createTravellerAccountForm").addEventListener("submit", async (event) => {
       event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
       try {
         let created;
         if (demoMode) { created = { ...values, travellerId: String(values.travellerId || `TRV-${Math.floor(100 + Math.random() * 900)}`).toUpperCase(), active: true, tripCount: 0, tripIds: [] }; delete created.pin; demoTravellerAccounts.push(created); }
-        else created = await api("createTravellerAccount", { pin: administratorSecret, traveller: values });
+        else created = await api("createTravellerAccount", { ...adminAuth(administratorSecret), traveller: values });
         toast(`Traveller profile saved without a trip · ID ${created.travellerId}`); await loadTravellerAccounts(administratorSecret, trips, demoMode);
       } catch (error) { toast(error.message, true); }
     });
@@ -974,7 +1037,7 @@
       event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
       try {
         if (demoMode) Object.assign(traveller, values);
-        else await api("updateTravellerAccount", { pin: administratorSecret, travellerId: traveller.travellerId, traveller: values });
+        else await api("updateTravellerAccount", { ...adminAuth(administratorSecret), travellerId: traveller.travellerId, traveller: values });
         toast("Traveller details updated"); await loadTravellerAccounts(administratorSecret, trips, demoMode);
       } catch (error) { toast(error.message, true); }
     });
@@ -982,11 +1045,11 @@
   }
 
   function showResetTravellerPin(traveller, trips, administratorSecret, demoMode) {
-    showModal("Edit traveller PIN", `<form class="modal-form" id="resetTravellerPinForm"><div class="security-note traveller-note"><i>♙</i><p>Administrator is setting a new personal PIN for <b>${esc(traveller.name)}</b> · ${esc(traveller.travellerId)}. Their old PIN will stop working immediately.</p></div><label>New personal PIN<input name="newPin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" placeholder="4–8 digits" required></label><label>Confirm new PIN<input name="confirmPin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" placeholder="Enter the same PIN again" required></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save new PIN</button></div></form>`);
+    showModal("Edit traveller password", `<form class="modal-form" id="resetTravellerPinForm"><div class="security-note traveller-note"><i>♙</i><p>Administrator is setting a new password for <b>${esc(traveller.name)}</b> · username ${esc(traveller.travellerId)}. Their old password will stop working immediately.</p></div><label>New personal password<input name="newPin" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="4–64 characters" required></label><label>Confirm new password<input name="confirmPin" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="Enter the same password again" required></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save new password</button></div></form>`);
     $("#resetTravellerPinForm").addEventListener("submit", async (event) => {
       event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-      if (values.newPin !== values.confirmPin) return toast("The two PIN entries do not match", true);
-      try { if (!demoMode) await api("resetTravellerPin", { pin: administratorSecret, travellerId: traveller.travellerId, newPin: values.newPin }); toast("Personal Traveller PIN updated"); await loadTravellerAccounts(administratorSecret, trips, demoMode); }
+      if (values.newPin !== values.confirmPin) return toast("The two password entries do not match", true);
+      try { if (!demoMode) await api("resetTravellerPin", { username: state.accountUsername, password: administratorSecret, pin: administratorSecret, travellerId: traveller.travellerId, newPin: values.newPin }); toast("Traveller password updated"); await loadTravellerAccounts(administratorSecret, trips, demoMode); }
       catch (error) { toast(error.message, true); }
     });
     $('[data-cancel]').addEventListener("click", () => loadTravellerAccounts(administratorSecret, trips, demoMode));
@@ -1004,15 +1067,15 @@
             trip.assignedTravellerIds = [...selected]; trip.assignedTravellerCount = selected.size;
             demoTravellerAccounts.forEach((account) => { account.tripIds = account.tripIds || []; account.tripIds = selected.has(account.travellerId) ? [...new Set([...account.tripIds, trip.tripId])] : account.tripIds.filter((id) => id !== trip.tripId); account.tripCount = account.tripIds.length; });
           } else {
-            if (additions.length) await api("assignTravellers", { tripId: trip.tripId, pin: administratorSecret, travellerIds: additions });
-            for (const travellerId of removals) await api("removeTravellerAssignment", { tripId: trip.tripId, pin: administratorSecret, travellerId });
+            if (additions.length) await api("assignTravellers", { tripId: trip.tripId, ...adminAuth(administratorSecret), travellerIds: additions });
+            for (const travellerId of removals) await api("removeTravellerAssignment", { tripId: trip.tripId, ...adminAuth(administratorSecret), travellerId });
           }
           toast("Trip access updated. Other trips were not changed."); await loadAllTrips(administratorSecret, demoMode);
         } catch (error) { toast(error.message, true); }
       });
       $('[data-cancel]').addEventListener("click", () => renderAllTrips(trips, administratorSecret, demoMode));
     };
-    if (demoMode) continueWith(demoTravellerAccounts); else api("listTravellerAccounts", { pin: administratorSecret }).then((result) => continueWith(result.travellers || [])).catch((error) => toast(error.message, true));
+    if (demoMode) continueWith(demoTravellerAccounts); else api("listTravellerAccounts", { ...adminAuth(administratorSecret) }).then((result) => continueWith(result.travellers || [])).catch((error) => toast(error.message, true));
   }
 
   function showTravellerTripAssignments(traveller, trips, administratorSecret, demoMode) {
@@ -1023,8 +1086,8 @@
       try {
         if (demoMode) { traveller.tripIds = [...selected]; traveller.tripCount = selected.size; demoTrips.forEach((trip) => { trip.assignedTravellerIds = trip.assignedTravellerIds || []; trip.assignedTravellerIds = selected.has(trip.tripId) ? [...new Set([...trip.assignedTravellerIds, traveller.travellerId])] : trip.assignedTravellerIds.filter((id) => id !== traveller.travellerId); trip.assignedTravellerCount = trip.assignedTravellerIds.length; }); }
         else {
-          if (additions.length) await api("assignTravellerToTrips", { pin: administratorSecret, travellerId: traveller.travellerId, tripIds: additions, role: "Editor" });
-          for (const tripId of removals) await api("removeTravellerAssignment", { tripId, pin: administratorSecret, travellerId: traveller.travellerId });
+          if (additions.length) await api("assignTravellerToTrips", { ...adminAuth(administratorSecret), travellerId: traveller.travellerId, tripIds: additions, role: "Editor" });
+          for (const tripId of removals) await api("removeTravellerAssignment", { tripId, ...adminAuth(administratorSecret), travellerId: traveller.travellerId });
         }
         toast("Traveller trip access updated independently"); await loadTravellerAccounts(administratorSecret, trips, demoMode);
       } catch (error) { toast(error.message, true); }
@@ -1034,13 +1097,13 @@
 
   function travellerPinRow(index, member) {
     const lockedName = Boolean(member);
-    return `<section class="bulk-traveller-row"><header><b>Traveller ${index + 1}</b>${lockedName ? `<span>Existing trip member</span>` : `<button type="button" data-remove-traveller aria-label="Remove traveller">×</button>`}</header><div class="form-row"><label>Traveller name<input data-field="name" maxlength="80" value="${esc(member ? member.name : "")}" ${lockedName ? "readonly" : ""} placeholder="Full name" required></label><label>Separate personal PIN<input data-field="pin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" placeholder="4–8 digits" required></label></div><div class="form-row"><label>Phone <small>(optional)</small><input data-field="phone" type="tel" maxlength="30" placeholder="+91 …"></label><label>Email <small>(optional)</small><input data-field="email" type="email" maxlength="120" placeholder="name@example.com"></label></div><div class="form-row"><label>City <small>(optional)</small><input data-field="city" maxlength="80"></label><label>Trip role<select data-field="role"><option>Editor</option><option>Viewer</option></select></label></div></section>`;
+    return `<section class="bulk-traveller-row"><header><b>Traveller ${index + 1}</b>${lockedName ? `<span>Existing trip member</span>` : `<button type="button" data-remove-traveller aria-label="Remove traveller">×</button>`}</header><div class="form-row"><label>Traveller name<input data-field="name" maxlength="80" value="${esc(member ? member.name : "")}" ${lockedName ? "readonly" : ""} placeholder="Full name" required></label><label>Personal password<input data-field="pin" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="4–64 characters" required></label></div><div class="form-row"><label>Phone <small>(optional)</small><input data-field="phone" type="tel" maxlength="30" placeholder="+91 …"></label><label>Email <small>(optional)</small><input data-field="email" type="email" maxlength="120" placeholder="name@example.com"></label></div><div class="form-row"><label>City <small>(optional)</small><input data-field="city" maxlength="80"></label><label>Trip role<select data-field="role"><option>Editor</option><option>Viewer</option></select></label></div></section>`;
   }
 
   function showAddTravellersToCurrentTrip(existingMember) {
     if (!isAdmin()) return toast("Administrator access required", true);
     const singleMember = Boolean(existingMember);
-    showModal(singleMember ? "Give traveller a personal PIN" : "Add travellers with separate PINs", `<form class="modal-form" id="bulkTravellerForm"><div class="security-note traveller-note"><i>♙</i><p>${singleMember ? `Create personal access for <b>${esc(existingMember.name)}</b> and assign it to this trip.` : `Add several travellers to <b>${esc(state.data.trip.name)}</b>. Enter a different personal PIN for every traveller.`}</p></div><div id="newTravellerRows"></div>${singleMember ? "" : `<button class="add-row-button" id="addTravellerRow" type="button">＋ Add another traveller</button>`}<p class="form-help">Each traveller receives a unique Traveller ID. The personal PIN is stored only as a secure hash and cannot be viewed later.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">${singleMember ? "Create PIN and assign" : "Create and add to trip"}</button></div></form>`);
+    showModal(singleMember ? "Create traveller account" : "Add travellers with passwords", `<form class="modal-form" id="bulkTravellerForm"><div class="security-note traveller-note"><i>♙</i><p>${singleMember ? `Create username/password access for <b>${esc(existingMember.name)}</b> and assign it to this trip.` : `Add several travellers to <b>${esc(state.data.trip.name)}</b>. Enter a different password for every traveller.`}</p></div><div id="newTravellerRows"></div>${singleMember ? "" : `<button class="add-row-button" id="addTravellerRow" type="button">＋ Add another traveller</button>`}<p class="form-help">Each traveller receives a permanent Traveller ID used as username. Passwords are securely hashed and cannot be viewed later.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">${singleMember ? "Create account and assign" : "Create and add to trip"}</button></div></form>`);
     const rows = $("#newTravellerRows");
     const addRow = (member) => {
       rows.insertAdjacentHTML("beforeend", travellerPinRow(rows.children.length, member));
@@ -1053,7 +1116,7 @@
       const travellers = $$(".bulk-traveller-row", rows).map((row) => Object.fromEntries(["name", "pin", "phone", "email", "city", "role"].map((field) => [field, row.querySelector(`[data-field="${field}"]`).value.trim()])));
       if (!travellers.length) return toast("Add at least one traveller", true);
       const pinSet = new Set(travellers.map((traveller) => traveller.pin));
-      if (pinSet.size !== travellers.length) return toast("Choose a different personal PIN for every traveller", true);
+      if (pinSet.size !== travellers.length) return toast("Choose a different personal password for every traveller", true);
       try {
         let assigned;
         if (state.demoMode) {
@@ -1077,8 +1140,8 @@
 
   function showCreatedTravellerAccess(travellers, assigned) {
     const accessRows = travellers.map((traveller, index) => ({ ...traveller, travellerId: assigned[index] && assigned[index].traveller ? assigned[index].traveller.travellerId : "Created" }));
-    const copyText = accessRows.map((item) => `${item.name}\nTraveller ID: ${item.travellerId}\nPersonal PIN: ${item.pin}\nTrip ID: ${state.data.trip.tripId}`).join("\n\n");
-    showModal("Traveller access created", `<div class="created-access"><div class="success-note"><b>✓ ${accessRows.length} traveller ${accessRows.length === 1 ? "access" : "accesses"} created</b><p>Give each traveller only their own Traveller ID and personal PIN. These PINs are shown once on this screen.</p></div><div class="created-access-list">${accessRows.map((item) => `<article><i>${esc(initials(item.name))}</i><div><h3>${esc(item.name)}</h3><span>TRAVELLER ID <b>${esc(item.travellerId)}</b></span><span>PERSONAL PIN <b>${esc(item.pin)}</b></span><span>TRIP ID <b>${esc(state.data.trip.tripId)}</b></span></div></article>`).join("")}</div><div class="form-actions"><button id="copyTravellerAccess" type="button">Copy all access details</button><button id="finishTravellerAccess" type="button">Done</button></div></div>`);
+    const copyText = accessRows.map((item) => `${item.name}\nUsername: ${item.travellerId}\nPassword: ${item.pin}\nAssigned trip: ${state.data.trip.tripId}`).join("\n\n");
+    showModal("Traveller accounts created", `<div class="created-access"><div class="success-note"><b>✓ ${accessRows.length} traveller ${accessRows.length === 1 ? "account" : "accounts"} created</b><p>Give each traveller only their own username and password. Passwords are shown once on this screen.</p></div><div class="created-access-list">${accessRows.map((item) => `<article><i>${esc(initials(item.name))}</i><div><h3>${esc(item.name)}</h3><span>USERNAME <b>${esc(item.travellerId)}</b></span><span>PASSWORD <b>${esc(item.pin)}</b></span><span>ASSIGNED TRIP <b>${esc(state.data.trip.tripId)}</b></span></div></article>`).join("")}</div><div class="form-actions"><button id="copyTravellerAccess" type="button">Copy all account details</button><button id="finishTravellerAccess" type="button">Done</button></div></div>`);
     $("#copyTravellerAccess").addEventListener("click", async () => { try { await navigator.clipboard.writeText(copyText); toast("Traveller access details copied"); } catch { toast("Could not copy automatically", true); } });
     $("#finishTravellerAccess").addEventListener("click", closeModal);
   }
@@ -1155,13 +1218,13 @@
   function showResetCurrentTravellerPin(member) {
     if (!isAdmin()) return toast("Administrator access required", true);
     if (!member || !member.travellerId) return toast("This traveller does not have personal access yet", true);
-    showModal("Edit traveller PIN", `<form class="modal-form" id="currentTravellerPinForm"><div class="profile-id-banner"><span>TRAVELLER ID</span><b>${esc(member.travellerId)}</b><small>${esc(member.name)}</small></div><div class="security-note"><i>⚿</i><p>Only the Administrator can edit this personal PIN. The traveller’s old PIN will stop working immediately.</p></div><label>New personal PIN<input name="newPin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" placeholder="4–8 digits" required></label><label>Confirm new PIN<input name="confirmPin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" required></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save new PIN</button></div></form>`);
+    showModal("Edit traveller password", `<form class="modal-form" id="currentTravellerPinForm"><div class="profile-id-banner"><span>USERNAME</span><b>${esc(member.travellerId)}</b><small>${esc(member.name)}</small></div><div class="security-note"><i>⚿</i><p>Only the Administrator can change this personal password. The traveller’s old password will stop working immediately.</p></div><label>New personal password<input name="newPin" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="4–64 characters" required></label><label>Confirm new password<input name="confirmPin" type="password" minlength="4" maxlength="64" autocomplete="new-password" required></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save new password</button></div></form>`);
     $("#currentTravellerPinForm").addEventListener("submit", async (event) => {
       event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-      if (values.newPin !== values.confirmPin) return toast("The two PIN entries do not match", true);
+      if (values.newPin !== values.confirmPin) return toast("The two password entries do not match", true);
       try {
-        if (!state.demoMode) await api("resetTravellerPin", { pin: state.pin, travellerId: member.travellerId, newPin: values.newPin });
-        closeModal(); toast(`Personal PIN updated for ${member.name}`);
+        if (!state.demoMode) await api("resetTravellerPin", { username: state.accountUsername, password: state.pin, pin: state.pin, travellerId: member.travellerId, newPin: values.newPin });
+        closeModal(); toast(`Personal password updated for ${member.name}`);
       } catch (error) { toast(error.message, true); }
     });
     $('[data-cancel]').addEventListener("click", closeModal);
@@ -1206,14 +1269,14 @@
 
   function showSecurity() {
     if (!isAdmin()) return toast("Global Administrator access required for Security settings", true);
-    showModal("Security settings", `<form class="modal-form" id="securityForm"><div class="security-note"><i>◆</i><p>The Administrator password/PIN is global and changes access for every trip. The Traveller PIN below changes only for <b>${esc(state.data.trip.name)}</b>.</p></div><label>New global Administrator password/PIN<input name="adminPin" type="password" minlength="6" maxlength="64" autocomplete="new-password" placeholder="6–64 characters" required></label><label>New Traveller PIN for this trip<input name="travellerPin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" placeholder="4–8 digits" required></label>${actions}</form>`);
+    showModal("Account & security", `<form class="modal-form" id="securityForm"><div class="security-note"><i>◆</i><p>The Administrator username and password open every trip. The shared trip password below changes only for <b>${esc(state.data.trip.name)}</b>.</p></div><label>Administrator username<input name="adminUsername" minlength="3" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,39}" value="${esc(state.accountUsername)}" autocomplete="username" required></label><label>New Administrator password<input name="adminPin" type="password" minlength="6" maxlength="64" autocomplete="new-password" placeholder="6–64 characters" required></label><label>New shared password for this trip<input name="travellerPin" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="4–64 characters" required></label>${actions}</form>`);
     $("#securityForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-      if (values.adminPin === values.travellerPin) return toast("The two PINs must be different", true);
+      if (values.adminPin === values.travellerPin) return toast("The Administrator password and shared trip password must be different", true);
       try {
-        if (!state.demoMode) await api("changePins", { tripId: state.data.trip.tripId, pin: state.pin, adminPin: values.adminPin, travellerPin: values.travellerPin });
-        state.pin = String(values.adminPin); closeModal(); toast("Global Administrator access and this trip’s Traveller PIN were updated");
+        if (!state.demoMode) await api("changePins", { tripId: state.data.trip.tripId, username: state.accountUsername, password: state.pin, pin: state.pin, adminUsername: values.adminUsername, adminPin: values.adminPin, travellerPin: values.travellerPin });
+        state.accountUsername = String(values.adminUsername).trim().toLowerCase(); state.pin = String(values.adminPin); closeModal(); hydrateShell(); toast("Administrator username/password and this trip’s shared password were updated");
       } catch (error) { toast(error.message, true); }
     });
     $('[data-cancel]').addEventListener("click", closeModal);
@@ -1229,7 +1292,7 @@
       if (new Date(values.endDate) < new Date(values.startDate)) return toast("End date cannot be before the start date", true);
       const update = { ...values, budget: Number(values.budget) };
       try {
-        if (!state.demoMode) await api("updateTrip", { tripId: trip.tripId, pin: state.pin, trip: update });
+        if (!state.demoMode) await api("updateTrip", authPayload({ trip: update }));
         state.data.trip = { ...trip, ...update }; closeModal(); hydrateShell(); render(); updatePrintArea(); toast("Trip settings updated by administrator");
       } catch (error) { toast(error.message, true); }
     });
@@ -1240,7 +1303,7 @@
     if (!isAdmin()) return toast("Administrator access required", true);
     const enabled = !(state.data.trip.enabled !== false && String(state.data.trip.enabled).toUpperCase() !== "FALSE");
     try {
-      if (!state.demoMode) await api("setTripEnabled", { tripId: state.data.trip.tripId, pin: state.pin, enabled });
+      if (!state.demoMode) await api("setTripEnabled", authPayload({ enabled }));
       state.data.trip.enabled = enabled; hydrateShell(); render(); toast(`Trip ${enabled ? "enabled" : "disabled"}`);
     } catch (error) { toast(error.message, true); }
   }
@@ -1272,6 +1335,7 @@
     try {
       if (!state.demoMode) await api("deleteRecord", authPayload({ sheet, id }));
       state.data[collection] = state.data[collection].filter((item) => String(item.id) !== String(id));
+      if (sheet === "Expenses" && String(state.expenseRowEditId) === String(id)) state.expenseRowEditId = "";
       hydrateShell(); render(); updatePrintArea(); toast("Record deleted by administrator");
     } catch (error) { toast(error.message, true); }
   }
@@ -1296,26 +1360,54 @@
   }
 
   function showCreateTrip() {
-    showModal("Create a new trip", `<form class="modal-form" id="createTripForm"><label>Trip name<input name="name" placeholder="e.g. Kerala family holiday" required></label><label>Destination<input name="destination" placeholder="e.g. Kochi, Kerala" required></label><div class="form-row"><label>Start date<input name="startDate" type="date" required></label><label>End date<input name="endDate" type="date" required></label></div><div class="form-row"><label>Total budget (₹)<input name="budget" type="number" min="0" value="50000" required></label><label>Your name<input name="createdBy" required></label></div><label>Global Administrator password/PIN<input name="adminPin" type="password" minlength="6" maxlength="64" autocomplete="current-password" placeholder="Same administrator access for every trip" required></label><label>Traveller PIN for this trip<input name="travellerPin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" placeholder="4–8 digits" required></label><p class="form-help">Use your one global Administrator password/PIN. Choose a different Traveller PIN for each trip and share only that PIN.</p>${actions}</form>`);
+    showModal("Create a new trip", `<form class="modal-form" id="createTripForm"><label>Trip name<input name="name" placeholder="e.g. Kerala family holiday" required></label><label>Destination<input name="destination" placeholder="e.g. Kochi, Kerala" required></label><div class="form-row"><label>Start date<input name="startDate" type="date" required></label><label>End date<input name="endDate" type="date" required></label></div><div class="form-row"><label>Total budget (₹)<input name="budget" type="number" min="0" value="50000" required></label><label>Your name<input name="createdBy" required></label></div><label>Administrator username<input name="adminUsername" minlength="3" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,39}" value="${esc(state.accountUsername || "administrator")}" autocomplete="username" required></label><label>Administrator password<input name="adminPin" type="password" minlength="6" maxlength="64" autocomplete="current-password" placeholder="Same Administrator password for every trip" required></label><label>Shared password for this trip<input name="travellerPin" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="Optional shared one-trip access" required></label><p class="form-help">The Administrator account opens every trip. Named travellers use their Traveller ID as username and their own personal password.</p>${actions}</form>`);
     $("#createTripForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-      if (values.adminPin === values.travellerPin) return toast("The Administrator secret and Traveller PIN must be different", true);
+      if (values.adminPin === values.travellerPin) return toast("The Administrator password and shared trip password must be different", true);
       try {
         await ensureCurrentBackend();
-        const result = await api("createTrip", { trip: { ...values, budget: Number(values.budget) }, adminPin: values.adminPin, travellerPin: values.travellerPin });
-        closeModal(); await openTrip(result, values.adminPin, false, values.createdBy, "administrator"); toast(`Trip created. Code: ${result.trip.tripId}`);
+        const result = await api("createTrip", { username: values.adminUsername, trip: { ...values, budget: Number(values.budget) }, adminUsername: values.adminUsername, adminPin: values.adminPin, travellerPin: values.travellerPin });
+        state.accountUsername = String(values.adminUsername).trim().toLowerCase(); closeModal(); await openTrip(result, values.adminPin, false, values.createdBy, "administrator"); toast(`Trip created. Code: ${result.trip.tripId}`);
       } catch (error) { toast(error.message, true); }
     });
     $('[data-cancel]').addEventListener("click", closeModal);
   }
 
+  async function loginAccount(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = Object.fromEntries(new FormData(form).entries());
+    const username = String(values.username || "").trim();
+    const password = String(values.password || "");
+    const submit = form.querySelector('button[type="submit"]');
+    submit.disabled = true; submit.textContent = "Signing in…";
+    try {
+      await ensureCurrentBackend();
+      const result = await api("login", { username, password });
+      state.accountUsername = String(result.account && result.account.username || username);
+      state.pin = password; state.authenticated = true; state.demoMode = false; state.accessRole = result.accessRole;
+      if (result.accessRole === "administrator") {
+        state.travellerId = ""; state.currentUser = "Administrator";
+        renderAllTrips(result.trips || [], password, false);
+      } else {
+        const traveller = result.traveller || { travellerId: state.accountUsername, name: "Traveller" };
+        state.travellerId = traveller.travellerId; state.currentUser = traveller.name || "Traveller";
+        renderMyTrips(result.trips || [], password, traveller, false);
+      }
+      toast("Signed in successfully");
+    } catch (error) {
+      state.pin = ""; state.accountUsername = ""; state.authenticated = false;
+      toast(error.message, true);
+    } finally {
+      submit.disabled = false; submit.textContent = "Sign in & view my trips →";
+    }
+  }
+
   $("#joinForm").addEventListener("submit", (event) => { if (!apiUrlReady()) { event.preventDefault(); event.stopImmediatePropagation(); showBackendSetup(() => $("#joinForm").requestSubmit()); } }, true);
-  $("#joinForm").addEventListener("submit", async (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); try { await ensureCurrentBackend(); const trip = await api("getTrip", { tripId: String(data.get("tripId")).trim().toUpperCase(), pin: String(data.get("pin")) }); await openTrip(trip, String(data.get("pin")), false, "", "", "", "trip"); } catch (error) { toast(error.message, true); } });
-  $("#adminDemoButton").addEventListener("click", () => openTrip(demo, "654321", true, "Sarada", "administrator"));
-  $("#travellerDemoButton").addEventListener("click", () => openTrip(demo, "1234", true, "Anita", "traveller", "ANITA-101", "personal"));
-  $("#showAllTripsButton").addEventListener("click", showAllTrips);
-  $("#showMyTripsButton").addEventListener("click", showMyTrips);
+  $("#joinForm").addEventListener("submit", async (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); try { await ensureCurrentBackend(); state.accountUsername = ""; const trip = await api("getTrip", { tripId: String(data.get("tripId")).trim().toUpperCase(), pin: String(data.get("pin")) }); await openTrip(trip, String(data.get("pin")), false, "Shared traveller", "traveller", "", "shared"); } catch (error) { toast(error.message, true); } });
+  $("#accountLoginForm").addEventListener("submit", loginAccount);
+  $("#previewDemoButton").addEventListener("click", () => { state.accountUsername = "administrator"; state.pin = "654321"; state.demoMode = true; state.authenticated = true; state.accessRole = "administrator"; renderAllTrips(demoTrips, state.pin, true); });
   $("#showCreateButton").addEventListener("click", async () => {
     if (!apiUrlReady()) return showBackendSetup(() => $("#showCreateButton").click());
     try { await ensureCurrentBackend(); showCreateTrip(); }
@@ -1328,13 +1420,15 @@
   $("#stickyPanelBackdrop").addEventListener("click", closeStickyPanel);
   $("#addStickyNote").addEventListener("click", () => showStickyEditor());
   $("#clearAppCache").addEventListener("click", clearAppCacheAndReload);
+  $("#hubSignOut").addEventListener("click", () => performLogout());
+  $("#mobileSignOut").addEventListener("click", () => performLogout());
   $("#inviteButton").addEventListener("click", showInvite); $("#allTripsButton").addEventListener("click", () => isAdmin() ? showAllTrips() : showMyTrips()); $("#connectBackendButton").addEventListener("click", () => showBackendSetup()); $("#editTripButton").addEventListener("click", showEditTrip); $("#tripPhotoButton").addEventListener("click", showTripPhotoSettings); $("#tripStatusButton").addEventListener("click", toggleCurrentTripStatus); $("#deleteTripButton").addEventListener("click", () => showDeleteTripConfirmation(state.data.trip.tripId)); $("#syncButton").addEventListener("click", refreshTrip); $("#leaveTrip").addEventListener("click", () => performLogout());
   $$('[data-add]').forEach((button) => button.addEventListener("click", () => showAddModal(button.dataset.add)));
 
   ["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) => addEventListener(eventName, recordActivity, { passive: true }));
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkIdleTimeout(); });
   addEventListener("pagehide", () => { state.pin = ""; stopIdleTimer(); });
-  addEventListener("pageshow", (event) => { if (event.persisted && state.data) performLogout("Page restored securely. Please log in again."); });
+  addEventListener("pageshow", (event) => { if (event.persisted && state.authenticated) performLogout("Page restored securely. Please log in again."); });
 
   const inviteQuery = new URLSearchParams(location.search);
   const invitedApi = inviteQuery.get("api");

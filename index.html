@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4.7.0-sticky3">
+  <link rel="stylesheet" href="styles.css?v=4.7.0-account1">
 </head>
 <body>
   <section class="access-screen" id="accessScreen">
@@ -21,29 +21,33 @@
       <div class="access-card">
         <div class="mobile-logo"><i>↗</i> mytrip</div>
         <span class="kicker">WELCOME TO MYTRIP</span>
-        <h2>Open your trips</h2>
-        <p>Use a personal Traveller ID to see every assigned trip, an Administrator PIN to manage all trips, or a shared trip code.</p>
-        <form id="joinForm">
-          <label>Trip code<input name="tripId" id="joinTripId" placeholder="e.g. GOA26" autocomplete="off" required></label>
-          <label>Administrator password/PIN or Traveller PIN<input name="pin" type="password" maxlength="64" placeholder="Enter your access code" required></label>
-          <button class="primary" type="submit">Open one trip →</button>
+        <h2>Sign in to MyTrip</h2>
+        <p>One username and password opens every trip and feature permitted for your account.</p>
+        <form id="accountLoginForm" class="account-login-form">
+          <label>Username<input name="username" id="loginUsername" maxlength="40" autocomplete="username" placeholder="Enter your username" required></label>
+          <label>Password<input name="password" type="password" minlength="4" maxlength="64" autocomplete="current-password" placeholder="Enter your password" required></label>
+          <button class="primary" type="submit">Sign in &amp; view my trips →</button>
         </form>
-        <div class="or"><span>or</span></div>
-        <button class="traveller-all-button" id="showMyTripsButton" type="button">♙ Traveller · View all my trips</button>
-        <button class="admin-all-button" id="showAllTripsButton" type="button">◆ Administrator · View all trips</button>
-        <div class="demo-choice"><button class="demo-button" id="adminDemoButton" type="button">Administrator demo</button><button class="demo-button" id="travellerDemoButton" type="button">Traveller demo</button></div>
+        <details class="shared-trip-login"><summary>Open one trip with shared access</summary><form id="joinForm"><label>Trip code<input name="tripId" id="joinTripId" placeholder="e.g. GOA26" autocomplete="off" required></label><label>Shared trip password<input name="pin" type="password" maxlength="64" placeholder="Enter the shared trip password" required></label><button class="secondary" type="submit">Open shared trip →</button></form></details>
+        <button class="demo-button unified-demo" id="previewDemoButton" type="button">Preview dashboard demo</button>
         <button class="text-button" id="showCreateButton" type="button">＋ Create a new trip</button>
         <div class="backend-status" id="backendStatus"><span><i></i><b>Google backend not connected</b></span><button id="connectBackendButton" type="button">Connect</button></div>
         <button class="cache-clear-button" id="clearAppCache" type="button">↻ Clear cache &amp; reload</button>
         <p class="cache-clear-note">Use this if an old dashboard remains visible. Your backend connection and sticky notes will be kept.</p>
         <div class="version-strip" aria-label="Application versions"><span>FRONTEND <b id="loginFrontendVersion">v4.7.0</b></span><span>BACKEND <b id="loginBackendVersion">Not connected</b></span></div>
-        <p class="access-note">One Administrator PIN opens every trip. Every named traveller can have one personal PIN for all assigned trips.</p>
+        <p class="access-note">Your username opens one secure dashboard containing every trip and feature assigned to your account.</p>
       </div>
     </div>
   </section>
 
+  <section class="account-hub hidden" id="accountHub">
+    <header class="account-hub-topbar"><button class="account-signout" id="hubSignOut" type="button">↪ Sign out</button><a class="brand" href="#"><i>↗</i> mytrip</a><div><span id="hubAccountLabel">MY ACCOUNT</span><b id="hubVersion">Frontend v4.7.0 · Backend —</b></div></header>
+    <main id="accountHubContent"></main>
+  </section>
+
   <section class="dashboard hidden" id="dashboard">
     <aside class="sidebar">
+      <button class="sidebar-signout" id="leaveTrip" type="button">↪ Sign out</button>
       <a class="brand" href="#"><i>↗</i> mytrip</a>
       <nav id="mainNav">
         <button data-tab="overview" class="active"><i>⌂</i><span>Overview</span></button>
@@ -55,11 +59,12 @@
         <button data-tab="print"><i>▤</i><span>Print & Export</span></button>
       </nav>
       <div class="current-trip"><span class="kicker">CURRENT TRIP</span><div><i>🌴</i><span><b id="sideTripName">Goa escape</b><small id="sideTripDates">19–23 Nov 2026</small><em id="sideTripCode">TRIP ID · GOA26</em></span></div></div>
-      <div class="user"><span>SS</span><div><b id="currentUser">Traveller</b><small id="currentRoleLabel">Traveller access</small></div><button id="leaveTrip" title="Close trip">↪</button></div>
+      <div class="user"><span>SS</span><div><b id="currentUser">Traveller</b><small id="currentRoleLabel">Traveller access</small></div></div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
+        <button class="mobile-top-signout" id="mobileSignOut" type="button" aria-label="Sign out">↪</button>
         <div class="mobile-brand"><i>↗</i><span>mytrip</span></div>
         <div class="top-trip-summary" aria-label="Current trip">
           <span class="trip-status" id="tripStatus">● ACTIVE</span>
@@ -105,7 +110,7 @@
   <div class="toast hidden" id="toast" role="status"></div>
   <section class="print-area" id="printArea"></section>
 
-  <script src="config.js?v=4.7.0-sticky3"></script>
-  <script src="app.js?v=4.7.0-sticky3"></script>
+  <script src="config.js?v=4.7.0-account1"></script>
+  <script src="app.js?v=4.7.0-account1"></script>
 </body>
 </html>
