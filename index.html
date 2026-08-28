@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4.7.0-account3">
+  <link rel="stylesheet" href="styles.css?v=4.7.0-account4">
 </head>
 <body>
   <section class="access-screen" id="accessScreen">
@@ -36,14 +36,14 @@
         <button class="backend-settings-link" id="connectBackendButton" type="button">Backend settings</button>
         <button class="cache-clear-button" id="clearAppCache" type="button">↻ Clear cache &amp; reload</button>
         <p class="cache-clear-note">Use this if an old dashboard remains visible. Your backend connection, saved login and sticky notes will be kept.</p>
-        <div class="version-strip" aria-label="Application versions"><span>FRONTEND <b id="loginFrontendVersion">v4.7.0</b></span><span>BACKEND <b id="loginBackendVersion">Not connected</b></span></div>
+        <div class="version-strip" aria-label="Application versions"><span>FE <b id="loginFrontendVersion">v4.7.0</b></span><span>BE <b id="loginBackendVersion">Not connected</b></span></div>
         <p class="access-note">Your username opens one secure dashboard containing every trip and feature assigned to your account.</p>
       </div>
     </div>
   </section>
 
   <section class="account-hub hidden" id="accountHub">
-    <header class="account-hub-topbar"><a class="brand" href="#"><i>↗</i> mytrip</a><div><span id="hubAccountLabel">MY ACCOUNT</span><b id="hubVersion">Frontend v4.7.0 · Backend —</b></div><button class="account-signout" id="hubSignOut" type="button">↪ Sign out</button></header>
+    <header class="account-hub-topbar"><a class="brand" href="#"><i>↗</i> mytrip</a><div><span id="hubAccountLabel">MY ACCOUNT</span><b id="hubVersion">FE v4.7.0 · BE —</b></div><time class="header-date-time" id="hubDateTime" aria-label="Current date and time">◆ Loading date and time…</time><button class="account-signout" id="hubSignOut" type="button">↪ Sign out</button></header>
     <main id="accountHubContent"></main>
   </section>
 
@@ -72,8 +72,9 @@
           <div class="top-trip-copy"><strong id="tripTitle">Goa Escape</strong><small id="tripMeta">19–23 Nov 2026 · 4 nights · 6 travellers</small></div>
           <span class="hidden" id="crumbLabel">Overview</span>
         </div>
+        <time class="header-date-time" id="dashboardDateTime" aria-label="Current date and time">◆ Loading date and time…</time>
         <div class="top-actions">
-          <span class="version-badge" id="dashboardVersion">Frontend v4.7.0 · Backend —</span>
+          <span class="version-badge" id="dashboardVersion">FE v4.7.0 · BE —</span>
           <button class="all-trips" id="allTripsButton">◆ All trips</button>
           <span class="access-badge" id="accessBadge">ADMINISTRATOR</span>
           <div class="avatars" id="topAvatars"></div>
@@ -111,7 +112,7 @@
   <div class="toast hidden" id="toast" role="status"></div>
   <section class="print-area" id="printArea"></section>
 
-  <script src="config.js?v=4.7.0-account3"></script>
-  <script src="app.js?v=4.7.0-account3"></script>
+  <script src="config.js?v=4.7.0-account4"></script>
+  <script src="app.js?v=4.7.0-account4"></script>
 </body>
 </html>

@@ -355,7 +355,7 @@
 
   function heading(kicker, title, action = "", add = "") { return `<div class="view-head"><div><span class="kicker">${kicker}</span><h2>${title}</h2><p>${action}</p></div>${add && canAdd(add) ? `<button class="primary" data-add="${add}">＋ Add ${add}</button>` : ""}</div>`; }
   function panelHead(kicker, title, tab) { return `<div class="panel-head"><div><span class="kicker">${kicker}</span><h2>${title}</h2></div>${tab ? `<button data-go="${tab}">View all →</button>` : ""}</div>`; }
-  function accessNotice() { const personal = Boolean(state.travellerId); const travellerMessage = personal ? "Only the trip features enabled for this Traveller ID appear in the menu. Hidden data is not downloaded." : "Shared trip access uses the common feature set for this trip."; return `<section class="permission-banner ${isAdmin() ? "admin" : "traveller"}"><i>${isAdmin() ? "◆" : "♙"}</i><div><b>${isAdmin() ? "Global Administrator access" : (personal ? "Personal traveller access" : "Shared trip access")}</b><p>${isAdmin() ? "Open every trip, assign travellers, control all feature access, edit details or delete a trip." : travellerMessage}</p></div>${!isAdmin() && personal ? `<span class="personal-traveller-id"><small>MY TRAVELLER ID</small><b>${esc(state.travellerId)}</b></span>` : ""}${isAdmin() ? `<button data-all-trips>All trips</button><button data-security>Security</button>` : (personal ? `<button data-my-trips>My trips</button>` : `<span>SHARED TRIP</span>`)}<span class="dashboard-inline-version">F v${frontendVersion} · B ${backendVersion ? `v${esc(backendVersion)}` : "—"}</span></section>`; }
+  function accessNotice() { const personal = Boolean(state.travellerId); const travellerMessage = personal ? "Only the trip features enabled for this Traveller ID appear in the menu. Hidden data is not downloaded." : "Shared trip access uses the common feature set for this trip."; return `<section class="permission-banner ${isAdmin() ? "admin" : "traveller"}"><i>${isAdmin() ? "◆" : "♙"}</i><div><b>${isAdmin() ? "Global Administrator access" : (personal ? "Personal traveller access" : "Shared trip access")}</b><p>${isAdmin() ? "Open every trip, assign travellers, control all feature access, edit details or delete a trip." : travellerMessage}</p></div>${!isAdmin() && personal ? `<span class="personal-traveller-id"><small>MY TRAVELLER ID</small><b>${esc(state.travellerId)}</b></span>` : ""}${isAdmin() ? `<button data-all-trips>All trips</button><button data-security>Security</button>` : (personal ? `<button data-my-trips>My trips</button>` : `<span>SHARED TRIP</span>`)}<span class="dashboard-inline-version">FE v${frontendVersion} · BE ${backendVersion ? `v${esc(backendVersion)}` : "—"}</span></section>`; }
 
   function renderOverview() {
     const budget = Number(state.data.trip.budget || 0), total = spent(), percent = budget ? Math.min(100, Math.round(total / budget * 100)) : 0;
@@ -743,12 +743,30 @@
     $$('.floating-sticky').forEach((element) => element.addEventListener("pointerup", () => { const note = stickyNotes.find((item) => item.id === element.dataset.floatingSticky); if (!note) return; const box = element.getBoundingClientRect(); note.width = box.width; note.height = box.height; saveStickyNotes(); }));
   }
 
+  function ordinalDay(day) {
+    const remainder100 = day % 100;
+    if (remainder100 >= 11 && remainder100 <= 13) return `${day}th`;
+    return `${day}${day % 10 === 1 ? "st" : (day % 10 === 2 ? "nd" : (day % 10 === 3 ? "rd" : "th"))}`;
+  }
+
+  function currentHeaderDateTime(now = new Date()) {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const time = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+    return `◆ ${ordinalDay(now.getDate())}-${months[now.getMonth()]}-${now.getFullYear()} (${weekdays[now.getDay()]}) │ ${time}`;
+  }
+
+  function updateHeaderDateTime() {
+    const value = currentHeaderDateTime();
+    [$("#dashboardDateTime"), $("#hubDateTime")].filter(Boolean).forEach((element) => { if (element.textContent !== value) element.textContent = value; });
+  }
+
   function updateVersionLabels() {
     const backendLabel = backendVersion ? `v${backendVersion}` : (backendState === "checking" ? "Checking…" : "Not connected");
     if ($("#loginFrontendVersion")) $("#loginFrontendVersion").textContent = `v${frontendVersion}`;
     if ($("#loginBackendVersion")) $("#loginBackendVersion").textContent = backendLabel;
-    if ($("#dashboardVersion")) $("#dashboardVersion").textContent = `Frontend v${frontendVersion} · Backend ${backendLabel}`;
-    if ($("#hubVersion")) $("#hubVersion").textContent = `Frontend v${frontendVersion} · Backend ${backendLabel}`;
+    if ($("#dashboardVersion")) $("#dashboardVersion").textContent = `FE v${frontendVersion} · BE ${backendLabel}`;
+    if ($("#hubVersion")) $("#hubVersion").textContent = `FE v${frontendVersion} · BE ${backendLabel}`;
   }
 
   function updateBackendStatus() {
@@ -1488,6 +1506,9 @@
   const invitedApi = inviteQuery.get("api");
   if (!validApiUrl(config.API_URL) && validApiUrl(invitedApi)) { apiUrl = invitedApi; saveStoredApiUrl(apiUrl); }
   updateBackendStatus();
+  updateHeaderDateTime();
+  setInterval(updateHeaderDateTime, 1000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) updateHeaderDateTime(); });
   restoreSavedAccountLogin();
   if (apiUrlReady()) ensureCurrentBackend().catch(() => {});
   const invitedTrip = inviteQuery.get("trip"); if (invitedTrip) $("#joinTripId").value = invitedTrip.toUpperCase();
