@@ -4,8 +4,8 @@
   const config = window.MYTRIP_CONFIG || {};
   const apiStorageKey = "mytrip_google_backend_url";
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
-  const tabPasswordStorageKey = "mytrip_tab_password_v1";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
+  const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const frontendVersion = "4.7.0";
   const requiredBackendVersion = "4.6.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
@@ -23,33 +23,30 @@
   function readSavedAccountLogin() {
     try {
       let username = String(localStorage.getItem(savedUsernameStorageKey) || "");
-      let password = String(sessionStorage.getItem(tabPasswordStorageKey) || "");
       const legacy = JSON.parse(localStorage.getItem(legacySavedLoginStorageKey) || "null");
       if (!username && legacy && typeof legacy.username === "string") username = legacy.username;
-      if (!password && legacy && typeof legacy.password === "string") password = legacy.password;
       if (username) localStorage.setItem(savedUsernameStorageKey, username.slice(0, 40));
-      if (password) sessionStorage.setItem(tabPasswordStorageKey, password.slice(0, 64));
       localStorage.removeItem(legacySavedLoginStorageKey);
-      if (!username && !password) return null;
-      return { username: username.slice(0, 40), password: password.slice(0, 64) };
+      sessionStorage.removeItem(obsoleteTabPasswordStorageKey);
+      if (!username) return null;
+      return { username: username.slice(0, 40) };
     } catch { return null; }
   }
 
-  function saveAccountLogin(username, password) {
+  function saveAccountLogin(username) {
     try {
       localStorage.setItem(savedUsernameStorageKey, String(username || "").slice(0, 40));
-      sessionStorage.setItem(tabPasswordStorageKey, String(password || "").slice(0, 64));
       localStorage.removeItem(legacySavedLoginStorageKey);
+      sessionStorage.removeItem(obsoleteTabPasswordStorageKey);
     }
-    catch { toast("This browser could not save the login details", true); }
+    catch { toast("This browser could not remember the username", true); }
   }
 
-  function clearTabPassword() { try { sessionStorage.removeItem(tabPasswordStorageKey); } catch {} }
   function clearSavedAccountLogin() {
     try {
       localStorage.removeItem(savedUsernameStorageKey);
       localStorage.removeItem(legacySavedLoginStorageKey);
-      sessionStorage.removeItem(tabPasswordStorageKey);
+      sessionStorage.removeItem(obsoleteTabPasswordStorageKey);
     } catch {}
   }
 
@@ -65,8 +62,8 @@
     const saved = readSavedAccountLogin();
     if (!saved) return;
     $("#loginUsername").value = saved.username;
-    $("#loginPassword").value = saved.password;
-    $("#rememberLogin").checked = Boolean(saved.username || saved.password);
+    $("#loginPassword").value = "";
+    $("#rememberLogin").checked = Boolean(saved.username);
   }
 
   const demo = {
@@ -200,7 +197,6 @@
 
   function performLogout(message = "Signed out. Login is required again.") {
     stopIdleTimer();
-    clearTabPassword();
     state.data = null; state.pin = ""; state.accountUsername = ""; state.authenticated = false; state.travellerId = ""; state.loginMode = "trip"; state.expenseRowEditId = "";
     state.demoMode = false; state.currentUser = "Traveller"; state.accessRole = "traveller"; state.permissions = {};
     stickyNotes = [];
@@ -1476,7 +1472,7 @@
     try {
       await ensureCurrentBackend();
       const result = await api("login", { username, password });
-      if (Boolean(values.rememberLogin)) saveAccountLogin(username, password); else clearSavedAccountLogin();
+      if (Boolean(values.rememberLogin)) saveAccountLogin(username); else clearSavedAccountLogin();
       state.accountUsername = String(result.account && result.account.username || username);
       state.pin = password; state.authenticated = true; state.demoMode = false; state.accessRole = result.accessRole;
       if (result.accessRole === "administrator") {

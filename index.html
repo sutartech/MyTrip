@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4.7.0-login3">
+  <link rel="stylesheet" href="styles.css?v=4.7.0-login4">
 </head>
 <body>
   <section class="access-screen" id="accessScreen">
@@ -30,7 +30,7 @@
           <form id="accountLoginForm" class="account-login-form">
             <label>Username<input name="username" id="loginUsername" maxlength="40" autocomplete="username" placeholder="Enter username" required></label>
             <label>Password<span class="password-input-wrap"><input name="password" id="loginPassword" type="password" minlength="4" maxlength="64" autocomplete="current-password" placeholder="Enter password" required><button id="toggleLoginPassword" type="button" aria-pressed="false">Show</button></span></label>
-            <div class="login-save-option"><label><input name="rememberLogin" id="rememberLogin" type="checkbox"><span>Remember username and keep password in this tab</span></label><small>The password is cleared when this tab closes or the secure session signs out.</small></div>
+            <div class="login-save-option"><label><input name="rememberLogin" id="rememberLogin" type="checkbox"><span>Remember username on this device</span></label><small>Your password is never saved and must be entered for every login.</small></div>
             <button class="primary login-submit" type="submit">Sign in</button>
           </form>
           <section class="visible-shared-access" aria-labelledby="sharedAccessTitle">
@@ -121,7 +121,7 @@
   <div class="toast hidden" id="toast" role="status"></div>
   <section class="print-area" id="printArea"></section>
 
-  <script src="config.js?v=4.7.0-login3"></script>
-  <script src="app.js?v=4.7.0-login3"></script>
+  <script src="config.js?v=4.7.0-login4"></script>
+  <script src="app.js?v=4.7.0-login4"></script>
 </body>
 </html>
