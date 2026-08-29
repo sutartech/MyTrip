@@ -74,9 +74,9 @@
       { id: "m5", name: "Vikram", role: "Viewer" }, { id: "m6", name: "Neha", role: "Editor" }
     ],
     assignments: [
-      { id: "a1", tripId: "GOA26", travellerId: "ANITA-101", role: "Editor", canViewExpenses: true },
-      { id: "a2", tripId: "GOA26", travellerId: "ROHAN-202", role: "Editor", canViewExpenses: true },
-      { id: "a3", tripId: "GOA26", travellerId: "MEERA-303", role: "Editor", canViewExpenses: false }
+      { id: "a1", tripId: "GOA26", travellerId: "ANITA-101", role: "Editor", canViewExpenses: true, photoLimit: 4 },
+      { id: "a2", tripId: "GOA26", travellerId: "ROHAN-202", role: "Editor", canViewExpenses: true, photoLimit: 2 },
+      { id: "a3", tripId: "GOA26", travellerId: "MEERA-303", role: "Editor", canViewExpenses: false, photoLimit: 0 }
     ],
     itinerary: [
       { id: "i1", date: "2026-11-19", time: "10:30", title: "Arrive & check in", place: "Casa Sol, Panjim", notes: "Drop bags, freshen up and have a light lunch." },
@@ -88,6 +88,10 @@
     experiences: [
       { id: "x1", date: "2026-11-19", place: "Fontainhas, Panjim", note: "The colourful lanes were peaceful in the late afternoon. The local guide’s stories made the heritage walk memorable.", writer: "Anita", createdAt: "2026-11-19T18:30:00.000Z" },
       { id: "x2", date: "2026-11-20", place: "Divar Island", note: "The ferry ride and quiet village roads were the highlight of the day.", writer: "Rohan", createdAt: "2026-11-20T17:15:00.000Z" }
+    ],
+    photos: [
+      { id: "ph1", photoUrl: "https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=900&q=80", caption: "Golden evening beside the Mandovi", uploadedBy: "Anita", uploaderId: "ANITA-101", createdAt: "2026-11-19T18:45:00.000Z" },
+      { id: "ph2", photoUrl: "https://images.unsplash.com/photo-1484291470158-b8f8d608850d?auto=format&fit=crop&w=900&q=80", caption: "A colourful corner of our journey", uploadedBy: "Rohan", uploaderId: "ROHAN-202", createdAt: "2026-11-20T16:10:00.000Z" }
     ],
     places: [
       { id: "p1", name: "Fontainhas", area: "Panjim", category: "Culture", plannedDay: "Day 1" },
@@ -115,17 +119,17 @@
   let idleDeadline = 0;
   let lastActivitySignal = 0;
   let stickyMigrationRunning = false;
-  const labels = { overview: "Overview", itinerary: "Itinerary", experiences: "Experiences", places: "Places & Map", expenses: "Expenses", people: "Travellers", print: "Print & Export" };
+  const labels = { overview: "Overview", itinerary: "Itinerary", experiences: "Experiences", photos: "Trip Photos", places: "Places & Map", expenses: "Expenses", people: "Travellers", print: "Print & Export" };
   const demoTrips = [
     { tripId: "GOA26", name: "Goa Escape", destination: "Goa", startDate: "2026-11-19", endDate: "2026-11-23", budget: 85000, spent: 32450, travellerCount: 6, assignedTravellerCount: 3, assignedTravellerIds: ["ANITA-101", "ROHAN-202", "MEERA-303"], enabled: true, createdBy: "Sarada" },
     { tripId: "KER27", name: "Kerala Backwaters", destination: "Alappuzha", startDate: "2027-01-14", endDate: "2027-01-18", budget: 72000, spent: 8400, travellerCount: 4, assignedTravellerCount: 1, assignedTravellerIds: ["ANITA-101"], enabled: true, createdBy: "Sarada" },
     { tripId: "MYS26", name: "Mysuru Weekend", destination: "Mysuru", startDate: "2026-09-05", endDate: "2026-09-07", budget: 28000, spent: 12650, travellerCount: 3, assignedTravellerCount: 0, assignedTravellerIds: [], enabled: false, createdBy: "Sarada" }
   ];
-  const demoTraveller = { travellerId: "ANITA-101", name: "Anita", active: true };
+  const demoTraveller = { travellerId: "ANITA-101", name: "Anita", active: true, canCreateTrips: true };
   const demoTravellerAccounts = [
-    { travellerId: "ANITA-101", name: "Anita", email: "anita@example.com", phone: "+91 98765 43210", city: "Bengaluru", emergencyContact: "Ravi · +91 90000 10001", notes: "Vegetarian meals", active: true, tripCount: 2, tripIds: ["GOA26", "KER27"] },
-    { travellerId: "ROHAN-202", name: "Rohan", email: "rohan@example.com", phone: "+91 98765 43211", city: "Mysuru", emergencyContact: "", notes: "", active: true, tripCount: 1, tripIds: ["GOA26"] },
-    { travellerId: "MEERA-303", name: "Meera", email: "", phone: "+91 98765 43212", city: "Bengaluru", emergencyContact: "", notes: "", active: false, tripCount: 1, tripIds: ["GOA26"] }
+    { travellerId: "ANITA-101", name: "Anita", email: "anita@example.com", phone: "+91 98765 43210", city: "Bengaluru", emergencyContact: "Ravi · +91 90000 10001", notes: "Vegetarian meals", active: true, canCreateTrips: true, tripCount: 2, tripIds: ["GOA26", "KER27"] },
+    { travellerId: "ROHAN-202", name: "Rohan", email: "rohan@example.com", phone: "+91 98765 43211", city: "Mysuru", emergencyContact: "", notes: "", active: true, canCreateTrips: false, tripCount: 1, tripIds: ["GOA26"] },
+    { travellerId: "MEERA-303", name: "Meera", email: "", phone: "+91 98765 43212", city: "Bengaluru", emergencyContact: "", notes: "", active: false, canCreateTrips: false, tripCount: 1, tripIds: ["GOA26"] }
   ];
 
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -158,7 +162,7 @@
 
   function backendUpgradeError(version) {
     const shownVersion = version ? `version ${version}` : "an old version";
-    const error = new Error(`Your Google backend is ${shownVersion}, but a required account, Administrator-login editing, Sticky Note Diary or traveller-login editing capability is missing. Replace Code.gs with the supplied MyTrip ${requiredBackendVersion} build, run setupMyTrip(), then deploy a New version in Apps Script.`);
+    const error = new Error(`Your Google backend is ${shownVersion}, but a required account, authorised traveller trip-creation, Drive photo-gallery, Administrator-login editing, Sticky Note Diary or traveller-login editing capability is missing. Replace Code.gs with the supplied MyTrip ${requiredBackendVersion} build, run setupMyTrip(), then deploy a New version in Apps Script.`);
     error.code = "BACKEND_UPGRADE_REQUIRED";
     return error;
   }
@@ -166,7 +170,7 @@
   async function verifyBackendVersion(url = apiUrl) {
     const info = await requestAt(url, "ping");
     backendVersion = String(info && info.version || "");
-    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true) throw backendUpgradeError(backendVersion);
+    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true) throw backendUpgradeError(backendVersion);
     return info;
   }
 
@@ -255,7 +259,7 @@
   }
 
   function normalize(data) {
-    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: data.itinerary || [], experiences: data.experiences || [], stickyDiary: data.stickyDiary || [], expenses: (data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
+    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: data.itinerary || [], experiences: data.experiences || [], photos: data.photos || [], stickyDiary: data.stickyDiary || [], expenses: (data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
   }
 
   function isAdmin() { return state.accessRole === "administrator"; }
@@ -348,6 +352,7 @@
     const tabAccess = {
       itinerary: canViewItinerary(),
       experiences: canViewExperiences(),
+      photos: true,
       places: canViewPlaces(),
       expenses: canViewExpenses(),
       people: canViewTravellers(),
@@ -363,7 +368,7 @@
   }
 
   function setTab(tab) {
-    const allowed = { itinerary: canViewItinerary(), experiences: canViewExperiences(), places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() };
+    const allowed = { itinerary: canViewItinerary(), experiences: canViewExperiences(), photos: true, places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() };
     if (allowed[tab] === false) return toast("This feature is hidden for your Traveller ID by the Administrator", true);
     state.tab = tab; $("#crumbLabel").textContent = labels[tab];
     $$('[data-tab]').forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
@@ -407,6 +412,32 @@
     const experiences = [...state.data.experiences].sort((a, b) => `${a.date}${a.createdAt || ""}`.localeCompare(`${b.date}${b.createdAt || ""}`));
     const experienceCards = experiences.map((item, index) => `<article class="experience-card colour-${index % 5}"><div class="experience-date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b><span>${displayDate(item.date, { month: "short" })}</span></div><div class="experience-copy"><span class="experience-place">${item.place ? `⌖ ${esc(item.place)}` : "TRIP MEMORY"}</span><p>${esc(item.note)}</p><strong>✍ Written by ${esc(item.writer || "Trip member")}</strong></div><span class="record-actions">${canEditRecords("ExperienceNotes") ? `<button class="edit-control" data-edit data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control" data-delete data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Delete</button>` : ""}</span></article>`).join("");
     return `<section class="experience-section experience-page"><div class="experience-hero"><div><span class="kicker">COLOURFUL TRAVEL JOURNAL</span><h2>Experiences worth remembering</h2><p>Keep every place, feeling and story together in a separate journal.</p></div>${canAdd("experience") ? `<button class="primary" data-add="experience">＋ Add experience</button>` : ""}</div><div class="experience-summary"><article><i>✍</i><div><small>MEMORIES</small><b>${experiences.length}</b></div></article><article><i>⌖</i><div><small>PLACES</small><b>${new Set(experiences.map((item) => item.place).filter(Boolean)).size}</b></div></article><article><i>☀</i><div><small>WRITERS</small><b>${new Set(experiences.map((item) => item.writer).filter(Boolean)).size}</b></div></article></div><div class="experience-list">${experienceCards || `<div class="empty-experiences"><b>No experience notes yet</b><p>Add the first colourful memory from this trip.</p></div>`}</div></section>`;
+  }
+
+  function photoUploadsEnabled() {
+    return state.permissions.photoUploadsEnabled !== false && String(state.data.trip.photoUploadsEnabled || "TRUE").toUpperCase() !== "FALSE";
+  }
+
+  function mayManagePhoto(photo) {
+    return isAdmin() || Boolean(state.travellerId && String(photo.uploaderId || "").toUpperCase() === String(state.travellerId).toUpperCase());
+  }
+
+  function mayReplacePhoto(photo) {
+    return isAdmin() || (mayManagePhoto(photo) && photoUploadsEnabled() && Number(state.permissions.photoUploadLimit || 0) > 0);
+  }
+
+  function renderPhotos() {
+    const photos = [...state.data.photos].sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    const enabled = photoUploadsEnabled();
+    const limit = Number(state.permissions.photoUploadLimit || 0);
+    const count = Number(state.permissions.photoUploadCount || 0);
+    const remainingPhotos = Math.max(0, Number(state.permissions.photoUploadRemaining || 0));
+    const mayAdd = isAdmin() || state.permissions.addPhotos === true;
+    const accessText = isAdmin()
+      ? `${enabled ? "Traveller uploads are enabled" : "Traveller uploads are disabled"}. Administrator uploads remain available.`
+      : (!state.travellerId ? "Shared trip access can view photos but cannot add them." : (enabled && limit > 0 ? `${count} of ${limit} photo slots used · ${remainingPhotos} remaining` : "Photo addition is disabled for your account in this trip."));
+    const cards = photos.map((photo, index) => `<article class="trip-photo-card colour-${index % 6}"><button class="trip-photo-open" data-open-photo="${esc(photo.id)}" aria-label="View photo"><img src="${esc(photo.photoUrl)}" alt="${esc(photo.caption || `Trip photo by ${photo.uploadedBy || "Trip member"}`)}" loading="lazy"></button><div><span class="photo-number">PHOTO ${String(index + 1).padStart(2, "0")}</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>📷 ${esc(photo.uploadedBy || "Trip member")} · ${displayDate(String(photo.createdAt || "").slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</p>${mayManagePhoto(photo) ? `<span class="trip-photo-actions">${mayReplacePhoto(photo) ? `<button data-replace-photo="${esc(photo.id)}">Replace</button>` : ""}<button class="delete" data-delete-photo="${esc(photo.id)}">Delete</button></span>` : ""}</div></article>`).join("");
+    return `<section class="trip-photos-page"><div class="trip-photos-hero"><div><span class="kicker">COLOURFUL TRIP GALLERY</span><h2>Photos from the journey</h2><p>Keep selected trip photographs together. Images are stored in Google Drive and photo details are stored in Google Sheets.</p></div><div class="trip-photos-hero-actions">${isAdmin() ? `<button class="photo-access-toggle ${enabled ? "enabled" : "disabled"}" data-toggle-photo-uploads>${enabled ? "Disable traveller uploads" : "Enable traveller uploads"}</button>` : ""}${mayAdd ? `<button class="primary" data-add-trip-photo>＋ Add photo</button>` : ""}</div></div><div class="photo-access-strip ${enabled ? "enabled" : "disabled"}"><i>${enabled ? "●" : "○"}</i><div><b>${isAdmin() ? "Administrator photo control" : "Your photo allowance"}</b><p>${esc(accessText)}</p></div>${!isAdmin() && state.travellerId ? `<strong>${count}/${limit}</strong>` : `<strong>${photos.length} photos</strong>`}</div><div class="trip-photo-grid">${cards || `<div class="empty-photo-gallery"><i>▣</i><b>No trip photos yet</b><p>${mayAdd ? "Add the first colourful memory from this journey." : "An authorised traveller or the Administrator can add the first photo."}</p></div>`}</div></section>`;
   }
 
   function renderPlaces() {
@@ -495,7 +526,7 @@
 
   function render() {
     if (!state.data) return;
-    const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint };
+    const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint };
     $("#view").innerHTML = accessNotice() + renderers[state.tab](); bindViewActions();
   }
 
@@ -518,6 +549,11 @@
     $$('[data-reset-member-pin]').forEach((button) => button.addEventListener("click", () => showResetCurrentTravellerPin(state.data.members.find((member) => String(member.id) === String(button.dataset.resetMemberPin)))));
     $$('[data-feature-access]').forEach((button) => button.addEventListener("click", () => showTravellerFeatureAccess(state.data.members.find((member) => String(member.id) === String(button.dataset.featureAccess)))));
     $$('[data-trip-photo]').forEach((button) => button.addEventListener("click", showTripPhotoSettings));
+    $$('[data-add-trip-photo]').forEach((button) => button.addEventListener("click", () => showTripGalleryPhotoEditor()));
+    $$('[data-replace-photo]').forEach((button) => button.addEventListener("click", () => showTripGalleryPhotoEditor(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.replacePhoto)))));
+    $$('[data-delete-photo]').forEach((button) => button.addEventListener("click", () => showDeleteTripGalleryPhoto(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.deletePhoto)))));
+    $$('[data-open-photo]').forEach((button) => button.addEventListener("click", () => showTripGalleryPhoto(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.openPhoto)))));
+    $$('[data-toggle-photo-uploads]').forEach((button) => button.addEventListener("click", toggleTripPhotoUploads));
     $$('[data-add-existing-travellers]').forEach((button) => button.addEventListener("click", showAddExistingTravellersToCurrentTrip));
     $$('[data-manage-current-trip]').forEach((button) => button.addEventListener("click", showCurrentTripTravellerAccess));
     $$('[data-remove-trip-member]').forEach((button) => button.addEventListener("click", () => showRemoveTravellerFromCurrentTrip(state.data.members.find((member) => String(member.id) === String(button.dataset.removeTripMember)))));
@@ -796,7 +832,7 @@
   }
 
   function showBackendSetup(afterConnect) {
-    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v4.6.0 account build required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This enables the common login, traveller credential editing and the <code>StickyNoteDiary</code> Google Sheet.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. Account login, traveller credential editing, version and Sticky Note Diary capabilities are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test v4.6.0 account build</button></div></form>`);
+    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v4.6.0 account build required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This enables common login, traveller trip-creation permission, the Drive photo gallery and the <code>StickyNoteDiary</code> Google Sheet.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. Account login, traveller credentials, photo gallery, version and Sticky Note Diary capabilities are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test v4.6.0 account build</button></div></form>`);
     const form = $("#backendForm");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -825,6 +861,12 @@
       if (demoMode) {
         const summary = demoTrips.find((trip) => trip.tripId === tripId) || demoTrips[0];
         const bundle = clone(demo); bundle.trip = { ...bundle.trip, ...summary };
+        if (traveller) {
+          const assignment = bundle.assignments.find((item) => item.travellerId === traveller.travellerId && item.tripId === tripId) || { photoLimit: 0 };
+          const photoCount = bundle.photos.filter((photo) => photo.uploaderId === traveller.travellerId).length;
+          const photoLimit = Number(assignment.photoLimit || 0);
+          bundle.permissions = { viewItinerary: true, viewExperiences: true, viewPlaces: true, viewExpenses: assignment.canViewExpenses !== false, viewTravellers: true, printReports: true, writeStickyNotes: false, viewPhotos: true, photoUploadsEnabled: true, photoUploadLimit: photoLimit, photoUploadCount: photoCount, photoUploadRemaining: Math.max(0, photoLimit - photoCount), addPhotos: photoCount < photoLimit };
+        } else bundle.permissions = { viewPhotos: true, addPhotos: true, photoUploadsEnabled: true, photoUploadCount: bundle.photos.length };
         closeModal(); await openTrip(bundle, pin, true, traveller ? traveller.name : summary.createdBy, role, traveller ? traveller.travellerId : "", traveller ? "personal" : "admin");
       } else {
         const payload = { tripId, username: state.accountUsername, password: pin, pin, ...(traveller ? { travellerId: traveller.travellerId } : {}) };
@@ -913,6 +955,7 @@
   }
 
   function renderMyTrips(trips, pin, traveller, demoMode) {
+    const canCreateTrips = traveller.canCreateTrips === true;
     const tripCards = trips.map((trip) => {
       const permissions = trip.permissions || {};
       const details = [];
@@ -922,9 +965,40 @@
       details.push(`${featureCount}/7 access options available`);
       return `<article class="trip-library-card"><i>♙</i><div><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>${details.join(" · ")}</small></div><button data-open-my-trip="${esc(trip.tripId)}" type="button">Open →</button></article>`;
     }).join("");
-    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero traveller"><div><span>MY TRAVEL DASHBOARD</span><h1>Every permitted trip</h1><p>Signed in as <b>${esc(traveller.travellerId)}</b>. Open a trip to view and manage every feature allowed by the Administrator.</p></div><strong>${trips.length} ${trips.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="self-profile-card"><i>${esc(initials(traveller.name))}</i><div><span>USERNAME · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b>${trips.length} ${trips.length === 1 ? "ALLOWED TRIP" : "ALLOWED TRIPS"}</b></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this account</h3></div></div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>Ask the Administrator to assign trips to username ${esc(traveller.travellerId)}.</p></div>`}</div><p class="global-access-note">♙ This account automatically shows every active trip assigned now or in the future.</p></div></section>`;
+    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero traveller"><div><span>MY TRAVEL DASHBOARD</span><h1>Every permitted trip</h1><p>Signed in as <b>${esc(traveller.travellerId)}</b>. Open a trip to view and manage every feature allowed by the Administrator.</p></div><strong>${trips.length} ${trips.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="self-profile-card"><i>${esc(initials(traveller.name))}</i><div><span>USERNAME · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b class="${canCreateTrips ? "trip-creation-allowed" : ""}">${canCreateTrips ? "TRIP CREATION ALLOWED" : `${trips.length} ${trips.length === 1 ? "ALLOWED TRIP" : "ALLOWED TRIPS"}`}</b></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this account</h3></div>${canCreateTrips ? `<button id="createTravellerTrip" type="button">＋ Create trip</button>` : ""}</div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>${canCreateTrips ? "Create a new trip using the button above." : `Ask the Administrator to assign trips to username ${esc(traveller.travellerId)}.`}</p></div>`}</div><p class="global-access-note">♙ ${canCreateTrips ? "The Global Administrator has allowed this account to create trips and automatically retains full control over every new trip." : "This account automatically shows every active trip assigned now or in the future."}</p></div></section>`;
     showAccountHub("traveller", `TRAVELLER · ${traveller.travellerId}`);
     $$('[data-open-my-trip]').forEach((button) => button.addEventListener("click", () => openListedTrip(button.dataset.openMyTrip, pin, demoMode, "traveller", traveller)));
+    if ($("#createTravellerTrip")) $("#createTravellerTrip").addEventListener("click", () => showTravellerCreateTrip(trips, pin, traveller, demoMode));
+  }
+
+  function showTravellerCreateTrip(trips, personalPassword, traveller, demoMode) {
+    if (traveller.canCreateTrips !== true) return toast("The Global Administrator has not allowed this account to create trips", true);
+    showModal("Create a new trip", `<form class="modal-form" id="travellerCreateTripForm"><div class="security-note traveller-note"><i>＋</i><p>You are authorised to create a trip. You will be recorded as its organiser, while the Global Administrator automatically retains full control.</p></div><label>Trip name<input name="name" maxlength="100" placeholder="e.g. Kerala family holiday" required></label><label>Destination<input name="destination" maxlength="120" placeholder="e.g. Kochi, Kerala" required></label><div class="form-row"><label>Start date<input name="startDate" type="date" required></label><label>End date<input name="endDate" type="date" required></label></div><label>Total budget (₹)<input name="budget" type="number" min="0" step="0.01" value="50000" required></label><div class="form-row"><label>Shared password for this trip<input name="sharedPassword" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="4–64 characters" required></label><label>Confirm shared password<input name="confirmSharedPassword" type="password" minlength="4" maxlength="64" autocomplete="new-password" required></label></div><p class="form-help">The shared password opens only this trip. It must be different from your personal account password.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Create trip</button></div></form>`);
+    $("#travellerCreateTripForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+      if (new Date(values.endDate) < new Date(values.startDate)) return toast("End date cannot be before the start date", true);
+      if (values.sharedPassword !== values.confirmSharedPassword) return toast("The two shared-password entries do not match", true);
+      if (values.sharedPassword === personalPassword) return toast("Choose a shared trip password different from your personal password", true);
+      const submit = event.currentTarget.querySelector('button[type="submit"]'); submit.disabled = true; submit.textContent = "Creating…";
+      try {
+        let tripId;
+        if (demoMode) {
+          const prefix = String(values.destination || "TRIP").replace(/[^A-Za-z]/g, "").toUpperCase().padEnd(3, "X").slice(0, 3);
+          tripId = `${prefix}${Math.floor(100 + Math.random() * 900)}`;
+          const summary = { tripId, name: values.name, destination: values.destination, startDate: values.startDate, endDate: values.endDate, budget: Number(values.budget), spent: 0, travellerCount: 1, assignedTravellerCount: 1, assignedTravellerIds: [traveller.travellerId], enabled: true, createdBy: traveller.name, permissions: { viewItinerary: true, viewExperiences: true, viewPlaces: true, viewExpenses: true, viewTravellers: true, printReports: true, writeStickyNotes: false } };
+          demoTrips.push(summary); traveller.tripIds = [...new Set([...(traveller.tripIds || []), tripId])];
+          const demoAccount = demoTravellerAccounts.find((item) => item.travellerId === traveller.travellerId);
+          if (demoAccount) { demoAccount.tripIds = [...new Set([...(demoAccount.tripIds || []), tripId])]; demoAccount.tripCount = demoAccount.tripIds.length; }
+        } else {
+          const result = await api("createTravellerTrip", { username: traveller.travellerId, password: personalPassword, trip: { name: values.name, destination: values.destination, startDate: values.startDate, endDate: values.endDate, budget: Number(values.budget) }, sharedPassword: values.sharedPassword });
+          tripId = result.trip.tripId;
+        }
+        await loadMyTrips(personalPassword, traveller, demoMode);
+        toast(`Trip created successfully · ${tripId}`);
+      } catch (error) { submit.disabled = false; submit.textContent = "Create trip"; toast(error.message, true); }
+    });
+    $('[data-cancel]').addEventListener("click", closeModal);
   }
 
   function showMyTrips() {
@@ -941,12 +1015,27 @@
 
   function renderTravellerAccounts(travellers, trips, administratorSecret, demoMode) {
     showModal("Traveller profiles", `<div class="traveller-manager"><div class="all-trips-summary"><span><small>PERMANENT TRAVELLER DIRECTORY</small><b>${travellers.length} profiles</b></span><span class="summary-actions"><button id="backToAllTrips" class="secondary-action" type="button">← All trips</button><button id="createTravellerAccount" type="button">＋ Add traveller</button></span></div><p class="directory-note">Use <b>Assign trips</b> to enable or disable one trip independently. Use <b>Edit login</b> to change a username and password safely.</p><div class="account-list">${travellers.map((traveller) => `<article class="account-card ${traveller.active ? "" : "inactive"}"><span class="account-avatar">${esc(initials(traveller.name))}</span><div class="account-profile"><span>${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email].filter(Boolean).map(esc).join(" · ") || "Contact details not added"}</p><small>${[traveller.city, traveller.emergencyContact ? `Emergency: ${traveller.emergencyContact}` : ""].filter(Boolean).map(esc).join(" · ") || "City and emergency contact not added"}</small><div class="account-trip-status ${Number(traveller.tripCount || 0) ? "assigned" : "unassigned"}">${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned ${Number(traveller.tripCount) === 1 ? "trip" : "trips"}: ${(traveller.tripIds || []).map(esc).join(", ")}` : "NO TRIP ASSIGNED"}</div></div><div class="account-actions"><button data-view-account="${esc(traveller.travellerId)}">View profile</button><button data-account-trips="${esc(traveller.travellerId)}">Assign trips</button><button class="pin-account-control" data-edit-account-login="${esc(traveller.travellerId)}">✎ Edit login</button><button class="global-profile-control" data-toggle-account="${esc(traveller.travellerId)}" data-active="${Boolean(traveller.active)}">${traveller.active ? "Disable everywhere" : "Enable profile"}</button><button class="delete-profile-control" data-delete-account="${esc(traveller.travellerId)}">Delete profile</button></div></article>`).join("") || `<div class="empty-trips"><b>No traveller profiles</b><p>Add a traveller profile now. A trip does not need to be assigned.</p></div>`}</div></div>`);
+    travellers.forEach((traveller) => {
+      const viewButton = $$('[data-view-account]').find((button) => button.dataset.viewAccount === traveller.travellerId);
+      const card = viewButton?.closest(".account-card");
+      if (!card) return;
+      card.querySelector(".account-profile")?.insertAdjacentHTML("beforeend", `<span class="trip-create-permission-status ${traveller.canCreateTrips ? "allowed" : ""}">${traveller.canCreateTrips ? "TRIP CREATION ALLOWED" : "TRIP CREATION BLOCKED"}</span>`);
+      card.querySelector(".account-actions")?.insertAdjacentHTML("afterbegin", `<button class="trip-create-permission-control ${traveller.canCreateTrips ? "allowed" : ""}" data-toggle-trip-creation="${esc(traveller.travellerId)}" data-allowed="${Boolean(traveller.canCreateTrips)}">${traveller.canCreateTrips ? "Stop trip creation" : "Allow trip creation"}</button>`);
+    });
     $("#backToAllTrips").addEventListener("click", () => renderAllTrips(trips, administratorSecret, demoMode));
     $("#createTravellerAccount").addEventListener("click", () => showCreateTravellerAccount(trips, administratorSecret, demoMode));
     $$('[data-view-account]').forEach((button) => button.addEventListener("click", () => showTravellerProfile(travellers.find((item) => item.travellerId === button.dataset.viewAccount), trips, administratorSecret, demoMode)));
     $$('[data-account-trips]').forEach((button) => button.addEventListener("click", () => showTravellerTripAssignments(travellers.find((item) => item.travellerId === button.dataset.accountTrips), trips, administratorSecret, demoMode)));
     $$('[data-edit-account-login]').forEach((button) => button.addEventListener("click", () => showEditTravellerCredentials(travellers.find((item) => item.travellerId === button.dataset.editAccountLogin), trips, administratorSecret, demoMode)));
     $$('[data-delete-account]').forEach((button) => button.addEventListener("click", () => showDeleteTravellerAccount(travellers.find((item) => item.travellerId === button.dataset.deleteAccount), trips, administratorSecret, demoMode)));
+    $$('[data-toggle-trip-creation]').forEach((button) => button.addEventListener("click", async () => {
+      const travellerId = button.dataset.toggleTripCreation, allowed = button.dataset.allowed !== "true";
+      try {
+        if (demoMode) { const account = demoTravellerAccounts.find((item) => item.travellerId === travellerId); if (account) account.canCreateTrips = allowed; }
+        else await api("setTravellerTripCreationAccess", { ...adminAuth(administratorSecret), travellerId, allowed });
+        toast(allowed ? "Traveller may now create trips" : "Traveller trip creation disabled"); await loadTravellerAccounts(administratorSecret, trips, demoMode);
+      } catch (error) { toast(error.message, true); }
+    }));
     $$('[data-toggle-account]').forEach((button) => button.addEventListener("click", async () => {
       const travellerId = button.dataset.toggleAccount, active = button.dataset.active !== "true";
       try {
@@ -1089,8 +1178,10 @@
 
   function showCreateTravellerAccount(trips, administratorSecret, demoMode) {
     showModal("Add traveller account", `<form class="modal-form" id="createTravellerAccountForm"><div class="security-note traveller-note"><i>♙</i><p>This creates an independent username and password. <b>No trip will be assigned automatically.</b></p></div><div class="form-row"><label>Traveller name<input name="name" maxlength="80" placeholder="e.g. Anita Sutar" required></label><label>Username <small>(optional)</small><input name="travellerId" maxlength="30" placeholder="Generated if blank"></label></div><div class="form-row"><label>Phone<input name="phone" type="tel" maxlength="30" placeholder="e.g. +91 98765 43210"></label><label>Email<input name="email" type="email" maxlength="120" placeholder="name@example.com"></label></div><label>City or location<input name="city" maxlength="80" placeholder="e.g. Bengaluru"></label><label>Emergency contact<input name="emergencyContact" maxlength="120" placeholder="Name and phone number"></label><label>Notes<textarea name="notes" rows="3" maxlength="1000" placeholder="Food preference, accessibility requirement or other useful note"></textarea></label><label>Personal password<input name="pin" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="4–64 characters" required></label><p class="form-help">The permanent username is the Traveller ID. After saving, assign one or more trips when required.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Create account</button></div></form>`);
-    $("#createTravellerAccountForm").addEventListener("submit", async (event) => {
-      event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const createForm = $("#createTravellerAccountForm");
+    createForm.querySelector(".form-actions").insertAdjacentHTML("beforebegin", `<label class="feature-access-option"><input type="checkbox" name="canCreateTrips"><span><b>Allow this traveller to create trips</b><small>The traveller will see Create trip in My trips and becomes organiser of a new trip. The Global Administrator keeps full control.</small></span><em>ALLOW</em></label>`);
+    createForm.addEventListener("submit", async (event) => {
+      event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); values.canCreateTrips = Boolean(event.currentTarget.elements.canCreateTrips.checked);
       try {
         let created;
         if (demoMode) { created = { ...values, travellerId: String(values.travellerId || `TRV-${Math.floor(100 + Math.random() * 900)}`).toUpperCase(), active: true, tripCount: 0, tripIds: [] }; delete created.pin; demoTravellerAccounts.push(created); }
@@ -1105,6 +1196,7 @@
     if (!traveller) return toast("Traveller profile not found", true);
     const allowed = (traveller.tripIds || []).map((tripId) => trips.find((trip) => trip.tripId === tripId)).filter(Boolean);
     showModal("Traveller profile", `<div class="traveller-profile-view"><div class="profile-hero"><i>${esc(initials(traveller.name))}</i><div><span>${esc(traveller.travellerId)}</span><h2>${esc(traveller.name)}</h2><p>${traveller.active ? "Active personal access" : "Inactive personal access"}</p></div></div><div class="profile-detail-grid"><span><small>PHONE</small><b>${esc(traveller.phone || "Not added")}</b></span><span><small>EMAIL</small><b>${esc(traveller.email || "Not added")}</b></span><span><small>CITY</small><b>${esc(traveller.city || "Not added")}</b></span><span><small>EMERGENCY CONTACT</small><b>${esc(traveller.emergencyContact || "Not added")}</b></span></div>${traveller.notes ? `<div class="profile-notes"><small>NOTES</small><p>${esc(traveller.notes)}</p></div>` : ""}<div class="profile-trip-heading"><div><span class="kicker">ALLOWED TRIPS</span><h3>${allowed.length} ${allowed.length === 1 ? "trip" : "trips"} in this profile</h3></div><button id="profileAssignTrips" type="button">Manage trips</button></div><div class="profile-trip-list">${allowed.map((trip) => `<article><div><span>TRIP ID · ${esc(trip.tripId)}</span><h4>${esc(trip.name)}</h4><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p></div><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></article>`).join("") || `<div class="empty-profile-trips"><b>No trip assigned</b><p>This permanent profile is ready. Trips can be added later.</p></div>`}</div><div class="form-actions profile-actions"><button id="profileBack" type="button">← Back</button><button id="profileEdit" type="button">Edit details</button><button id="profileEditLogin" class="pin-primary-action" type="button">✎ Edit login</button></div></div>`);
+    $(".profile-detail-grid")?.insertAdjacentHTML("beforeend", `<span class="trip-creation-detail ${traveller.canCreateTrips ? "allowed" : ""}"><small>TRIP CREATION</small><b>${traveller.canCreateTrips ? "Allowed" : "Not allowed"}</b></span>`);
     $("#profileAssignTrips").addEventListener("click", () => showTravellerTripAssignments(traveller, trips, administratorSecret, demoMode));
     $("#profileEdit").addEventListener("click", () => showEditTravellerAccount(traveller, trips, administratorSecret, demoMode));
     $("#profileEditLogin").addEventListener("click", () => showEditTravellerCredentials(traveller, trips, administratorSecret, demoMode));
@@ -1258,6 +1350,8 @@
     if (!isAdmin()) return toast("Administrator access required", true);
     if (!member || !member.travellerId) return toast("Create personal Traveller ID access first", true);
     const assignment = assignmentForTraveller(member.travellerId) || {};
+    const currentPhotoLimit = Math.max(0, Number(assignment.photoLimit || 0));
+    const currentPhotoCount = state.data.photos.filter((photo) => String(photo.uploaderId || "").toUpperCase() === String(member.travellerId).toUpperCase()).length;
     const options = [
       ["viewItinerary", "canViewItinerary", "Itinerary", "Plans, dates, places and planning notes"],
       ["viewExperiences", "canViewExperiences", "Experience notes", "Travel journal entries and writer names"],
@@ -1269,23 +1363,117 @@
     ];
     showModal("Control traveller access", `<form class="modal-form" id="featureAccessForm"><div class="profile-id-banner"><span>TRAVELLER ID</span><b>${esc(member.travellerId)}</b><small>${esc(member.name)}</small></div><div class="security-note"><i>◆</i><p>Choose exactly what this personal Traveller ID can see or write in <b>${esc(state.data.trip.name)}</b>. Sticky writing is off until the Administrator enables it. Shared trip-PIN users remain view-only for sticky notes.</p></div><div class="feature-access-list">${options.map(([permission, field, label, help]) => `<label class="feature-access-option"><input type="checkbox" name="${permission}" ${assignmentAllows(assignment, field) ? "checked" : ""}><span><b>${label}</b><small>${help}</small></span><em>ALLOW</em></label>`).join("")}</div><div class="feature-access-actions"><button type="button" id="allowAllFeatures">Allow all</button><button type="button" id="hideAllFeatures">Hide all</button></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save access</button></div></form>`);
     const form = $("#featureAccessForm");
+    form.querySelector(".feature-access-actions").insertAdjacentHTML("beforebegin", `<label class="photo-limit-control"><span><b>Maximum photos this traveller may add</b><small>${currentPhotoCount} currently stored · enter 0 to disable photo addition for this traveller · maximum 50</small></span><input name="photoLimit" type="number" min="0" max="50" step="1" value="${currentPhotoLimit}" required></label>`);
     $("#allowAllFeatures").addEventListener("click", () => $$('input[type="checkbox"]', form).forEach((input) => { input.checked = true; }));
     $("#hideAllFeatures").addEventListener("click", () => $$('input[type="checkbox"]', form).forEach((input) => { input.checked = false; }));
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const permissions = Object.fromEntries(options.map(([permission]) => [permission, Boolean(form.elements[permission].checked)]));
+      const photoLimit = Number(form.elements.photoLimit.value);
+      if (!Number.isInteger(photoLimit) || photoLimit < 0 || photoLimit > 50) return toast("Photo limit must be a whole number from 0 to 50", true);
       try {
         let saved = permissions;
         if (!state.demoMode) {
           const result = await api("setTravellerFeatureAccess", authPayload({ travellerId: member.travellerId, permissions }));
           saved = result.permissions || permissions;
+          await api("setTravellerPhotoLimit", authPayload({ travellerId: member.travellerId, limit: photoLimit }));
         }
+        assignment.photoLimit = photoLimit;
         const fieldByPermission = Object.fromEntries(options.map(([permission, field]) => [permission, field]));
         Object.entries(saved).forEach(([permission, allowed]) => { if (fieldByPermission[permission]) assignment[fieldByPermission[permission]] = allowed ? "TRUE" : "FALSE"; });
         closeModal(); render(); toast(`Feature access updated for ${member.name}`);
       } catch (error) { toast(error.message, true); }
     });
     $('[data-cancel]').addEventListener("click", closeModal);
+  }
+
+  function updateLocalPhotoUsage(change) {
+    if (isAdmin()) return;
+    const nextCount = Math.max(0, Number(state.permissions.photoUploadCount || 0) + change);
+    const limit = Number(state.permissions.photoUploadLimit || 0);
+    state.permissions.photoUploadCount = nextCount;
+    state.permissions.photoUploadRemaining = Math.max(0, limit - nextCount);
+    state.permissions.addPhotos = photoUploadsEnabled() && limit > nextCount;
+  }
+
+  function validateGalleryPhotoFile(file) {
+    if (!file) throw new Error("Choose a photo from this device.");
+    if (file.size > 3145728) throw new Error("Trip photo must be smaller than 3 MB.");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Choose a JPEG, PNG or WebP photo.");
+  }
+
+  function readPhotoFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, type: file.type, data: String(reader.result || "").split(",")[1] || "" });
+      reader.onerror = () => reject(new Error("Could not read that photo."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function showTripGalleryPhotoEditor(photo = null) {
+    if (!isAdmin() && (!state.travellerId || (photo ? !mayReplacePhoto(photo) : state.permissions.addPhotos !== true))) return toast("Photo addition or replacement is not allowed for this account", true);
+    const replacing = Boolean(photo);
+    showModal(replacing ? "Replace trip photo" : "Add trip photo", `<form class="modal-form trip-gallery-photo-form" id="tripGalleryPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>${replacing ? "The new image will replace this photo without using another allowance slot." : "Upload one selected trip photo. It will be stored in Google Drive."} JPEG, PNG or WebP · maximum 3 MB.</p></div>${replacing ? `<div class="photo-preview"><img src="${esc(photo.photoUrl)}" alt="Current photo"></div>` : ""}<label>${replacing ? "Replacement photo" : "Photo from this device"}<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp" required></label><label>Caption <small>(optional)</small><input name="caption" maxlength="240" value="${esc(photo?.caption || "")}" placeholder="What should everyone remember about this photo?"></label><p class="form-help">Travellers can replace only their own photos. The Administrator can replace any photo.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">${replacing ? "Replace photo" : "Save photo"}</button></div></form>`);
+    const form = $("#tripGalleryPhotoForm");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const file = form.elements.photoFile.files[0];
+      const caption = String(form.elements.caption.value || "").trim();
+      const submit = form.querySelector('button[type="submit"]');
+      try {
+        validateGalleryPhotoFile(file);
+        submit.disabled = true; submit.textContent = replacing ? "Replacing…" : "Uploading…";
+        let savedPhoto;
+        if (state.demoMode) {
+          savedPhoto = { ...(photo || {}), id: photo?.id || uid(), photoUrl: URL.createObjectURL(file), caption, uploadedBy: photo?.uploadedBy || state.currentUser, uploaderId: photo?.uploaderId || state.travellerId, createdAt: photo?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+        } else {
+          const filePayload = await readPhotoFile(file);
+          const result = await api(replacing ? "replaceTripMemoryPhoto" : "uploadTripMemoryPhoto", authPayload({ ...(replacing ? { photoId: photo.id } : {}), file: filePayload, caption }));
+          savedPhoto = result.photo;
+        }
+        if (replacing) {
+          const index = state.data.photos.findIndex((item) => String(item.id) === String(photo.id));
+          if (index >= 0) state.data.photos[index] = savedPhoto;
+        } else {
+          state.data.photos.push(savedPhoto); updateLocalPhotoUsage(1);
+        }
+        closeModal(); render(); toast(replacing ? "Photo replaced in Google Drive" : "Photo saved to Google Drive");
+      } catch (error) { submit.disabled = false; submit.textContent = replacing ? "Replace photo" : "Save photo"; toast(error.message, true); }
+    });
+    $('[data-cancel]').addEventListener("click", closeModal);
+  }
+
+  function showTripGalleryPhoto(photo) {
+    if (!photo) return toast("Photo not found", true);
+    showModal("Trip photo", `<div class="trip-photo-view"><img src="${esc(photo.photoUrl)}" alt="${esc(photo.caption || "Trip photo")}"><div><span>TRIP MEMORY</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>Uploaded by <b>${esc(photo.uploadedBy || "Trip member")}</b>${photo.createdAt ? ` · ${displayDate(String(photo.createdAt).slice(0, 10))}` : ""}</p></div><div class="form-actions"><button type="button" data-cancel>Close</button>${mayReplacePhoto(photo) ? `<button id="replaceViewedPhoto" type="button">Replace</button>` : ""}</div></div>`);
+    $('[data-cancel]').addEventListener("click", closeModal);
+    if ($("#replaceViewedPhoto")) $("#replaceViewedPhoto").addEventListener("click", () => showTripGalleryPhotoEditor(photo));
+  }
+
+  function showDeleteTripGalleryPhoto(photo) {
+    if (!photo || !mayManagePhoto(photo)) return toast("You can delete only photos that you uploaded", true);
+    showModal("Delete trip photo", `<div class="delete-confirmation"><div class="danger-note"><b>Delete this photo?</b><p>The image will be moved to Google Drive trash and removed from the TripPhotos Google Sheet.</p></div><div class="photo-preview"><img src="${esc(photo.photoUrl)}" alt="${esc(photo.caption || "Trip photo")}"></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button class="danger-button" id="confirmTripPhotoDelete" type="button">Delete photo</button></div></div>`);
+    $("#confirmTripPhotoDelete").addEventListener("click", async (event) => {
+      const button = event.currentTarget; button.disabled = true; button.textContent = "Deleting…";
+      try {
+        if (!state.demoMode) await api("deleteTripMemoryPhoto", authPayload({ photoId: photo.id }));
+        state.data.photos = state.data.photos.filter((item) => String(item.id) !== String(photo.id)); updateLocalPhotoUsage(-1);
+        closeModal(); render(); toast("Photo deleted from the trip gallery");
+      } catch (error) { button.disabled = false; button.textContent = "Delete photo"; toast(error.message, true); }
+    });
+    $('[data-cancel]').addEventListener("click", closeModal);
+  }
+
+  async function toggleTripPhotoUploads() {
+    if (!isAdmin()) return toast("Administrator access required", true);
+    const enabled = !photoUploadsEnabled();
+    try {
+      if (!state.demoMode) await api("setTripPhotoUploadEnabled", authPayload({ enabled }));
+      state.data.trip.photoUploadsEnabled = enabled ? "TRUE" : "FALSE";
+      state.permissions.photoUploadsEnabled = enabled;
+      render(); toast(enabled ? "Traveller photo uploads enabled" : "Traveller photo uploads disabled for this trip");
+    } catch (error) { toast(error.message, true); }
   }
 
   function showTripPhotoSettings() {
