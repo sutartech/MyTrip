@@ -3,7 +3,9 @@
 
   const config = window.MYTRIP_CONFIG || {};
   const apiStorageKey = "mytrip_google_backend_url";
-  const savedLoginStorageKey = "mytrip_saved_account_login_v1";
+  const savedUsernameStorageKey = "mytrip_saved_username_v2";
+  const tabPasswordStorageKey = "mytrip_tab_password_v1";
+  const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const frontendVersion = "4.7.0";
   const requiredBackendVersion = "4.6.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
@@ -20,18 +22,36 @@
 
   function readSavedAccountLogin() {
     try {
-      const saved = JSON.parse(localStorage.getItem(savedLoginStorageKey) || "null");
-      if (!saved || typeof saved.username !== "string" || typeof saved.password !== "string") return null;
-      return { username: saved.username.slice(0, 40), password: saved.password.slice(0, 64) };
+      let username = String(localStorage.getItem(savedUsernameStorageKey) || "");
+      let password = String(sessionStorage.getItem(tabPasswordStorageKey) || "");
+      const legacy = JSON.parse(localStorage.getItem(legacySavedLoginStorageKey) || "null");
+      if (!username && legacy && typeof legacy.username === "string") username = legacy.username;
+      if (!password && legacy && typeof legacy.password === "string") password = legacy.password;
+      if (username) localStorage.setItem(savedUsernameStorageKey, username.slice(0, 40));
+      if (password) sessionStorage.setItem(tabPasswordStorageKey, password.slice(0, 64));
+      localStorage.removeItem(legacySavedLoginStorageKey);
+      if (!username && !password) return null;
+      return { username: username.slice(0, 40), password: password.slice(0, 64) };
     } catch { return null; }
   }
 
   function saveAccountLogin(username, password) {
-    try { localStorage.setItem(savedLoginStorageKey, JSON.stringify({ username: String(username || ""), password: String(password || "") })); }
+    try {
+      localStorage.setItem(savedUsernameStorageKey, String(username || "").slice(0, 40));
+      sessionStorage.setItem(tabPasswordStorageKey, String(password || "").slice(0, 64));
+      localStorage.removeItem(legacySavedLoginStorageKey);
+    }
     catch { toast("This browser could not save the login details", true); }
   }
 
-  function clearSavedAccountLogin() { try { localStorage.removeItem(savedLoginStorageKey); } catch {} }
+  function clearTabPassword() { try { sessionStorage.removeItem(tabPasswordStorageKey); } catch {} }
+  function clearSavedAccountLogin() {
+    try {
+      localStorage.removeItem(savedUsernameStorageKey);
+      localStorage.removeItem(legacySavedLoginStorageKey);
+      sessionStorage.removeItem(tabPasswordStorageKey);
+    } catch {}
+  }
 
   function setLoginPasswordVisible(visible) {
     const input = $("#loginPassword"), button = $("#toggleLoginPassword");
@@ -46,7 +66,7 @@
     if (!saved) return;
     $("#loginUsername").value = saved.username;
     $("#loginPassword").value = saved.password;
-    $("#rememberLogin").checked = true;
+    $("#rememberLogin").checked = Boolean(saved.username || saved.password);
   }
 
   const demo = {
@@ -180,6 +200,7 @@
 
   function performLogout(message = "Signed out. Login is required again.") {
     stopIdleTimer();
+    clearTabPassword();
     state.data = null; state.pin = ""; state.accountUsername = ""; state.authenticated = false; state.travellerId = ""; state.loginMode = "trip"; state.expenseRowEditId = "";
     state.demoMode = false; state.currentUser = "Traveller"; state.accessRole = "traveller"; state.permissions = {};
     stickyNotes = [];
@@ -1471,7 +1492,7 @@
       state.pin = ""; state.accountUsername = ""; state.authenticated = false;
       toast(error.message, true);
     } finally {
-      submit.disabled = false; submit.textContent = "Sign in & view my trips →";
+      submit.disabled = false; submit.textContent = "Sign in";
     }
   }
 

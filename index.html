@@ -12,32 +12,37 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4.7.0-account6">
+  <link rel="stylesheet" href="styles.css?v=4.7.0-login1">
 </head>
 <body>
   <section class="access-screen" id="accessScreen">
-    <div class="access-art"><div class="brand"><i>↗</i> mytrip</div><div class="access-copy"><span>PLAN · SHARE · GO</span><h1>One happy place for the whole trip.</h1><p>Choose places together, build a day-by-day plan, record experiences, track every rupee and print a clean trip book.</p><div class="feature-chips"><b>⌖ Google Maps</b><b>♙ Shared access</b><b>✍ Experience notes</b><b>₹ Expenses</b><b>▤ Print reports</b></div></div></div>
-    <div class="access-panel">
-      <div class="access-card">
-        <div class="mobile-logo"><i>↗</i> mytrip</div>
-        <span class="kicker">WELCOME TO MYTRIP</span>
-        <h2>Sign in to MyTrip</h2>
-        <p>One username and password opens every trip and feature permitted for your account.</p>
-        <form id="accountLoginForm" class="account-login-form">
-          <label>Username<input name="username" id="loginUsername" maxlength="40" autocomplete="username" placeholder="Enter your username" required></label>
-          <label>Password<span class="password-input-wrap"><input name="password" id="loginPassword" type="password" minlength="4" maxlength="64" autocomplete="current-password" placeholder="Enter your password" required><button id="toggleLoginPassword" type="button" aria-pressed="false">Show</button></span></label>
-          <div class="login-save-option"><label><input name="rememberLogin" id="rememberLogin" type="checkbox"><span>Save username and password on this device</span></label><small>Use only on your private phone or computer.</small></div>
-          <button class="primary" type="submit">Sign in &amp; view my trips →</button>
-        </form>
-        <details class="login-account-help"><summary>Where do I find my username and password?</summary><div><p><b>Existing Administrator:</b> username <code>administrator</code> and the same Administrator password/PIN already used.</p><p><b>Traveller:</b> the permanent Traveller ID is the username. Use the personal password created or reset by the Administrator.</p><p>Passwords cannot be displayed after creation. A forgotten traveller password must be reset by the Administrator.</p></div></details>
-        <details class="shared-trip-login"><summary>Open one trip with shared access</summary><form id="joinForm"><label>Trip code<input name="tripId" id="joinTripId" placeholder="e.g. GOA26" autocomplete="off" required></label><label>Shared trip password<input name="pin" type="password" maxlength="64" placeholder="Enter the shared trip password" required></label><button class="secondary" type="submit">Open shared trip →</button></form></details>
-        <button class="demo-button unified-demo" id="previewDemoButton" type="button">Preview dashboard demo</button>
-        <button class="text-button" id="showCreateButton" type="button">＋ Create a new trip</button>
-        <button class="backend-settings-link" id="connectBackendButton" type="button">Backend settings</button>
-        <button class="cache-clear-button" id="clearAppCache" type="button">↻ Clear cache &amp; reload</button>
-        <p class="cache-clear-note">Use this if an old dashboard remains visible. Your backend connection, saved login and sticky notes will be kept.</p>
-        <div class="version-strip" aria-label="Application versions"><span>FE <b id="loginFrontendVersion">v4.7.0</b></span><span>BE <b id="loginBackendVersion">Not connected</b></span></div>
-        <p class="access-note">Your username opens one secure dashboard containing every trip and feature assigned to your account.</p>
+    <div class="access-shell">
+      <div class="access-art">
+        <div class="brand"><i>↗</i> mytrip</div>
+        <div class="access-copy"><span>PLAN · SHARE · GO</span><h1>MyTrip<br>Travel<br>Dashboard</h1><p>Secure access to every trip, itinerary, expense, reminder and travel memory permitted for your account.</p><div class="feature-chips"><b>⌖ Places &amp; Maps</b><b>✍ Experiences</b><b>₹ Expenses</b><b>▤ Trip Book</b></div></div>
+      </div>
+      <div class="access-panel">
+        <div class="access-card">
+          <div class="mobile-logo"><i>↗</i> mytrip</div>
+          <span class="kicker login-kicker">SECURE ACCESS</span>
+          <h2>Welcome</h2>
+          <p>Enter the username and password assigned to your account.</p>
+          <form id="accountLoginForm" class="account-login-form">
+            <label>Username<input name="username" id="loginUsername" maxlength="40" autocomplete="username" placeholder="Enter username" required></label>
+            <label>Password<span class="password-input-wrap"><input name="password" id="loginPassword" type="password" minlength="4" maxlength="64" autocomplete="current-password" placeholder="Enter password" required><button id="toggleLoginPassword" type="button" aria-pressed="false">Show</button></span></label>
+            <div class="login-save-option"><label><input name="rememberLogin" id="rememberLogin" type="checkbox"><span>Remember username and keep password in this tab</span></label><small>The password is cleared when this tab closes or the secure session signs out.</small></div>
+            <button class="primary login-submit" type="submit">Sign in</button>
+          </form>
+          <div class="version-strip" aria-label="Application versions"><span>FE <b id="loginFrontendVersion">v4.7.0</b></span><span>BE <b id="loginBackendVersion">Not connected</b></span></div>
+          <button class="cache-clear-button" id="clearAppCache" type="button">↻ Clear portal cache</button>
+          <details class="login-more-options"><summary>More access options</summary><div>
+            <details class="shared-trip-login"><summary>Open one trip with shared access</summary><form id="joinForm"><label>Trip code<input name="tripId" id="joinTripId" placeholder="e.g. GOA26" autocomplete="off" required></label><label>Shared trip password<input name="pin" type="password" maxlength="64" placeholder="Enter the shared trip password" required></label><button class="secondary" type="submit">Open shared trip →</button></form></details>
+            <button class="demo-button unified-demo" id="previewDemoButton" type="button">Preview dashboard demo</button>
+            <button class="text-button" id="showCreateButton" type="button">＋ Create a new trip</button>
+            <button class="backend-settings-link" id="connectBackendButton" type="button">Backend settings</button>
+          </div></details>
+          <p class="access-note">Your permissions are applied automatically after sign-in.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -112,7 +117,7 @@
   <div class="toast hidden" id="toast" role="status"></div>
   <section class="print-area" id="printArea"></section>
 
-  <script src="config.js?v=4.7.0-account6"></script>
-  <script src="app.js?v=4.7.0-account6"></script>
+  <script src="config.js?v=4.7.0-login1"></script>
+  <script src="app.js?v=4.7.0-login1"></script>
 </body>
 </html>
