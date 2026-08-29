@@ -207,6 +207,80 @@ body{background:linear-gradient(135deg,#f4faf8 0%,#f8f7fc 50%,#fff8f4 100%)}
 @media(max-width:1050px){.trip-photo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.trip-photos-hero{align-items:flex-start}.trip-photos-hero-actions{max-width:290px}}
 @media(max-width:680px){.trip-photos-hero{display:block;padding:20px}.trip-photos-hero h2{font-size:25px}.trip-photos-hero-actions{justify-content:flex-start;max-width:none;margin-top:15px}.trip-photo-grid{grid-template-columns:1fr}.trip-photo-open{height:235px}.photo-access-strip{align-items:flex-start;flex-wrap:wrap}.photo-access-strip>strong{margin-left:35px}.photo-limit-control{grid-template-columns:1fr}}
 
+/* Version 4.7.0 · larger, bolder reading experience */
+body{font-size:16px;font-weight:650}
+.dashboard p,.account-hub p,.modal p{font-size:13px;font-weight:720;line-height:1.58}
+.dashboard small,.account-hub small,.modal small{font-size:11px;font-weight:780;line-height:1.45}
+.dashboard button,.account-hub button,.modal button{font-size:12px;font-weight:900}
+.kicker{font-size:11px;font-weight:950;letter-spacing:1.55px}
+.sidebar nav button{font-size:14px;font-weight:900}
+.current-trip b,.user b{font-size:13px;font-weight:900}
+.current-trip small,.user small{font-size:10.5px;font-weight:750}
+.top-trip-copy>strong{font-size:18px;font-weight:900}
+.top-trip-copy>small{font-size:11px;font-weight:800}
+.access-badge,.version-badge,.all-trips{font-size:10.5px;font-weight:950}
+.permission-banner b{font-size:14px;font-weight:900}.permission-banner p{font-size:12px;font-weight:750}
+.quick-actions b{font-size:13px;font-weight:950}.quick-actions small{font-size:11px;font-weight:800}
+.stat small,.summary-card small{font-size:10.5px;font-weight:950}.stat strong{font-size:27px;font-weight:900}.stat span,.summary-card span{font-size:11.5px;font-weight:750}
+.view-head h2{font-size:32px;font-weight:850}.view-head p{font-size:13px;font-weight:730}
+.panel-head h2,.table-headline h2{font-size:24px;font-weight:850}.panel-head button,.table-headline button{font-size:11.5px}
+.timeline-row .date small{font-size:10px}.timeline-row time{font-size:11px;font-weight:800}.timeline-row h3{font-size:14px;font-weight:900}.timeline-row p,.timeline-row>a{font-size:11.5px;font-weight:750}
+.plan-item h3{font-size:15px;font-weight:900}.plan-item a,.plan-item p,.plan-item time{font-size:11.5px;font-weight:750}
+.place h3{font-size:14px;font-weight:900}.place p,.place small,.place button{font-size:11px;font-weight:800}
+.expense-table-header{font-size:10.5px;font-weight:950}.expense-row{font-size:12px;font-weight:720}.expense-row button{font-size:11px}
+.person h3{font-size:15px;font-weight:900}.person p,.person>span,.person footer{font-size:11px;font-weight:760}
+.experience-copy p{font-size:14px;font-weight:730;line-height:1.65}.experience-copy strong,.experience-place{font-size:11.5px;font-weight:900}
+.trip-photo-card h3{font-size:19px;font-weight:900}.trip-photo-card p{font-size:12.5px;font-weight:760}
+.modal h2{font-size:32px;font-weight:850}.modal-form label{font-size:13px;font-weight:900}.modal-form input,.modal-form select,.modal-form textarea{font-size:16px;font-weight:700}.form-help,.security-note p,.setup-note p{font-size:12px;font-weight:730}.form-actions button{font-size:12px;font-weight:900}
+
+/* Traveller Profiles · high-readability control centre */
+#modal:has(.traveller-manager)>section{width:min(980px,100%);max-height:94vh;padding:30px}
+#modal:has(.traveller-manager) header{margin-bottom:22px}
+#modal:has(.traveller-manager) header .kicker{font-size:12px}
+#modal:has(.traveller-manager) header h2{font-size:36px}
+.traveller-manager{gap:17px}
+.traveller-manager .all-trips-summary{padding:18px 20px;border-radius:14px}
+.traveller-manager .all-trips-summary small{font-size:11px;font-weight:950;letter-spacing:1.35px}
+.traveller-manager .all-trips-summary b{font-size:28px;font-weight:850;margin-top:5px}
+.traveller-manager .all-trips-summary button{min-height:44px;padding:11px 17px;font-size:12px;font-weight:950}
+.traveller-manager .directory-note{padding:14px 17px;border-width:1.5px;border-radius:12px;font-size:13px;font-weight:800;line-height:1.55}
+.traveller-manager .account-list{gap:13px;max-height:60vh;padding-right:4px}
+.traveller-manager .account-card{grid-template-columns:54px minmax(0,1fr) minmax(286px,auto);gap:16px;padding:17px 18px;border-radius:14px;border-width:1.5px}
+.traveller-manager .account-avatar{width:48px;height:48px;font-size:12px;font-weight:950}
+.traveller-manager .account-profile>span:first-child{font-size:11px;font-weight:950;letter-spacing:1.05px}
+.traveller-manager .account-profile h3{margin:4px 0;font-size:18px;font-weight:950;line-height:1.25}
+.traveller-manager .account-profile p,.traveller-manager .account-profile>small{font-size:12.5px;font-weight:760;line-height:1.52}
+.traveller-manager .account-trip-status{margin-top:9px;padding:7px 11px;font-size:10.5px;font-weight:950;letter-spacing:.55px}
+.traveller-manager .trip-create-permission-status{margin-top:9px;padding:7px 11px;font-size:10.5px;font-weight:950;letter-spacing:.07em}
+.traveller-manager .account-actions{grid-template-columns:1fr 1fr;gap:9px;width:286px}
+.traveller-manager .account-actions button{min-height:43px;padding:10px 12px;border-width:1.5px;border-radius:10px;font-size:11.5px;font-weight:950;line-height:1.25}
+.traveller-manager .account-card.inactive{opacity:.82}
+
+@media(max-width:760px){
+  body{font-size:15px}
+  .dashboard p,.account-hub p,.modal p{font-size:12px}
+  .dashboard small,.account-hub small,.modal small{font-size:10px}
+  .dashboard button,.account-hub button,.modal button{font-size:11px}
+  .sidebar nav button{font-size:9.5px}
+  .view-head h2{font-size:27px}.view-head p{font-size:12px}
+  .panel-head h2,.table-headline h2{font-size:21px}
+  #modal:has(.traveller-manager)>section{padding:21px 17px}
+  #modal:has(.traveller-manager) header h2{font-size:30px}
+  .traveller-manager .all-trips-summary{padding:15px}
+  .traveller-manager .all-trips-summary b{font-size:24px}
+  .traveller-manager .directory-note{font-size:12px}
+  .traveller-manager .account-card{grid-template-columns:48px minmax(0,1fr);gap:12px;padding:15px}
+  .traveller-manager .account-avatar{width:44px;height:44px}
+  .traveller-manager .account-profile h3{font-size:17px}
+  .traveller-manager .account-profile p,.traveller-manager .account-profile>small{font-size:11.5px}
+  .traveller-manager .account-actions{grid-column:1/-1;grid-template-columns:1fr 1fr;width:100%;gap:8px}
+  .traveller-manager .account-actions button{min-height:44px;font-size:11px}
+}
+@media(max-width:420px){
+  .traveller-manager .account-actions{grid-template-columns:1fr}
+  .traveller-manager .all-trips-summary .summary-actions{grid-template-columns:1fr 1fr}
+}
+
 /* Version 4.5.2 · independent traveller access and clearer text */
 body{font-weight:500}
 input,select,textarea{font-weight:600}
@@ -420,3 +494,84 @@ body{font-weight:600}.access-card p,.dashboard p,.account-hub p{font-size:11px;f
 .login-section-divider{border-color:#d8d4e8}.login-section-divider span{border:1px solid #d6cdf0;border-radius:999px;background:#f7f3ff;color:#6d55b5;padding:3px 10px}.visible-shared-access>header{border-color:#f0cfb0;background:linear-gradient(120deg,#fff4d9 0%,#ffe9e8 50%,#f3eaff 100%)}.visible-shared-access>header>i{background:linear-gradient(145deg,#ff9c4a,#e45f87);box-shadow:0 7px 16px rgba(214,83,112,.24)}.visible-shared-access h3{color:#65345c}.access-shell .visible-shared-form{border-color:#f0cfb0;background:linear-gradient(145deg,#fffdf5,#fff7fb)}.access-shell .visible-shared-form input{border-color:#e8c7b8}.access-shell .visible-shared-form input:focus{border-color:#e16b86;box-shadow:0 0 0 4px rgba(225,107,134,.13)}.access-shell .visible-shared-form>button{background:linear-gradient(100deg,#ee814b 0%,#d95691 50%,#7653cb 100%);box-shadow:0 9px 20px rgba(193,75,124,.25)}
 .access-shell .cache-clear-button{border-color:#bca8e8;background:linear-gradient(145deg,#fbf8ff,#f2edff);color:#6349ac}.login-more-options>summary{color:#6652a0}.access-shell .access-note{color:#647a86!important}
 @media(max-height:820px) and (min-width:901px){.access-shell .account-login-form{padding:12px}.login-section-divider span{padding-block:2px}}
+
+/* Version 4.7.0 readability override · keep this final so compact legacy rules cannot shrink text */
+body{font-size:16px;font-weight:650}
+.dashboard p,.account-hub p,.modal p{font-size:13px;font-weight:720;line-height:1.58}
+.dashboard small,.account-hub small,.modal small{font-size:11px;font-weight:780;line-height:1.45}
+.dashboard button,.account-hub button,.modal button{font-size:12px;font-weight:900}
+.kicker{font-size:11px;font-weight:950;letter-spacing:1.55px}
+.sidebar nav button{font-size:14px;font-weight:900}
+.current-trip b,.user b{font-size:13px;font-weight:900}
+.current-trip small,.user small{font-size:10.5px;font-weight:750}
+.top-trip-copy>strong{font-size:18px;font-weight:900}
+.top-trip-copy>small{font-size:11px;font-weight:800}
+.access-badge,.version-badge,.all-trips{font-size:10.5px;font-weight:950}
+.permission-banner b{font-size:14px;font-weight:900}.permission-banner p{font-size:12px;font-weight:750}
+.quick-actions b{font-size:13px;font-weight:950}.quick-actions small{font-size:11px;font-weight:800}
+.stat small,.summary-card small{font-size:10.5px;font-weight:950}.stat strong{font-size:27px;font-weight:900}.stat span,.summary-card span{font-size:11.5px;font-weight:750}
+.view-head h2{font-size:32px;font-weight:850}.view-head p{font-size:13px;font-weight:730}
+.panel-head h2,.table-headline h2{font-size:24px;font-weight:850}.panel-head button,.table-headline button{font-size:11.5px}
+.timeline-row .date small{font-size:10px}.timeline-row time{font-size:11px;font-weight:800}.timeline-row h3{font-size:14px;font-weight:900}.timeline-row p,.timeline-row>a{font-size:11.5px;font-weight:750}
+.plan-item h3{font-size:15px;font-weight:900}.plan-item a,.plan-item p,.plan-item time{font-size:11.5px;font-weight:750}
+.place h3{font-size:14px;font-weight:900}.place p,.place small,.place button{font-size:11px;font-weight:800}
+.expense-table-header{font-size:10.5px;font-weight:950}.expense-row{font-size:12px;font-weight:720}.expense-row button{font-size:11px}
+.person h3{font-size:15px;font-weight:900}.person p,.person>span,.person footer{font-size:11px;font-weight:760}
+.experience-copy p{font-size:14px;font-weight:730;line-height:1.65}.experience-copy strong,.experience-place{font-size:11.5px;font-weight:900}
+.trip-photo-card h3{font-size:19px;font-weight:900}.trip-photo-card p{font-size:12.5px;font-weight:760}
+.modal h2{font-size:32px;font-weight:850}.modal-form label{font-size:13px;font-weight:900}.modal-form input,.modal-form select,.modal-form textarea{font-size:16px;font-weight:700}.form-help,.security-note p,.setup-note p{font-size:12px;font-weight:730}.form-actions button{font-size:12px;font-weight:900}
+
+/* Traveller Profiles · larger directory, names, details, badges and controls */
+#modal:has(.traveller-manager)>section{width:min(980px,100%);max-height:94vh;padding:30px}
+#modal:has(.traveller-manager) header{margin-bottom:22px}
+#modal:has(.traveller-manager) header .kicker{font-size:12px}
+#modal:has(.traveller-manager) header h2{font-size:36px}
+.traveller-manager{gap:17px}
+.traveller-manager .all-trips-summary{padding:18px 20px;border-radius:14px}
+.traveller-manager .all-trips-summary small{font-size:11px;font-weight:950;letter-spacing:1.35px}
+.traveller-manager .all-trips-summary b{font-size:28px;font-weight:850;margin-top:5px}
+.traveller-manager .all-trips-summary button{min-height:44px;padding:11px 17px;font-size:12px;font-weight:950}
+.traveller-manager .directory-note{padding:14px 17px;border-width:1.5px;border-radius:12px;font-size:13px;font-weight:800;line-height:1.55}
+.traveller-manager .account-list{gap:13px;max-height:60vh;padding-right:4px}
+.traveller-manager .account-card{grid-template-columns:54px minmax(0,1fr) minmax(286px,auto);gap:16px;padding:17px 18px;border-radius:14px;border-width:1.5px}
+.traveller-manager .account-avatar{width:48px;height:48px;font-size:12px;font-weight:950}
+.traveller-manager .account-profile>span:first-child{font-size:11px;font-weight:950;letter-spacing:1.05px}
+.traveller-manager .account-profile h3{margin:4px 0;font-size:18px;font-weight:950;line-height:1.25}
+.traveller-manager .account-profile p,.traveller-manager .account-profile>small{font-size:12.5px;font-weight:760;line-height:1.52}
+.traveller-manager .account-trip-status{margin-top:9px;padding:7px 11px;font-size:10.5px;font-weight:950;letter-spacing:.55px}
+.traveller-manager .trip-create-permission-status{margin-top:9px;padding:7px 11px;font-size:10.5px;font-weight:950;letter-spacing:.07em}
+.traveller-manager .account-actions{grid-template-columns:1fr 1fr;gap:9px;width:286px}
+.traveller-manager .account-actions button{min-height:43px;padding:10px 12px;border-width:1.5px;border-radius:10px;font-size:11.5px;font-weight:950;line-height:1.25}
+
+@media(max-width:760px){
+  body{font-size:15px}
+  .dashboard p,.account-hub p,.modal p{font-size:12px}
+  .dashboard small,.account-hub small,.modal small{font-size:10px}
+  .dashboard button,.account-hub button,.modal button{font-size:11px}
+  .sidebar nav button{font-size:10.5px}
+  .view-head h2{font-size:27px}.view-head p{font-size:12px}
+  .panel-head h2,.table-headline h2{font-size:21px}
+  #modal:has(.traveller-manager)>section{padding:21px 17px}
+  #modal:has(.traveller-manager) header h2{font-size:30px}
+  .traveller-manager .all-trips-summary{padding:15px}
+  .traveller-manager .all-trips-summary b{font-size:24px}
+  .traveller-manager .directory-note{font-size:12px}
+  .traveller-manager .account-card{grid-template-columns:48px minmax(0,1fr);gap:12px;padding:15px}
+  .traveller-manager .account-avatar{width:44px;height:44px}
+  .traveller-manager .account-profile h3{font-size:17px}
+  .traveller-manager .account-profile p,.traveller-manager .account-profile>small{font-size:11.5px}
+  .traveller-manager .account-actions{grid-column:1/-1;grid-template-columns:1fr 1fr;width:100%;gap:8px}
+  .traveller-manager .account-actions button{min-height:44px;font-size:11px}
+}
+@media(max-width:420px){.traveller-manager .account-actions{grid-template-columns:1fr}.traveller-manager .all-trips-summary .summary-actions{grid-template-columns:1fr 1fr}}
+
+/* Administrator-set traveller trip quotas */
+.quota-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.quota-summary>span{display:grid;gap:5px;padding:15px 16px;border:1.5px solid #d8d0f6;border-radius:14px;background:linear-gradient(145deg,#f7f3ff,#effbf7)}
+.quota-summary small{font-size:10.5px!important;font-weight:950!important;letter-spacing:.8px;color:#6c5ab0}
+.quota-summary b{font-size:27px;font-weight:950;color:#24324b}
+.trip-creation-quota-form input[type=number]{font-size:20px;font-weight:950;text-align:center}
+.profile-actions{grid-template-columns:repeat(4,minmax(0,1fr))}
+.trip-create-permission-status{white-space:normal;line-height:1.35}
+@media(max-width:620px){.quota-summary{grid-template-columns:1fr}.profile-actions{grid-template-columns:1fr 1fr}}
+@media(max-width:420px){.profile-actions{grid-template-columns:1fr}}
