@@ -3,18 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#f27d63">
+  <meta name="color-scheme" content="light">
   <title>MyTrip Shared Planner</title>
   <meta name="description" content="A shared trip planner with itinerary, writer-attributed experiences, Google Maps, expenses and print reports.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4.7.0-tripquota1">
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&amp;family=Playfair+Display:wght@600;700&amp;display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&amp;family=Playfair+Display:wght@600;700&amp;display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="styles.css?v=4.7.0-speed1">
 </head>
 <body>
+  <a class="skip-link" href="#view">Skip to trip content</a>
+  <div class="app-progress hidden" id="appProgress" role="progressbar" aria-label="MyTrip is working" aria-hidden="true"><i></i></div>
   <section class="access-screen" id="accessScreen">
     <div class="access-shell">
       <div class="access-art">
@@ -39,7 +41,7 @@
             <form id="joinForm" class="visible-shared-form"><div class="shared-field-grid"><label>Trip code<input name="tripId" id="joinTripId" placeholder="e.g. GOA26" autocomplete="off" required></label><label>Shared trip password<input name="pin" type="password" maxlength="64" autocomplete="current-password" placeholder="Enter shared password" required></label></div><button class="secondary" type="submit">Open this trip →</button></form>
           </section>
           <div class="version-strip" aria-label="Application versions"><span>FE <b id="loginFrontendVersion">v4.7.0</b></span><span>BE <b id="loginBackendVersion">Not connected</b></span></div>
-          <button class="cache-clear-button" id="clearAppCache" type="button">↻ Clear portal cache</button>
+          <button class="cache-clear-button" id="clearAppCache" type="button">↻ Repair MyTrip cache/session</button>
           <details class="login-more-options"><summary>Other setup tools</summary><div>
             <button class="demo-button unified-demo" id="previewDemoButton" type="button">Preview dashboard demo</button>
             <button class="text-button" id="showCreateButton" type="button">＋ Create a new trip</button>
@@ -52,7 +54,7 @@
   </section>
 
   <section class="account-hub hidden" id="accountHub">
-    <header class="account-hub-topbar"><a class="brand" href="#"><i>↗</i> mytrip</a><div><span id="hubAccountLabel">MY ACCOUNT</span><b id="hubVersion">FE v4.7.0 · BE —</b></div><time class="header-date-time" id="hubDateTime" aria-label="Current date and time">◆ Loading date and time…</time><button class="account-signout" id="hubSignOut" type="button">↪ Sign out</button></header>
+    <header class="account-hub-topbar"><a class="brand" href="#"><i>↗</i> mytrip</a><div><span id="hubAccountLabel">MY ACCOUNT</span><b id="hubVersion">FE v4.7.0 · BE —</b></div><time class="header-date-time" id="hubDateTime" aria-label="Current date and time">◆ Loading date and time…</time><span class="connection-status" id="hubConnectionStatus" role="status"><i></i><b>Online</b></span><button class="account-signout" id="hubSignOut" type="button">↪ Sign out</button></header>
     <main id="accountHubContent"></main>
   </section>
 
@@ -84,6 +86,8 @@
         </div>
         <time class="header-date-time" id="dashboardDateTime" aria-label="Current date and time">◆ Loading date and time…</time>
         <div class="top-actions">
+          <span class="connection-status" id="dashboardConnectionStatus" role="status"><i></i><b>Online</b></span>
+          <button class="quick-find-trigger" id="quickFindButton" type="button" aria-haspopup="dialog" aria-controls="quickFindLayer" title="Search this trip (Ctrl or Command + K)"><span>⌕</span><b>Quick find</b><kbd>⌘K</kbd></button>
           <span class="version-badge" id="dashboardVersion">FE v4.7.0 · BE —</span>
           <button class="all-trips" id="allTripsButton">◆ All trips</button>
           <span class="access-badge" id="accessBadge">ADMINISTRATOR</span>
@@ -97,7 +101,7 @@
         </div>
       </header>
       <div class="content">
-        <div id="view"></div>
+        <div id="view" tabindex="-1"></div>
       </div>
     </main>
   </section>
@@ -118,11 +122,22 @@
   </aside>
   <div class="floating-sticky-layer hidden" id="floatingStickyLayer" aria-live="polite"></div>
 
+  <div class="quick-find-layer hidden" id="quickFindLayer" role="presentation">
+    <section role="dialog" aria-modal="true" aria-labelledby="quickFindTitle">
+      <header><div><span class="kicker">SEARCH THIS TRIP</span><h2 id="quickFindTitle">Quick Find</h2></div><button id="closeQuickFind" type="button" aria-label="Close Quick Find">×</button></header>
+      <label class="quick-find-input"><i>⌕</i><input id="quickFindInput" type="search" autocomplete="off" placeholder="Search plans, places, expenses, photos, experiences…" aria-describedby="quickFindHelp"><kbd>ESC</kbd></label>
+      <div class="quick-find-help" id="quickFindHelp"><span>Results respect this account’s permissions.</span><b id="quickFindCount">Type to search</b></div>
+      <div class="quick-find-results" id="quickFindResults"></div>
+    </section>
+  </div>
+
+  <button class="back-to-top hidden" id="backToTop" type="button" aria-label="Back to top"><span>↑</span><b>Top</b></button>
+
   <div class="modal hidden" id="modal" role="presentation"><section role="dialog" aria-modal="true" aria-labelledby="modalTitle"><header><div><span class="kicker">MYTRIP</span><h2 id="modalTitle">Add</h2></div><button id="closeModal" aria-label="Close">×</button></header><div id="modalBody"></div></section></div>
   <div class="toast hidden" id="toast" role="status"></div>
   <section class="print-area" id="printArea"></section>
 
-  <script src="config.js?v=4.7.0-tripquota1"></script>
-  <script src="app.js?v=4.7.0-tripquota1"></script>
+  <script defer src="config.js?v=4.7.0-speed1"></script>
+  <script defer src="app.js?v=4.7.0-speed1"></script>
 </body>
 </html>

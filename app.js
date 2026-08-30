@@ -14,6 +14,12 @@
   let apiUrl = validApiUrl(config.API_URL) ? String(config.API_URL).trim() : (validApiUrl(readStoredApiUrl()) ? readStoredApiUrl() : "");
   let backendState = apiUrl ? "checking" : "missing";
   let backendVersion = "";
+  let backendInfo = null;
+  let backendVerifiedAt = 0;
+  let backendVerifiedUrl = "";
+  let backendVerificationPromise = null;
+  const backendVerificationTtlMs = 5 * 60 * 1000;
+  const requestTimeoutMs = 25000;
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: config.DEFAULT_CURRENCY || "INR", maximumFractionDigits: 0 });
@@ -119,6 +125,9 @@
   let idleDeadline = 0;
   let lastActivitySignal = 0;
   let stickyMigrationRunning = false;
+  let activeRequests = 0;
+  let quickFindVisibleResults = [];
+  let printAreaDirty = true;
   const labels = { overview: "Overview", itinerary: "Itinerary", experiences: "Experiences", photos: "Trip Photos", places: "Places & Map", expenses: "Expenses", people: "Travellers", print: "Print & Export" };
   const demoTrips = [
     { tripId: "GOA26", name: "Goa Escape", destination: "Goa", startDate: "2026-11-19", endDate: "2026-11-23", budget: 85000, spent: 32450, travellerCount: 6, assignedTravellerCount: 3, assignedTravellerIds: ["ANITA-101", "ROHAN-202", "MEERA-303"], enabled: true, createdBy: "Sarada" },
@@ -142,12 +151,31 @@
   function remaining() { return Number(state.data.trip.budget || 0) - spent(); }
   function apiUrlReady() { return validApiUrl(apiUrl); }
 
+  function setRequestProgress(delta) {
+    activeRequests = Math.max(0, activeRequests + delta);
+    const progress = $("#appProgress"), busy = activeRequests > 0;
+    if (progress) { progress.classList.toggle("hidden", !busy); progress.setAttribute("aria-hidden", String(!busy)); }
+    ["#accessScreen", "#accountHub", "#dashboard"].forEach((selector) => { const element = $(selector); if (element) element.setAttribute("aria-busy", String(busy)); });
+  }
+
   async function requestAt(url, action, payload = {}) {
-    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action, ...payload }) });
-    if (!response.ok) throw new Error(`Google backend returned HTTP ${response.status}.`);
-    const result = await response.json();
-    if (!result.ok) throw new Error(result.error || "The request could not be completed.");
-    return result.data;
+    if (navigator.onLine === false) throw new Error("No internet connection. Reconnect and try again.");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+    setRequestProgress(1);
+    try {
+      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action, ...payload }), signal: controller.signal });
+      if (!response.ok) throw new Error(`Google backend returned HTTP ${response.status}.`);
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || "The request could not be completed.");
+      return result.data;
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("The backend took too long to respond. Check the connection and try again.");
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+      setRequestProgress(-1);
+    }
   }
 
   function backendVersionAtLeast(version, required) {
@@ -176,16 +204,25 @@
 
   async function ensureCurrentBackend() {
     if (!apiUrlReady()) throw new Error("Connect the Google backend first.");
+    if (backendInfo && backendVerifiedUrl === apiUrl && Date.now() - backendVerifiedAt < backendVerificationTtlMs) return backendInfo;
+    if (backendVerificationPromise) return backendVerificationPromise;
     backendState = "checking"; updateBackendStatus();
-    try {
-      const info = await verifyBackendVersion();
-      backendState = "ready"; updateBackendStatus();
-      return info;
-    } catch (error) {
-      backendState = error.code === "BACKEND_UPGRADE_REQUIRED" ? "outdated" : "error";
-      updateBackendStatus();
-      throw error;
-    }
+    backendVerificationPromise = (async () => {
+      try {
+        const info = await verifyBackendVersion();
+        backendInfo = info; backendVerifiedAt = Date.now(); backendVerifiedUrl = apiUrl;
+        backendState = "ready"; updateBackendStatus();
+        return info;
+      } catch (error) {
+        backendInfo = null; backendVerifiedAt = 0; backendVerifiedUrl = "";
+        backendState = error.code === "BACKEND_UPGRADE_REQUIRED" ? "outdated" : "error";
+        updateBackendStatus();
+        throw error;
+      } finally {
+        backendVerificationPromise = null;
+      }
+    })();
+    return backendVerificationPromise;
   }
 
   async function api(action, payload = {}) {
@@ -204,7 +241,7 @@
     state.data = null; state.pin = ""; state.accountUsername = ""; state.authenticated = false; state.travellerId = ""; state.loginMode = "trip"; state.expenseRowEditId = "";
     state.demoMode = false; state.currentUser = "Traveller"; state.accessRole = "traveller"; state.permissions = {};
     stickyNotes = [];
-    closeStickyPanel(); setStickyControlsVisible(false); closeModal();
+    closeStickyPanel(); closeQuickFind(); setStickyControlsVisible(false); closeModal();
     $("#floatingStickyLayer").innerHTML = ""; $("#floatingStickyLayer").classList.add("hidden");
     $("#dashboard").classList.add("hidden"); $("#accountHub").classList.add("hidden"); $("#accessScreen").classList.remove("hidden");
     $("#joinForm").reset(); $("#accountLoginForm").reset();
@@ -250,12 +287,30 @@
         await Promise.all(registrations.map((registration) => registration.unregister()));
       }
       try { sessionStorage.clear(); } catch {}
-      const separator = location.pathname.includes("?") ? "&" : "?";
-      location.replace(`${location.pathname}${separator}refresh=${Date.now()}`);
+      const refreshedUrl = new URL(location.href);
+      refreshedUrl.searchParams.set("refresh", String(Date.now()));
+      location.replace(refreshedUrl.href);
     } catch (error) {
-      button.disabled = false; button.textContent = "↻ Clear cache & reload";
+      button.disabled = false; button.textContent = "↻ Repair MyTrip cache/session";
       toast("Cache could not be cleared automatically. Use a browser hard refresh.", true);
     }
+  }
+
+  function updateConnectionStatus(announce = false) {
+    const online = navigator.onLine !== false;
+    $$(".connection-status").forEach((element) => {
+      element.classList.toggle("offline", !online);
+      const label = element.querySelector("b");
+      if (label) label.textContent = online ? "Online" : "Offline";
+      element.title = online ? "Internet connection available" : "No internet connection";
+    });
+    if (announce) toast(online ? "Internet connection restored" : "You are offline. Viewing remains available; saving needs the internet.", !online);
+  }
+
+  function updateBackToTop() {
+    const button = $("#backToTop");
+    if (!button) return;
+    button.classList.toggle("hidden", scrollY < 520 || $("#dashboard").classList.contains("hidden"));
   }
 
   function normalize(data) {
@@ -371,22 +426,172 @@
     const allowed = { itinerary: canViewItinerary(), experiences: canViewExperiences(), photos: true, places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() };
     if (allowed[tab] === false) return toast("This feature is hidden for your Traveller ID by the Administrator", true);
     state.tab = tab; $("#crumbLabel").textContent = labels[tab];
-    $$('[data-tab]').forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
-    render(); window.scrollTo({ top: 0, behavior: "smooth" });
+    $$('[data-tab]').forEach((button) => {
+      const active = button.dataset.tab === tab;
+      button.classList.toggle("active", active);
+      if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
+    });
+    render(); window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function heading(kicker, title, action = "", add = "") { return `<div class="view-head"><div><span class="kicker">${kicker}</span><h2>${title}</h2><p>${action}</p></div>${add && canAdd(add) ? `<button class="primary" data-add="${add}">＋ Add ${add}</button>` : ""}</div>`; }
   function panelHead(kicker, title, tab) { return `<div class="panel-head"><div><span class="kicker">${kicker}</span><h2>${title}</h2></div>${tab ? `<button data-go="${tab}">View all →</button>` : ""}</div>`; }
   function accessNotice() { const personal = Boolean(state.travellerId); const travellerMessage = personal ? "Only the trip features enabled for this Traveller ID appear in the menu. Hidden data is not downloaded." : "Shared trip access uses the common feature set for this trip."; return `<section class="permission-banner ${isAdmin() ? "admin" : "traveller"}"><i>${isAdmin() ? "◆" : "♙"}</i><div><b>${isAdmin() ? "Global Administrator access" : (personal ? "Personal traveller access" : "Shared trip access")}</b><p>${isAdmin() ? "Open every trip, assign travellers, control all feature access, edit details or delete a trip." : travellerMessage}</p></div>${!isAdmin() && personal ? `<span class="personal-traveller-id"><small>MY TRAVELLER ID</small><b>${esc(state.travellerId)}</b></span>` : ""}${isAdmin() ? `<button data-all-trips>All trips</button><button data-security>Security</button>` : (personal ? `<button data-my-trips>My trips</button>` : `<span>SHARED TRIP</span>`)}<span class="dashboard-inline-version">FE v${frontendVersion} · BE ${backendVersion ? `v${esc(backendVersion)}` : "—"}</span></section>`; }
 
+  function quickFindEntries() {
+    if (!state.data) return [];
+    const entries = [];
+    const add = (target, icon, category, title, detail = "", keywords = "") => entries.push({ target, icon, category, title: String(title || category), detail: String(detail || ""), keywords: String(keywords || "") });
+    const pages = [
+      ["overview", "⌂", "PAGE", "Overview", "Today’s Journey and trip summary", true],
+      ["itinerary", "▦", "PAGE", "Itinerary", `${state.data.itinerary.length} plans`, canViewItinerary()],
+      ["experiences", "✍", "PAGE", "Experiences", `${state.data.experiences.length} diary entries`, canViewExperiences()],
+      ["photos", "▣", "PAGE", "Trip Photos", `${state.data.photos.length} memories`, true],
+      ["places", "⌖", "PAGE", "Places & Map", `${state.data.places.length} saved places`, canViewPlaces()],
+      ["expenses", "₹", "PAGE", "Expenses", `${state.data.expenses.length} payments`, canViewExpenses()],
+      ["people", "♙", "PAGE", "Travellers", `${state.data.members.length} trip members`, canViewTravellers()],
+      ["print", "▤", "PAGE", "Print & Export", "Trip reports and PDF", canPrintReports()],
+      ["sticky", "✦", "UTILITY", "Sticky notes", `${stickyNotes.filter((note) => !note.completed).length} active`, true]
+    ];
+    pages.filter((item) => item[5]).forEach((item) => add(item[0], item[1], item[2], item[3], item[4], item[3]));
+    if (canViewItinerary()) state.data.itinerary.forEach((item) => add("itinerary", "▦", "ITINERARY", item.title || "Trip plan", `${displayDate(item.date, { day: "numeric", month: "short" })}${item.time ? ` · ${displayTime(item.time)}` : ""}${item.place ? ` · ${item.place}` : ""}`, `${item.place || ""} ${item.notes || ""} ${item.date || ""}`));
+    if (canViewPlaces()) state.data.places.forEach((item) => add("places", "⌖", "PLACE", item.name || "Saved place", [item.area, item.category, item.plannedDay].filter(Boolean).join(" · "), `${item.area || ""} ${item.category || ""} ${item.plannedDay || ""}`));
+    if (canViewExperiences()) state.data.experiences.forEach((item) => add("experiences", "✍", "EXPERIENCE", item.place || "Trip memory", `${displayDate(item.date, { day: "numeric", month: "short" })} · ${item.writer || "Trip member"}`, `${item.note || ""} ${item.writer || ""} ${item.date || ""}`));
+    state.data.photos.forEach((item) => add("photos", "▣", "PHOTO", item.caption || "Trip photo", `${item.uploadedBy || "Trip member"}${item.createdAt ? ` · ${displayDate(String(item.createdAt).slice(0, 10), { day: "numeric", month: "short" })}` : ""}`, `${item.uploadedBy || ""} ${item.createdAt || ""}`));
+    if (canViewExpenses()) state.data.expenses.forEach((item) => add("expenses", "₹", "EXPENSE", item.label || "Trip payment", `${money.format(item.amount || 0)} · ${item.paidBy || "Not specified"} · ${displayDate(item.date, { day: "numeric", month: "short" })}`, `${item.category || ""} ${item.paidBy || ""} ${item.notes || ""} ${item.date || ""}`));
+    if (canViewTravellers()) state.data.members.forEach((item) => add("people", "♙", "TRAVELLER", item.name || "Trip member", `${item.role || "Traveller"}${item.travellerId ? ` · ${item.travellerId}` : ""}`, `${item.travellerId || ""} ${item.role || ""}`));
+    stickyNotes.filter((note) => !note.completed).forEach((item) => add("sticky", "✦", item.type.toUpperCase(), item.title, stickyDueText(item), item.body));
+    return entries;
+  }
+
+  function renderQuickFindResults() {
+    const input = $("#quickFindInput"), results = $("#quickFindResults"), counter = $("#quickFindCount");
+    if (!input || !results || !counter) return;
+    const query = input.value.trim().toLowerCase();
+    const terms = query.split(/\s+/).filter(Boolean);
+    quickFindVisibleResults = quickFindEntries()
+      .filter((item) => !terms.length || terms.every((term) => `${item.title} ${item.detail} ${item.category} ${item.keywords}`.toLowerCase().includes(term)))
+      .sort((a, b) => {
+        if (!query) return (a.category === "PAGE" ? 0 : 1) - (b.category === "PAGE" ? 0 : 1);
+        const score = (item) => item.title.toLowerCase().startsWith(query) ? 0 : (item.title.toLowerCase().includes(query) ? 1 : (item.category.toLowerCase().includes(query) ? 2 : 3));
+        return score(a) - score(b) || a.title.localeCompare(b.title);
+      }).slice(0, 14);
+    counter.textContent = query ? `${quickFindVisibleResults.length} ${quickFindVisibleResults.length === 1 ? "result" : "results"}` : "Suggested destinations";
+    results.innerHTML = quickFindVisibleResults.map((item, index) => `<button data-quick-find-index="${index}" type="button"><i class="target-${esc(item.target)}">${esc(item.icon)}</i><span><small>${esc(item.category)}</small><b>${esc(item.title)}</b><em>${esc(item.detail)}</em></span><strong>Open →</strong></button>`).join("") || `<div class="quick-find-empty"><i>⌕</i><b>No permitted result found</b><p>Try a traveller name, place, expense, date or itinerary title.</p></div>`;
+  }
+
+  function openQuickFind() {
+    if (!state.data || $("#dashboard").classList.contains("hidden")) return;
+    $("#quickFindInput").value = "";
+    renderQuickFindResults();
+    $("#quickFindLayer").classList.remove("hidden");
+    document.body.classList.add("overlay-open");
+    requestAnimationFrame(() => $("#quickFindInput").focus());
+  }
+
+  function closeQuickFind() {
+    $("#quickFindLayer").classList.add("hidden");
+    if ($("#modal").classList.contains("hidden")) document.body.classList.remove("overlay-open");
+  }
+
+  function openQuickFindResult(index) {
+    const item = quickFindVisibleResults[Number(index)];
+    if (!item) return;
+    closeQuickFind();
+    if (item.target === "sticky") openStickyPanel(); else setTab(item.target);
+  }
+
+  function localDateKey(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function dateAtNoon(value) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? new Date(`${value}T12:00:00`) : null;
+  }
+
+  function daysBetween(from, to) {
+    const start = dateAtNoon(from), end = dateAtNoon(to);
+    return start && end ? Math.round((end - start) / 86400000) : 0;
+  }
+
+  function tripOverviewStage(today) {
+    const start = String(state.data.trip.startDate || "");
+    const end = String(state.data.trip.endDate || "");
+    if (!dateAtNoon(start) || !dateAtNoon(end)) return "active";
+    if (today < start) return "preparation";
+    if (today > end) return "completed";
+    return "active";
+  }
+
+  function itineraryTimeMinutes(value) {
+    const match = String(value || "").match(/^(\d{1,2}):(\d{2})/);
+    return match ? Number(match[1]) * 60 + Number(match[2]) : 0;
+  }
+
+  function importantStickyForToday(today) {
+    return stickyNotes
+      .filter((note) => !note.completed)
+      .sort((a, b) => {
+        const aRank = a.dueDate ? (a.dueDate <= today ? 0 : 1) : 2;
+        const bRank = b.dueDate ? (b.dueDate <= today ? 0 : 1) : 2;
+        return aRank - bRank || String(a.dueDate || "9999-12-31").localeCompare(String(b.dueDate || "9999-12-31")) || Number(b.pinned) - Number(a.pinned);
+      })[0] || null;
+  }
+
+  function renderJourneyStage(today) {
+    const trip = state.data.trip;
+    const stage = tripOverviewStage(today);
+    const itinerary = [...state.data.itinerary].sort((a, b) => `${a.date || ""}${a.time || ""}`.localeCompare(`${b.date || ""}${b.time || ""}`));
+    const activeSticky = stickyNotes.filter((note) => !note.completed);
+    const reminder = importantStickyForToday(today);
+    const destination = esc(trip.destination || trip.name || "your destination");
+    const planAction = canAdd("plan") ? `<button data-add="plan">＋ Add plan</button>` : "";
+    const itineraryAction = canViewItinerary() ? `<button data-go="itinerary">▦ Full itinerary</button>` : "";
+    const experienceAction = canAdd("experience") ? `<button data-add="experience">✍ Add experience</button>` : "";
+    const photoAction = `<button data-go="photos">▧ Trip photos</button>`;
+
+    if (stage === "preparation") {
+      const daysToGo = Math.max(0, daysBetween(today, trip.startDate));
+      const plannedDays = new Set(itinerary.map((item) => item.date).filter(Boolean)).size;
+      const placesPlanned = state.data.places.filter((place) => String(place.plannedDay || "").toLowerCase() !== "unplanned").length;
+      return `<section class="journey-stage preparation"><div class="journey-stage-hero"><div><span class="journey-stage-kicker">◇ TRIP PREPARATION</span><h2>${daysToGo === 1 ? "Tomorrow is the journey" : `${daysToGo} days to go`}</h2><p><b>${displayDate(trip.startDate, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b> · ${destination}</p></div><span class="journey-stage-badge">GET READY</span></div><div class="journey-prep-grid">${canViewItinerary() ? `<article><i>▦</i><small>PLANNED DAYS</small><strong>${plannedDays}</strong><span>${itinerary.length} itinerary entries</span></article>` : ""}${canViewPlaces() ? `<article><i>⌖</i><small>PLACES READY</small><strong>${placesPlanned}</strong><span>${state.data.places.length} places saved</span></article>` : ""}<article><i>📌</i><small>ACTIVE REMINDERS</small><strong>${activeSticky.length}</strong><span>${reminder ? esc(reminder.title) : "Nothing needs attention"}</span></article><article><i>▧</i><small>TRIP PHOTOS</small><strong>${state.data.photos.length}</strong><span>Gallery ready for memories</span></article></div><div class="journey-stage-actions">${planAction}${canAdd("place") ? `<button data-add="place">⌖ Add place</button>` : ""}${itineraryAction}${photoAction}</div></section>`;
+    }
+
+    if (stage === "completed") {
+      const daysSince = Math.max(0, daysBetween(trip.endDate, today));
+      const completedCopy = daysSince === 0 ? "Completed today" : (daysSince === 1 ? "Completed yesterday" : `Completed ${daysSince} days ago`);
+      return `<section class="journey-stage completed"><div class="journey-stage-hero"><div><span class="journey-stage-kicker">✓ TRIP COMPLETED</span><h2>Keep the journey alive</h2><p><b>${completedCopy}</b> · ${destination}</p></div><span class="journey-stage-badge">MEMORIES</span></div><div class="journey-prep-grid">${canViewExpenses() ? `<article><i>₹</i><small>TOTAL SPENDING</small><strong>${money.format(spent())}</strong><span>${state.data.expenses.length} expense entries</span></article>` : ""}${canViewExperiences() ? `<article><i>✍</i><small>EXPERIENCES</small><strong>${state.data.experiences.length}</strong><span>Diary memories recorded</span></article>` : ""}<article><i>▧</i><small>TRIP PHOTOS</small><strong>${state.data.photos.length}</strong><span>Photos in the gallery</span></article>${canViewPlaces() ? `<article><i>⌖</i><small>PLACES VISITED</small><strong>${state.data.places.length}</strong><span>Saved trip places</span></article>` : ""}</div><div class="journey-stage-actions">${experienceAction}${photoAction}${itineraryAction}${canPrintReports() ? `<button data-go="print">▤ Print trip book</button>` : ""}</div></section>`;
+    }
+
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const todayItems = itinerary.filter((item) => item.date === today);
+    const remainingItems = todayItems.filter((item) => !item.time || itineraryTimeMinutes(item.time) >= nowMinutes);
+    const visibleItems = (remainingItems.length ? remainingItems : todayItems.slice(-1)).slice(0, 4);
+    const next = remainingItems[0] || null;
+    const tripDay = Math.max(1, daysBetween(trip.startDate, today) + 1);
+    const totalDays = Math.max(1, daysBetween(trip.startDate, trip.endDate) + 1);
+    const todayExpenses = canViewExpenses() ? state.data.expenses.filter((item) => item.date === today) : [];
+    const todaySpent = todayExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const journeyList = visibleItems.map((item) => `<article class="journey-plan-item ${next && item.id === next.id ? "next" : ""}"><time>${item.time ? esc(displayTime(item.time)) : "Any time"}</time><div><b>${esc(item.title || "Trip plan")}</b><span>${item.place ? `⌖ ${esc(item.place)}` : "Place not added"}</span></div>${item.place ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">Navigate ↗</a>` : ""}</article>`).join("");
+    const reminderCard = reminder ? `<article class="journey-reminder"><small>${esc(reminder.type)} · ${esc(stickyDueText(reminder))}</small><b>${esc(reminder.title)}</b><p>${esc(reminder.body || "No additional details")}</p><button data-open-sticky>Open sticky notes →</button></article>` : `<article class="journey-reminder clear"><small>REMINDERS</small><b>Nothing urgent</b><p>No active sticky note needs attention right now.</p>${canWriteStickyNotes() ? `<button data-open-sticky>Add a reminder →</button>` : ""}</article>`;
+    return `<section class="journey-stage active"><div class="journey-stage-hero"><div><span class="journey-stage-kicker">◆ DAY ${tripDay} OF ${totalDays}</span><h2>Today’s Journey</h2><p><b>${displayDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b> · ${destination}</p></div><span class="journey-stage-badge">LIVE TODAY</span></div><div class="journey-live-grid"><div class="journey-main"><header><div><small>${next ? "UP NEXT" : (todayItems.length ? "TODAY’S PLAN" : "OPEN DAY")}</small><h3>${next ? esc(next.title || "Next plan") : (todayItems.length ? "Today’s scheduled plans are complete" : "No itinerary planned for today")}</h3><p>${next ? `${next.time ? `${esc(displayTime(next.time))} · ` : ""}${next.place ? `⌖ ${esc(next.place)}` : "Location not added"}` : "Use this free time for a spontaneous discovery or add a plan."}</p></div>${next && next.place ? `<a class="journey-navigate" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(next.place)}" target="_blank" rel="noreferrer">⌖ Navigate</a>` : ""}</header><div class="journey-plan-list">${journeyList || `<div class="journey-empty"><i>☀</i><b>Make today memorable</b><span>Add a plan, visit a saved place, or record an experience.</span></div>`}</div></div><aside class="journey-side">${canViewExpenses() ? `<article class="journey-metric"><small>TODAY’S SPENDING</small><strong>${money.format(todaySpent)}</strong><span>${todayExpenses.length} ${todayExpenses.length === 1 ? "payment" : "payments"} recorded</span></article>` : ""}${reminderCard}</aside></div><div class="journey-stage-actions">${canAdd("expense") ? `<button data-add="expense">₹ Add expense</button>` : ""}${experienceAction}${photoAction}${itineraryAction}</div></section>`;
+  }
+
   function renderOverview() {
     const budget = Number(state.data.trip.budget || 0), total = spent(), percent = budget ? Math.min(100, Math.round(total / budget * 100)) : 0;
-    const upcoming = [...state.data.itinerary].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).slice(0, 3);
+    const today = localDateKey();
+    const stage = tripOverviewStage(today);
+    const sortedItinerary = [...state.data.itinerary].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+    const upcoming = (stage === "completed" ? sortedItinerary.slice(-3).reverse() : sortedItinerary.filter((item) => String(item.date || "") >= today).slice(0, 3));
     const recentExpenses = [...state.data.expenses].sort((a, b) => `${b.date || ""}${b.id || ""}`.localeCompare(`${a.date || ""}${a.id || ""}`)).slice(0, 4);
     const balance = budget - total;
     const members = visibleTripMembers();
     const photo = tripPhotoUrl(state.data.trip.photoUrl);
-    const cover = photo ? `<section class="trip-cover"><img src="${esc(photo)}" alt="Cover photo for ${esc(state.data.trip.name)}" referrerpolicy="no-referrer"><div><span>TRIP PHOTO</span><h2>${esc(state.data.trip.name)}</h2><p>${esc(state.data.trip.destination)}</p>${isAdmin() ? `<button data-trip-photo>Change photo</button>` : ""}</div></section>` : (isAdmin() ? `<section class="trip-cover trip-cover-empty"><div><span>TRIP PHOTO</span><h2>Add a memorable cover photo</h2><p>Use a public HTTPS image or Google Drive sharing link.</p><button data-trip-photo>Add photo</button></div></section>` : "");
+    const cover = photo ? `<section class="trip-cover"><img src="${esc(photo)}" alt="Cover photo for ${esc(state.data.trip.name)}" width="1600" height="900" referrerpolicy="no-referrer" decoding="async" fetchpriority="high"><div><span>TRIP PHOTO</span><h2>${esc(state.data.trip.name)}</h2><p>${esc(state.data.trip.destination)}</p>${isAdmin() ? `<button data-trip-photo>Change photo</button>` : ""}</div></section>` : (isAdmin() ? `<section class="trip-cover trip-cover-empty"><div><span>TRIP PHOTO</span><h2>Add a memorable cover photo</h2><p>Use a public HTTPS image or Google Drive sharing link.</p><button data-trip-photo>Add photo</button></div></section>` : "");
     const planQuickAction = canViewItinerary() ? `<button data-add="plan"><i>＋</i><span><b>Add plan</b><small>Itinerary</small></span></button>` : "";
     const expenseQuickAction = canViewExpenses() ? `<button data-add="expense"><i>₹</i><span><b>Add expense</b><small>Spending</small></span></button>` : "";
     const placeQuickAction = canViewPlaces() ? `<button data-add="place"><i>⌖</i><span><b>Add place</b><small>Map</small></span></button>` : "";
@@ -397,9 +602,10 @@
     const placeStat = canViewPlaces() ? `<article class="stat"><i>◎</i><div><small>PLACES SAVED</small><strong>${state.data.places.length}</strong><span>${state.data.places.filter((place) => place.plannedDay !== "Unplanned").length} planned</span></div></article>` : "";
     const peopleStat = canViewTravellers() ? `<article class="stat"><i>♙</i><div><small>TRIP MEMBERS</small><strong>${members.length}</strong><span>Full trip list</span></div></article>` : "";
     const notesStat = canViewExperiences() ? `<article class="stat privacy-stat"><i>✍</i><div><small>EXPERIENCE NOTES</small><strong>${state.data.experiences.length}</strong><span>Trip memories recorded</span></div></article>` : "";
-    const itineraryPanel = canViewItinerary() ? `<article class="panel itinerary-overview">${panelHead("WHAT’S NEXT", "Upcoming itinerary", "itinerary")}<div class="timeline">${upcoming.map((item) => `<div class="timeline-row"><span class="date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b></span><time>${displayTime(item.time)}</time><span><h3>${esc(item.title)}</h3><p>⌖ ${esc(item.place)}</p></span><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">Map ↗</a></div>`).join("") || `<p class="empty-overview">No plans added yet.</p>`}</div><button class="dashed" data-add="plan">＋ Add something to the plan</button></article>` : `<article class="panel feature-access-summary"><span class="kicker">YOUR ACCESS</span><h2>Trip overview</h2><p>The Administrator has selected which trip sections are available to this Traveller ID. Use the visible menu items to continue.</p></article>`;
+    const itineraryPanelTitle = stage === "completed" ? ["JOURNEY ARCHIVE", "Latest itinerary"] : (stage === "active" ? ["REST OF THE TRIP", "Coming up next"] : ["WHAT’S NEXT", "Upcoming itinerary"]);
+    const itineraryPanel = canViewItinerary() ? `<article class="panel itinerary-overview">${panelHead(itineraryPanelTitle[0], itineraryPanelTitle[1], "itinerary")}<div class="timeline">${upcoming.map((item) => `<div class="timeline-row"><span class="date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b></span><time>${displayTime(item.time)}</time><span><h3>${esc(item.title)}</h3><p>⌖ ${esc(item.place)}</p></span><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">Map ↗</a></div>`).join("") || `<p class="empty-overview">${stage === "completed" ? "No itinerary was recorded for this trip." : "No future plans added yet."}</p>`}</div>${stage !== "completed" ? `<button class="dashed" data-add="plan">＋ Add something to the plan</button>` : ""}</article>` : `<article class="panel feature-access-summary"><span class="kicker">YOUR ACCESS</span><h2>Trip overview</h2><p>The Administrator has selected which trip sections are available to this Traveller ID. Use the visible menu items to continue.</p></article>`;
     const expensePanels = canViewExpenses() ? `<div class="overview-side"><article class="panel spending-panel">${panelHead("TRIP EXPENSES", "Spending summary", "expenses")}<div class="spending-summary"><div class="donut" style="background:conic-gradient(var(--coral) ${percent}%,#e9edef 0)"><b>${percent}%</b></div><div class="spending-total"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? `${Math.round(total / budget * 100)}% of the trip budget used` : "No budget set"}</span></div></div><div class="spending-breakdown"><span><small>TRIP BUDGET</small><b>${money.format(budget)}</b></span><span class="${balance < 0 ? "over-budget" : ""}"><small>${balance < 0 ? "OVER BUDGET" : "BALANCE LEFT"}</small><b>${money.format(Math.abs(balance))}</b></span></div><div class="progress" aria-label="${percent}% of budget used"><i style="width:${percent}%"></i></div></article><article class="panel recent-expenses-panel">${panelHead("LATEST PAYMENTS", "Recent spending", "expenses")}<div>${recentExpenses.map((expense) => `<div class="expense-mini overview-expense"><i>₹</i><span><b>${esc(expense.label)}</b><small>${esc(expense.category || "Expense")} · ${displayDate(expense.date, { day: "numeric", month: "short" })} · Paid by ${esc(expense.paidBy)}</small></span><strong>${money.format(expense.amount)}</strong></div>`).join("") || `<p class="empty-overview">No expenses recorded yet.</p>`}</div><button class="dashed expense-add-button" data-add="expense">＋ Record a new expense</button></article></div>` : "";
-    return `${cover}<section class="quick-actions" aria-label="Quick actions">${planQuickAction}${expenseQuickAction}${placeQuickAction}${peopleQuickAction}${experienceQuickAction}${printQuickAction}</section><section class="stats"><article class="stat"><i>◫</i><div><small>TRIP LENGTH</small><strong>${nights()} nights</strong><span>${displayDate(state.data.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(state.data.trip.endDate, { day: "numeric", month: "short" })}</span></div></article>${expenseStat}${placeStat}${peopleStat}${notesStat}</section><section class="main-grid overview-grid ${canViewExpenses() ? "" : "no-expenses"}">${itineraryPanel}${expensePanels}</section>`;
+    return `${renderJourneyStage(today)}${cover}<section class="quick-actions" aria-label="Quick actions">${planQuickAction}${expenseQuickAction}${placeQuickAction}${peopleQuickAction}${experienceQuickAction}${printQuickAction}</section><section class="stats"><article class="stat"><i>◫</i><div><small>TRIP LENGTH</small><strong>${nights()} nights</strong><span>${displayDate(state.data.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(state.data.trip.endDate, { day: "numeric", month: "short" })}</span></div></article>${expenseStat}${placeStat}${peopleStat}${notesStat}</section><section class="main-grid overview-grid ${canViewExpenses() ? "" : "no-expenses"}">${itineraryPanel}${expensePanels}</section>`;
   }
 
   function renderItinerary() {
@@ -436,7 +642,7 @@
     const accessText = isAdmin()
       ? `${enabled ? "Traveller uploads are enabled" : "Traveller uploads are disabled"}. Administrator uploads remain available.`
       : (!state.travellerId ? "Shared trip access can view photos but cannot add them." : (enabled && limit > 0 ? `${count} of ${limit} photo slots used · ${remainingPhotos} remaining` : "Photo addition is disabled for your account in this trip."));
-    const cards = photos.map((photo, index) => `<article class="trip-photo-card colour-${index % 6}"><button class="trip-photo-open" data-open-photo="${esc(photo.id)}" aria-label="View photo"><img src="${esc(photo.photoUrl)}" alt="${esc(photo.caption || `Trip photo by ${photo.uploadedBy || "Trip member"}`)}" loading="lazy"></button><div><span class="photo-number">PHOTO ${String(index + 1).padStart(2, "0")}</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>📷 ${esc(photo.uploadedBy || "Trip member")} · ${displayDate(String(photo.createdAt || "").slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</p>${mayManagePhoto(photo) ? `<span class="trip-photo-actions">${mayReplacePhoto(photo) ? `<button data-replace-photo="${esc(photo.id)}">Replace</button>` : ""}<button class="delete" data-delete-photo="${esc(photo.id)}">Delete</button></span>` : ""}</div></article>`).join("");
+    const cards = photos.map((photo, index) => `<article class="trip-photo-card colour-${index % 6}"><button class="trip-photo-open" data-open-photo="${esc(photo.id)}" aria-label="View photo"><img src="${esc(photo.photoUrl)}" alt="${esc(photo.caption || `Trip photo by ${photo.uploadedBy || "Trip member"}`)}" width="900" height="600" loading="lazy" decoding="async" fetchpriority="low"></button><div><span class="photo-number">PHOTO ${String(index + 1).padStart(2, "0")}</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>📷 ${esc(photo.uploadedBy || "Trip member")} · ${displayDate(String(photo.createdAt || "").slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</p>${mayManagePhoto(photo) ? `<span class="trip-photo-actions">${mayReplacePhoto(photo) ? `<button data-replace-photo="${esc(photo.id)}">Replace</button>` : ""}<button class="delete" data-delete-photo="${esc(photo.id)}">Delete</button></span>` : ""}</div></article>`).join("");
     return `<section class="trip-photos-page"><div class="trip-photos-hero"><div><span class="kicker">COLOURFUL TRIP GALLERY</span><h2>Photos from the journey</h2><p>Keep selected trip photographs together. Images are stored in Google Drive and photo details are stored in Google Sheets.</p></div><div class="trip-photos-hero-actions">${isAdmin() ? `<button class="photo-access-toggle ${enabled ? "enabled" : "disabled"}" data-toggle-photo-uploads>${enabled ? "Disable traveller uploads" : "Enable traveller uploads"}</button>` : ""}${mayAdd ? `<button class="primary" data-add-trip-photo>＋ Add photo</button>` : ""}</div></div><div class="photo-access-strip ${enabled ? "enabled" : "disabled"}"><i>${enabled ? "●" : "○"}</i><div><b>${isAdmin() ? "Administrator photo control" : "Your photo allowance"}</b><p>${esc(accessText)}</p></div>${!isAdmin() && state.travellerId ? `<strong>${count}/${limit}</strong>` : `<strong>${photos.length} photos</strong>`}</div><div class="trip-photo-grid">${cards || `<div class="empty-photo-gallery"><i>▣</i><b>No trip photos yet</b><p>${mayAdd ? "Add the first colourful memory from this journey." : "An authorised traveller or the Administrator can add the first photo."}</p></div>`}</div></section>`;
   }
 
@@ -527,38 +733,47 @@
   function render() {
     if (!state.data) return;
     const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint };
-    $("#view").innerHTML = accessNotice() + renderers[state.tab](); bindViewActions();
+    $("#view").innerHTML = accessNotice() + renderers[state.tab]();
   }
 
-  function bindViewActions() {
-    $$('[data-go]').forEach((button) => button.addEventListener("click", () => setTab(button.dataset.go)));
-    $$('[data-add]').forEach((button) => button.addEventListener("click", () => showAddModal(button.dataset.add)));
-    $$('[data-print]').forEach((button) => button.addEventListener("click", () => printReport(button.dataset.print)));
-    $$('[data-map]').forEach((button) => button.addEventListener("click", () => openMap(button.dataset.map)));
-    $$('[data-invite]').forEach((button) => button.addEventListener("click", showInvite));
-    $$('[data-all-trips]').forEach((button) => button.addEventListener("click", showAllTrips));
-    $$('[data-my-trips]').forEach((button) => button.addEventListener("click", showMyTrips));
-    $$('[data-security]').forEach((button) => button.addEventListener("click", showSecurity));
-    $$('[data-edit]').forEach((button) => button.addEventListener("click", () => showEditRecord(button.dataset.sheet, button.dataset.id)));
-    $$('[data-view-expense]').forEach((button) => button.addEventListener("click", () => showExpenseDetails(button.dataset.viewExpense)));
-    $$('[data-row-edit-expense]').forEach((button) => button.addEventListener("click", () => { state.expenseRowEditId = button.dataset.rowEditExpense; render(); }));
-    $$('[data-cancel-expense-row]').forEach((button) => button.addEventListener("click", () => { state.expenseRowEditId = ""; render(); }));
-    $$('[data-expense-row-form]').forEach((form) => form.addEventListener("submit", saveExpenseRow));
-    $$('[data-delete-expense]').forEach((button) => button.addEventListener("click", () => showDeleteExpenseConfirmation(button.dataset.deleteExpense)));
-    $$('[data-give-pin]').forEach((button) => button.addEventListener("click", () => showAddTravellersToCurrentTrip(state.data.members.find((member) => String(member.id) === String(button.dataset.givePin)))));
-    $$('[data-reset-member-pin]').forEach((button) => button.addEventListener("click", () => showResetCurrentTravellerPin(state.data.members.find((member) => String(member.id) === String(button.dataset.resetMemberPin)))));
-    $$('[data-feature-access]').forEach((button) => button.addEventListener("click", () => showTravellerFeatureAccess(state.data.members.find((member) => String(member.id) === String(button.dataset.featureAccess)))));
-    $$('[data-trip-photo]').forEach((button) => button.addEventListener("click", showTripPhotoSettings));
-    $$('[data-add-trip-photo]').forEach((button) => button.addEventListener("click", () => showTripGalleryPhotoEditor()));
-    $$('[data-replace-photo]').forEach((button) => button.addEventListener("click", () => showTripGalleryPhotoEditor(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.replacePhoto)))));
-    $$('[data-delete-photo]').forEach((button) => button.addEventListener("click", () => showDeleteTripGalleryPhoto(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.deletePhoto)))));
-    $$('[data-open-photo]').forEach((button) => button.addEventListener("click", () => showTripGalleryPhoto(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.openPhoto)))));
-    $$('[data-toggle-photo-uploads]').forEach((button) => button.addEventListener("click", toggleTripPhotoUploads));
-    $$('[data-add-existing-travellers]').forEach((button) => button.addEventListener("click", showAddExistingTravellersToCurrentTrip));
-    $$('[data-manage-current-trip]').forEach((button) => button.addEventListener("click", showCurrentTripTravellerAccess));
-    $$('[data-remove-trip-member]').forEach((button) => button.addEventListener("click", () => showRemoveTravellerFromCurrentTrip(state.data.members.find((member) => String(member.id) === String(button.dataset.removeTripMember)))));
-    $$('[data-delete]').forEach((button) => button.addEventListener("click", () => deleteItem(button.dataset.sheet, button.dataset.id)));
-    if ($("#mapSearchButton")) $("#mapSearchButton").addEventListener("click", () => { state.mapQuery = $("#mapQuery").value.trim() || state.data.trip.destination; openMap(state.mapQuery); render(); });
+  function handleViewClick(event) {
+    const button = event.target.closest("button,[data-map]");
+    if (!button || !$("#view").contains(button)) return;
+    if (button.dataset.go) return setTab(button.dataset.go);
+    if (button.dataset.add) return showAddModal(button.dataset.add);
+    if (button.dataset.print) return printReport(button.dataset.print);
+    if (button.dataset.map) return openMap(button.dataset.map);
+    if (button.hasAttribute("data-invite")) return showInvite();
+    if (button.hasAttribute("data-all-trips")) return showAllTrips();
+    if (button.hasAttribute("data-my-trips")) return showMyTrips();
+    if (button.hasAttribute("data-security")) return showSecurity();
+    if (button.hasAttribute("data-open-sticky")) return openStickyPanel();
+    if (button.hasAttribute("data-edit")) return showEditRecord(button.dataset.sheet, button.dataset.id);
+    if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
+    if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
+    if (button.hasAttribute("data-cancel-expense-row")) { state.expenseRowEditId = ""; return render(); }
+    if (button.dataset.deleteExpense) return showDeleteExpenseConfirmation(button.dataset.deleteExpense);
+    if (button.dataset.givePin) return showAddTravellersToCurrentTrip(state.data.members.find((member) => String(member.id) === String(button.dataset.givePin)));
+    if (button.dataset.resetMemberPin) return showResetCurrentTravellerPin(state.data.members.find((member) => String(member.id) === String(button.dataset.resetMemberPin)));
+    if (button.dataset.featureAccess) return showTravellerFeatureAccess(state.data.members.find((member) => String(member.id) === String(button.dataset.featureAccess)));
+    if (button.hasAttribute("data-trip-photo")) return showTripPhotoSettings();
+    if (button.hasAttribute("data-add-trip-photo")) return showTripGalleryPhotoEditor();
+    if (button.dataset.replacePhoto) return showTripGalleryPhotoEditor(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.replacePhoto)));
+    if (button.dataset.deletePhoto) return showDeleteTripGalleryPhoto(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.deletePhoto)));
+    if (button.dataset.openPhoto) return showTripGalleryPhoto(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.openPhoto)));
+    if (button.hasAttribute("data-toggle-photo-uploads")) return toggleTripPhotoUploads();
+    if (button.hasAttribute("data-add-existing-travellers")) return showAddExistingTravellersToCurrentTrip();
+    if (button.hasAttribute("data-manage-current-trip")) return showCurrentTripTravellerAccess();
+    if (button.dataset.removeTripMember) return showRemoveTravellerFromCurrentTrip(state.data.members.find((member) => String(member.id) === String(button.dataset.removeTripMember)));
+    if (button.hasAttribute("data-delete")) return deleteItem(button.dataset.sheet, button.dataset.id);
+    if (button.id === "mapSearchButton") {
+      state.mapQuery = $("#mapQuery").value.trim() || state.data.trip.destination;
+      openMap(state.mapQuery); render();
+    }
+  }
+
+  function handleViewSubmit(event) {
+    if (event.target.matches("[data-expense-row-form]")) saveExpenseRow(event);
   }
 
   function openMap(query) { window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer"); }
@@ -571,9 +786,12 @@
       .replaceAll("Traveller PIN", "shared trip password")
       .replaceAll("shared trip-PIN users", "shared one-trip users")
       .replaceAll("password/PIN", "password");
+    closeQuickFind();
     $("#modalTitle").textContent = title; $("#modalBody").innerHTML = accountWording; $("#modal").classList.remove("hidden");
+    document.body.classList.add("overlay-open");
+    requestAnimationFrame(() => $("#closeModal").focus());
   }
-  function closeModal() { $("#modal").classList.add("hidden"); $("#modalBody").innerHTML = ""; }
+  function closeModal() { $("#modal").classList.add("hidden"); $("#modalBody").innerHTML = ""; if ($("#quickFindLayer").classList.contains("hidden")) document.body.classList.remove("overlay-open"); }
   const actions = `<div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save for everyone</button></div>`;
 
   function stickyStorageKey() {
@@ -842,7 +1060,7 @@
       submit.disabled = true; submit.textContent = "Checking…";
       try {
         const info = await verifyBackendVersion(candidate);
-        apiUrl = candidate; backendVersion = String(info.version || ""); backendState = "ready"; saveStoredApiUrl(candidate); updateBackendStatus(); closeModal(); toast(`Google backend version ${backendVersion} connected`);
+        apiUrl = candidate; backendVersion = String(info.version || ""); backendInfo = info; backendVerifiedAt = Date.now(); backendVerifiedUrl = candidate; backendState = "ready"; saveStoredApiUrl(candidate); updateBackendStatus(); closeModal(); toast(`Google backend version ${backendVersion} connected`);
         if (typeof afterConnect === "function") afterConnect();
       } catch (error) {
         backendState = error.code === "BACKEND_UPGRADE_REQUIRED" ? "outdated" : "error";
@@ -1672,7 +1890,7 @@
     } catch (error) { toast(error.message, true); }
   }
 
-  function updatePrintArea() {
+  function buildPrintArea() {
     if (!state.data) return; const budget = Number(state.data.trip.budget || 0), members = visibleTripMembers();
     const printedExperiences = [...state.data.experiences].sort((a,b)=>`${a.date}${a.createdAt || ""}`.localeCompare(`${b.date}${b.createdAt || ""}`)).map((item) => `<article><time>${displayDate(item.date, { weekday:"short", day:"2-digit", month:"short" })}</time><div><h3>${esc(item.place || "Trip experience")}</h3><p>${esc(item.note)}</p><strong>Written by ${esc(item.writer || "Trip member")}</strong></div></article>`).join("");
     const printedTravellerTotals = expenseTotalsByTraveller().map((row) => `<tr><td>${esc(row.name)}</td><td>${row.count}</td><td>${money.format(row.total)}</td></tr>`).join("");
@@ -1682,9 +1900,12 @@
     const experienceSection = canViewExperiences() ? `<section class="print-experiences"><h2>Trip experience notes</h2>${printedExperiences || `<p>No experience notes were added.</p>`}</section>` : "";
     const expenseSection = canViewExpenses() ? `<section class="print-expenses"><h2>Expense statement</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div><div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div><h3>Detailed expense statement</h3><table><thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${state.data.expenses.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label)}</td><td>${esc(expense.category)}</td><td>${esc(expense.paidBy)}</td><td>${money.format(expense.amount)}</td></tr>`).join("")}</tbody></table></section>` : "";
     $("#printArea").innerHTML = `${photo ? `<img class="print-cover-photo" src="${esc(photo)}" alt="Trip cover photo">` : ""}<header><div><span class="kicker">MYTRIP · TRIP BOOK · FRONTEND v${frontendVersion}</span><h1>${esc(state.data.trip.name)}</h1><p>${displayDate(state.data.trip.startDate)}–${displayDate(state.data.trip.endDate)}${memberText}</p></div><b>${esc(state.data.trip.tripId)}</b></header>${planSection}${experienceSection}${expenseSection}`;
+    printAreaDirty = false;
   }
 
-  function printReport(target) { if (!canPrintReports()) return toast("Print & Export is hidden for your Traveller ID", true); if (target === "expenses" && !canViewExpenses()) return toast("Expense access is hidden for your Traveller ID", true); document.body.dataset.print = target; updatePrintArea(); const clear = () => { delete document.body.dataset.print; removeEventListener("afterprint", clear); }; addEventListener("afterprint", clear); print(); setTimeout(clear, 1200); }
+  function updatePrintArea(force = false) { printAreaDirty = true; if (force) buildPrintArea(); }
+
+  function printReport(target) { if (!canPrintReports()) return toast("Print & Export is hidden for your Traveller ID", true); if (target === "expenses" && !canViewExpenses()) return toast("Expense access is hidden for your Traveller ID", true); document.body.dataset.print = target; if (printAreaDirty) buildPrintArea(); const clear = () => { delete document.body.dataset.print; removeEventListener("afterprint", clear); }; addEventListener("afterprint", clear); print(); setTimeout(clear, 1200); }
 
   async function refreshTrip() {
     if (state.demoMode) return toast("Demo data is already up to date");
@@ -1715,8 +1936,7 @@
     const submit = form.querySelector('button[type="submit"]');
     submit.disabled = true; submit.textContent = "Signing in…";
     try {
-      await ensureCurrentBackend();
-      const result = await api("login", { username, password });
+      const [result] = await Promise.all([api("login", { username, password }), ensureCurrentBackend()]);
       if (Boolean(values.rememberLogin)) saveAccountLogin(username); else clearSavedAccountLogin();
       state.accountUsername = String(result.account && result.account.username || username);
       state.pin = password; state.authenticated = true; state.demoMode = false; state.accessRole = result.accessRole;
@@ -1738,7 +1958,7 @@
   }
 
   $("#joinForm").addEventListener("submit", (event) => { if (!apiUrlReady()) { event.preventDefault(); event.stopImmediatePropagation(); showBackendSetup(() => $("#joinForm").requestSubmit()); } }, true);
-  $("#joinForm").addEventListener("submit", async (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); try { await ensureCurrentBackend(); state.accountUsername = ""; const trip = await api("getTrip", { tripId: String(data.get("tripId")).trim().toUpperCase(), pin: String(data.get("pin")) }); await openTrip(trip, String(data.get("pin")), false, "Shared traveller", "traveller", "", "shared"); } catch (error) { toast(error.message, true); } });
+  $("#joinForm").addEventListener("submit", async (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); try { state.accountUsername = ""; const [trip] = await Promise.all([api("getTrip", { tripId: String(data.get("tripId")).trim().toUpperCase(), pin: String(data.get("pin")) }), ensureCurrentBackend()]); await openTrip(trip, String(data.get("pin")), false, "Shared traveller", "traveller", "", "shared"); } catch (error) { toast(error.message, true); } });
   $("#accountLoginForm").addEventListener("submit", loginAccount);
   $("#toggleLoginPassword").addEventListener("click", () => setLoginPasswordVisible($("#loginPassword").type === "password"));
   $("#rememberLogin").addEventListener("change", (event) => { if (!event.currentTarget.checked) clearSavedAccountLogin(); });
@@ -1750,16 +1970,47 @@
   });
   $("#closeModal").addEventListener("click", closeModal); $("#modal").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeModal(); });
   $("#mainNav").addEventListener("click", (event) => { const button = event.target.closest("[data-tab]"); if (button) setTab(button.dataset.tab); });
+  $("#view").addEventListener("click", handleViewClick);
+  $("#view").addEventListener("submit", handleViewSubmit);
   $("#stickyEdgeTab").addEventListener("click", openStickyPanel);
   $("#closeStickyPanel").addEventListener("click", closeStickyPanel);
   $("#stickyPanelBackdrop").addEventListener("click", closeStickyPanel);
   $("#addStickyNote").addEventListener("click", () => showStickyEditor());
   $("#clearAppCache").addEventListener("click", clearAppCacheAndReload);
+  $("#quickFindButton").addEventListener("click", openQuickFind);
+  $("#closeQuickFind").addEventListener("click", closeQuickFind);
+  $("#quickFindLayer").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeQuickFind(); });
+  $("#quickFindInput").addEventListener("input", renderQuickFindResults);
+  $("#quickFindInput").addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && quickFindVisibleResults.length) { event.preventDefault(); openQuickFindResult(0); }
+    if (event.key === "ArrowDown") { const first = $("#quickFindResults button"); if (first) { event.preventDefault(); first.focus(); } }
+  });
+  $("#quickFindResults").addEventListener("click", (event) => { const button = event.target.closest("[data-quick-find-index]"); if (button) openQuickFindResult(button.dataset.quickFindIndex); });
+  $("#quickFindResults").addEventListener("keydown", (event) => {
+    if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+    const buttons = $$("#quickFindResults button");
+    const current = buttons.indexOf(document.activeElement);
+    if (current < 0 || !buttons.length) return;
+    event.preventDefault();
+    buttons[(current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length].focus();
+  });
+  $("#backToTop").addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
   $("#hubSignOut").addEventListener("click", () => performLogout());
   $("#inviteButton").addEventListener("click", showInvite); $("#allTripsButton").addEventListener("click", () => isAdmin() ? showAllTrips() : showMyTrips()); $("#connectBackendButton").addEventListener("click", () => showBackendSetup()); $("#editTripButton").addEventListener("click", showEditTrip); $("#tripPhotoButton").addEventListener("click", showTripPhotoSettings); $("#tripStatusButton").addEventListener("click", toggleCurrentTripStatus); $("#deleteTripButton").addEventListener("click", () => showDeleteTripConfirmation(state.data.trip.tripId)); $("#syncButton").addEventListener("click", refreshTrip); $("#leaveTrip").addEventListener("click", () => performLogout());
   $$('[data-add]').forEach((button) => button.addEventListener("click", () => showAddModal(button.dataset.add)));
 
   ["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) => addEventListener(eventName, recordActivity, { passive: true }));
+  addEventListener("scroll", updateBackToTop, { passive: true });
+  addEventListener("online", () => updateConnectionStatus(true));
+  addEventListener("offline", () => updateConnectionStatus(true));
+  addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); openQuickFind(); return; }
+    if (event.key !== "Escape") return;
+    if (!$("#quickFindLayer").classList.contains("hidden")) closeQuickFind();
+    else if (!$("#modal").classList.contains("hidden")) closeModal();
+    else if ($("#stickyPanel").classList.contains("open")) closeStickyPanel();
+    else { const openMenu = $(".trip-tools[open]"); if (openMenu) openMenu.removeAttribute("open"); }
+  });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkIdleTimeout(); });
   addEventListener("pagehide", () => { state.pin = ""; stopIdleTimer(); });
   addEventListener("pageshow", (event) => { if (event.persisted && state.authenticated) performLogout("Page restored securely. Please log in again."); });
@@ -1768,10 +2019,13 @@
   const invitedApi = inviteQuery.get("api");
   if (!validApiUrl(config.API_URL) && validApiUrl(invitedApi)) { apiUrl = invitedApi; saveStoredApiUrl(apiUrl); }
   updateBackendStatus();
+  updateConnectionStatus();
   updateHeaderDateTime();
-  setInterval(updateHeaderDateTime, 1000);
+  setInterval(() => { if (!document.hidden) updateHeaderDateTime(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) updateHeaderDateTime(); });
   restoreSavedAccountLogin();
-  if (apiUrlReady()) ensureCurrentBackend().catch(() => {});
+  const scheduleBackgroundTask = (task) => "requestIdleCallback" in window ? requestIdleCallback(task, { timeout: 1500 }) : setTimeout(task, 40);
+  if (apiUrlReady()) scheduleBackgroundTask(() => ensureCurrentBackend().catch(() => {}));
+  if ("serviceWorker" in navigator && location.protocol === "https:") scheduleBackgroundTask(() => navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }).catch(() => {}));
   const invitedTrip = inviteQuery.get("trip"); if (invitedTrip) $("#joinTripId").value = invitedTrip.toUpperCase();
 })();

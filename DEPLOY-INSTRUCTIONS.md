@@ -1,6 +1,6 @@
 # MyTrip Dashboard 4.7.0
 
-This package keeps the exact versions **FE v4.7.0** and **BE v4.6.0**. It adds the unified account login, all-trips account dashboard, collapsible sticky notes, Sticky Note Diary, colourful Experiences tab, and row-based expense controls.
+This package keeps the exact versions **FE v4.7.0** and **BE v4.6.0**. It adds the unified account login, all-trips account dashboard, collapsible sticky notes, Sticky Note Diary, colourful Experiences tab, row-based expense controls, the date-aware **Today’s Journey** Overview, and the final 10/10 usability polish.
 
 Existing trips, travellers, assignments, plans, places, expenses, experiences and passwords are preserved.
 
@@ -16,7 +16,7 @@ Existing trips, travellers, assignments, plans, places, expenses, experiences an
 - Shared one-trip access is always visible below the common account form, with separate Trip code and shared-password fields.
 - Frontend and backend versions are shown on the login page, account dashboard and trip dashboard.
 - The redundant **Google backend connected** sentence has been removed; compact **FE v** and **BE v** badges are the authoritative status.
-- A centred pale-pink capsule clock matching the supplied reference appears in the account and trip headers, with a thick pink outline and dark-magenta bold text. It uses the device's local time, for example **◆ 28th-Aug-2026 (Friday) │ 08:54 PM**, and updates automatically every second.
+- A centred pale-pink capsule clock matching the supplied reference appears in the account and trip headers, with a thick pink outline and dark-magenta bold text. It uses the device's local time, for example **◆ 28th-Aug-2026 (Friday) │ 08:54 PM**, and updates automatically without unnecessary every-second repainting.
 - Main labels, supporting text, buttons and dashboard summaries use larger, bolder type for easier reading on desktop and mobile.
 - The password field has a clear **Show/Hide** control.
 - **Remember username on this device** is optional. Only the username is stored. The password is never saved and must be entered for every login.
@@ -30,6 +30,20 @@ Existing trips, travellers, assignments, plans, places, expenses, experiences an
 
 ## Other included upgrades
 
+- **Speed build:** sign-in performs the backend capability check concurrently instead of adding another full wait before login.
+- `sw.js` keeps only versioned MyTrip layout files in a controlled same-site cache, so repeat visits open immediately. Passwords, Google Sheet responses, Drive photos and Apps Script requests are never cached by it.
+- Print reports are built only when Print is selected, long lists use progressive browser rendering, view controls use one delegated event handler, the clock updates only when needed, and web fonts load without blocking the first screen.
+- **Quick Find** searches every permitted itinerary, place, expense, photo, experience and traveller from one panel. Open it from the top bar or press `Ctrl + K` / `Command + K`.
+- Search results never expose a feature hidden for that Traveller ID.
+- A slim animated progress bar appears during backend work, requests have a safe timeout, and the header shows clear online/offline status.
+- Mobile navigation uses larger horizontally scrollable buttons instead of compressing eight unreadable tabs into one row.
+- Keyboard focus, Escape-to-close, skip-to-content, reduced-motion support, larger touch targets and a Back to top button improve accessibility.
+- `favicon.svg` gives MyTrip its own colourful browser-tab identity.
+- `repair.html` is a standalone recovery page for stale cache/service-worker problems, especially when MyTrip works in Incognito but the normal browser opens an old or different dashboard.
+- The Overview changes automatically according to the device's local date: **Trip preparation** before departure, **Today’s Journey** during the trip, and **Trip memories** after completion.
+- During an active trip, Today’s Journey shows the next itinerary item, a Google Maps navigation link, the remaining plan for the day, today’s spending, the most urgent active sticky reminder, and quick buttons for allowed actions.
+- The preparation view shows days to departure, planned days, saved places, active reminders and the photo-gallery status. The completed view summarises spending, experiences, photos and visited places.
+- These panels use only existing MyTrip data and follow every Administrator permission. They require no paid travel API, GPS tracking or backend update.
 - A slim **Sticky notes** tab opens a colourful right-side panel.
 - The Administrator controls which personal traveller accounts may write sticky notes.
 - Active sticky notes remain on the current device. Completing a sticky note saves its full entry in the separate `StickyNoteDiary` Google Sheet.
@@ -63,8 +77,11 @@ Replace these repository-root files:
 1. `index.html`
 2. `app.js`
 3. `styles.css`
+4. `favicon.svg`
+5. `repair.html`
+6. `sw.js`
 
-Keep the existing `config.js` so the connected `/exec` URL is unchanged. Wait about two minutes, use **Clear cache & reload** on the login page, and reopen the site.
+Keep the existing `config.js` so the connected `/exec` URL is unchanged. Wait about two minutes, open `repair.html` once to remove any older broad service worker, then reopen the site. The new controlled speed cache registers automatically after the page opens.
 
 Deploy the supplied `backend/Code.gs` for Administrator-controlled traveller username changes, even if the visible backend badge already says `4.6.0`. The visible version remains unchanged.
 
@@ -104,3 +121,9 @@ The username must be 3–40 characters, start with a letter or number, and use o
 12. Leave the app idle for five minutes and confirm it returns to login.
 13. In Traveller profiles, select **Set trip limit**, enter a positive limit and confirm the traveller can create only that many trips. Enter 0 and confirm creation is disabled.
 14. Open a trip as Administrator, select **Travellers → Control access**, set a photo limit, then test add/replace/delete in **Trip Photos**. Confirm the Drive file and `TripPhotos` Sheet row are created.
+15. Change a test trip's dates to before, during and after today's date. Confirm Overview changes respectively to **Trip preparation**, **Today’s Journey** and **Trip completed**, while hidden traveller features remain hidden.
+16. Open **Quick Find** or press `Ctrl + K` / `Command + K`. Search a place, expense and traveller, and confirm each result opens the correct permitted section.
+17. On mobile, swipe the bottom navigation sideways and confirm every permitted tab remains large and readable.
+18. Temporarily disconnect the internet and confirm the header shows **Offline** without hiding already loaded trip information.
+19. If the normal browser opens an old or different dashboard, open `https://saradasutar.github.io/MyTrip/repair.html`, select **Repair cache and reopen MyTrip**, then sign in again.
+20. Reopen MyTrip once more and confirm the login screen appears immediately from the controlled static cache; verify that passwords are still blank and live trip data still comes from Apps Script.
