@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f27d63">
+  <meta name="color-scheme" content="light">
+  <title>MyTrip Shared Planner</title>
+  <meta name="description" content="A shared trip planner with itinerary, writer-attributed experiences, Google Maps, expenses and print reports.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&amp;family=Playfair+Display:wght@600;700&amp;display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&amp;family=Playfair+Display:wght@600;700&amp;display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="styles.css?v=4.7.0-speed2">
+</head>
+<body>
+  <a class="skip-link" href="#view">Skip to trip content</a>
+  <div class="app-progress hidden" id="appProgress" role="progressbar" aria-label="MyTrip is working" aria-hidden="true"><i></i></div>
+  <section class="access-screen" id="accessScreen">
+    <div class="access-shell">
+      <div class="access-art">
+        <div class="brand"><i>↗</i> mytrip</div>
+        <div class="access-copy"><span>PLAN · SHARE · GO</span><h1>MyTrip<br>Travel<br>Dashboard</h1><p>Secure access to every trip, itinerary, expense, reminder and travel memory permitted for your account.</p><div class="feature-chips"><b>⌖ Places &amp; Maps</b><b>✍ Experiences</b><b>₹ Expenses</b><b>▤ Trip Book</b></div></div>
+      </div>
+      <div class="access-panel">
+        <div class="access-card">
+          <div class="mobile-logo"><i>↗</i> mytrip</div>
+          <span class="kicker login-kicker">SECURE ACCESS</span>
+          <h2>Welcome</h2>
+          <p>Enter the username and password assigned to your account.</p>
+          <form id="accountLoginForm" class="account-login-form">
+            <label>Username<input name="username" id="loginUsername" maxlength="40" autocomplete="username" placeholder="Enter username" required></label>
+            <label>Password<span class="password-input-wrap"><input name="password" id="loginPassword" type="password" minlength="4" maxlength="64" autocomplete="current-password" placeholder="Enter password" required><button id="toggleLoginPassword" type="button" aria-pressed="false">Show</button></span></label>
+            <div class="login-save-option"><label><input name="rememberLogin" id="rememberLogin" type="checkbox"><span>Remember username on this device</span></label><small>Your password is never saved and must be entered for every login.</small></div>
+            <button class="primary login-submit" type="submit">Sign in</button>
+          </form>
+          <section class="visible-shared-access" aria-labelledby="sharedAccessTitle">
+            <div class="login-section-divider"><span>OR</span></div>
+            <header><i>◆</i><div><h3 id="sharedAccessTitle">Open one trip with shared access</h3><p>Use the trip code and shared trip password supplied for that trip.</p></div></header>
+            <form id="joinForm" class="visible-shared-form"><div class="shared-field-grid"><label>Trip code<input name="tripId" id="joinTripId" placeholder="e.g. GOA26" autocomplete="off" required></label><label>Shared trip password<input name="pin" type="password" maxlength="64" autocomplete="current-password" placeholder="Enter shared password" required></label></div><button class="secondary" type="submit">Open this trip →</button></form>
+          </section>
+          <div class="version-strip" aria-label="Application versions"><span>FE <b id="loginFrontendVersion">v4.8.2</b></span><span>BE <b id="loginBackendVersion">Not connected</b></span></div>
+          <button class="cache-clear-button" id="clearAppCache" type="button">↻ Repair MyTrip cache/session</button>
+          <details class="login-more-options"><summary>Other setup tools</summary><div>
+            <button class="demo-button unified-demo" id="previewDemoButton" type="button">Preview dashboard demo</button>
+            <button class="text-button" id="showCreateButton" type="button">＋ Create a new trip</button>
+            <button class="backend-settings-link" id="connectBackendButton" type="button">Backend settings</button>
+          </div></details>
+          <p class="access-note">Your permissions are applied automatically after sign-in.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="account-hub hidden" id="accountHub">
+    <header class="account-hub-topbar"><a class="brand" href="#"><i>↗</i> mytrip</a><div><span id="hubAccountLabel">MY ACCOUNT</span><b id="hubVersion">FE v4.8.2 · BE —</b></div><time class="header-date-time" id="hubDateTime" aria-label="Current date and time">◆ Loading date and time…</time><span class="connection-status" id="hubConnectionStatus" role="status"><i></i><b>Online</b></span><button class="account-signout" id="hubSignOut" type="button">↪ Sign out</button></header>
+    <main id="accountHubContent"></main>
+  </section>
+
+  <section class="dashboard hidden" id="dashboard">
+    <aside class="sidebar">
+      <a class="brand" href="#"><i>↗</i> mytrip</a>
+      <nav id="mainNav">
+        <button data-tab="overview" class="active"><i>⌂</i><span>Overview</span></button>
+        <button data-tab="itinerary"><i>▦</i><span>Itinerary</span></button>
+        <button data-tab="experiences"><i>✍</i><span>Experiences</span></button>
+        <button data-tab="photos"><i>▣</i><span>Trip Photos</span></button>
+        <button data-tab="places"><i>⌖</i><span>Places & Map</span></button>
+        <button data-tab="expenses"><i>₹</i><span>Expenses</span></button>
+        <button data-tab="people"><i>♙</i><span>Travellers</span></button>
+        <button data-tab="print"><i>▤</i><span>Print & Export</span></button>
+      </nav>
+      <div class="current-trip"><span class="kicker">CURRENT TRIP</span><div><i>🌴</i><span><b id="sideTripName">Goa escape</b><small id="sideTripDates">19–23 Nov 2026</small><em id="sideTripCode">TRIP ID · GOA26</em></span></div></div>
+      <div class="user"><span>SS</span><div><b id="currentUser">Traveller</b><small id="currentRoleLabel">Traveller access</small></div></div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="mobile-brand"><i>↗</i><span>mytrip</span></div>
+        <div class="top-trip-summary" aria-label="Current trip">
+          <span class="trip-status" id="tripStatus">● ACTIVE</span>
+          <span class="trip-id-chip" id="tripIdChip"><small>TRIP ID</small><strong>GOA26</strong></span>
+          <div class="top-trip-copy"><strong id="tripTitle">Goa Escape</strong><small id="tripMeta">19–23 Nov 2026 · 4 nights · 6 travellers</small></div>
+          <span class="hidden" id="crumbLabel">Overview</span>
+        </div>
+        <time class="header-date-time" id="dashboardDateTime" aria-label="Current date and time">◆ Loading date and time…</time>
+        <div class="top-actions">
+          <span class="connection-status" id="dashboardConnectionStatus" role="status"><i></i><b>Online</b></span>
+          <span class="version-badge" id="dashboardVersion">FE v4.8.2 · BE —</span>
+          <button class="all-trips" id="allTripsButton">◆ All trips</button>
+          <span class="access-badge" id="accessBadge">ADMINISTRATOR</span>
+          <div class="avatars" id="topAvatars"></div>
+          <button class="invite" id="inviteButton">＋ Invite</button>
+          <details class="trip-tools top-trip-tools">
+            <summary aria-label="Manage trip">••• <span>Manage</span></summary>
+            <div class="trip-tools-menu"><button class="secondary" id="editTripButton">✎ Edit trip</button><button class="secondary" id="tripPhotoButton">▣ Trip photo</button><button class="secondary status-control" id="tripStatusButton">Disable trip</button><button class="secondary" id="syncButton">↻ Refresh data</button><button class="danger-button" id="deleteTripButton">Delete trip</button></div>
+          </details>
+          <button class="topbar-signout" id="leaveTrip" type="button" aria-label="Sign out"><span>↪</span><b>Sign out</b></button>
+        </div>
+      </header>
+      <div class="content">
+        <div id="view" tabindex="-1"></div>
+      </div>
+    </main>
+  </section>
+
+  <button class="sticky-edge-tab hidden" id="stickyEdgeTab" type="button" aria-controls="stickyPanel" aria-expanded="false">
+    <i>✦</i><span>Sticky notes</span><b id="stickyEdgeCount">0</b>
+  </button>
+  <div class="sticky-panel-backdrop hidden" id="stickyPanelBackdrop"></div>
+  <aside class="sticky-panel hidden" id="stickyPanel" aria-hidden="true">
+    <header>
+      <div><span class="kicker">RIGHT UTILITY PANEL</span><h2>Trip sticky notes</h2><p>Targets and reminders without occupying dashboard space.</p></div>
+      <button id="closeStickyPanel" type="button" aria-label="Collapse sticky notes">×</button>
+    </header>
+    <div class="sticky-panel-toolbar"><div><b>📌 Shared pinned stickies</b><small id="stickyActiveCount">0 active</small></div><span class="sticky-toolbar-actions"><button class="sticky-access-button hidden" id="stickyAccessButton" type="button">⚙ Who can edit</button><button id="addStickyNote" type="button">＋ Add sticky</button></span></div>
+    <p class="sticky-device-note">Pinned notes are shared with every traveller in this trip.</p>
+    <div class="sticky-panel-list" id="stickyActiveList"></div>
+    <section class="sticky-diary-section"><div><span class="kicker">STICKY NOTE DIARY · GOOGLE SHEET</span><h3>Completed history</h3><small id="stickyCompletedCount">0 completed</small></div><p>Completed entries are permanently stored separately from Experiences.</p><div class="sticky-diary-list" id="stickyDiaryList"></div></section>
+  </aside>
+  <div class="floating-sticky-layer hidden" id="floatingStickyLayer" aria-live="polite"></div>
+
+  <div class="quick-find-layer hidden" id="quickFindLayer" role="presentation">
+    <section role="dialog" aria-modal="true" aria-labelledby="quickFindTitle">
+      <header><div><span class="kicker">SEARCH THIS TRIP</span><h2 id="quickFindTitle">Quick Find</h2></div><button id="closeQuickFind" type="button" aria-label="Close Quick Find">×</button></header>
+      <label class="quick-find-input"><i>⌕</i><input id="quickFindInput" type="search" autocomplete="off" placeholder="Search plans, places, expenses, photos, experiences…" aria-describedby="quickFindHelp"><kbd>ESC</kbd></label>
+      <div class="quick-find-help" id="quickFindHelp"><span>Results respect this account’s permissions.</span><b id="quickFindCount">Type to search</b></div>
+      <div class="quick-find-results" id="quickFindResults"></div>
+    </section>
+  </div>
+
+  <button class="back-to-top hidden" id="backToTop" type="button" aria-label="Back to top"><span>↑</span><b>Top</b></button>
+
+  <div class="modal hidden" id="modal" role="presentation"><section role="dialog" aria-modal="true" aria-labelledby="modalTitle"><header><div><span class="kicker">MYTRIP</span><h2 id="modalTitle">Add</h2></div><button id="closeModal" aria-label="Close">×</button></header><div id="modalBody"></div></section></div>
+  <div class="toast hidden" id="toast" role="status"></div>
+  <section class="print-area" id="printArea"></section>
+
+  <script defer src="config.js?v=4.7.0-speed2"></script>
+  <script defer src="app.js?v=4.7.0-speed2"></script>
+</body>
+</html>
