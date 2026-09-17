@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.8.0";
+  const frontendVersion = "4.8.1";
   const requiredBackendVersion = "4.8.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -824,16 +824,46 @@
     };
   }
 
+  function dedupeStickyNotes(list) {
+    const seen = new Set();
+    return list.filter((note) => {
+      const key = `${String(note.id)}`;
+      const twin = `${note.title}|${note.body}|${note.dueDate}`;
+      if (seen.has(key) || seen.has(twin)) return false;
+      seen.add(key); seen.add(twin); return true;
+    });
+  }
+
   function loadStickyNotes() {
     if (state.data && !state.demoMode) {
-      stickyNotes = (state.data.stickyNotes || []).map((note, index) => normaliseSticky({ ...note, body: note.details || note.body }, index));
+      stickyNotes = dedupeStickyNotes((state.data.stickyNotes || []).map((note, index) => normaliseSticky({ ...note, body: note.details || note.body }, index)));
       renderStickyNotes();
+      migrateDeviceStickyNotes();
       return;
     }
     let parsed = [];
     try { parsed = JSON.parse(localStorage.getItem(stickyStorageKey()) || "[]"); } catch { parsed = []; }
     stickyNotes = Array.isArray(parsed) ? parsed.map(normaliseSticky) : [];
     renderStickyNotes();
+  }
+
+  /** One-time lift: notes left in this browser move into the shared Google Sheet. */
+  async function migrateDeviceStickyNotes() {
+    if (stickyMigrationRunning || state.demoMode || !canWriteStickyNotes()) return;
+    let parsed = [];
+    try { parsed = JSON.parse(localStorage.getItem(stickyStorageKey()) || "[]"); } catch { parsed = []; }
+    const legacy = dedupeStickyNotes((Array.isArray(parsed) ? parsed : []).filter((note) => !note.completed).map(normaliseSticky))
+      .filter((note) => !stickyNotes.some((item) => `${item.title}|${item.body}` === `${note.title}|${note.body}`));
+    if (!legacy.length) { try { localStorage.removeItem(stickyStorageKey()); } catch {} return; }
+    stickyMigrationRunning = true;
+    let moved = 0;
+    for (const note of legacy) {
+      const saved = await persistSticky(note, true);
+      if (saved) { stickyNotes.push(normaliseSticky({ ...saved, body: saved.details }, stickyNotes.length)); moved++; }
+    }
+    stickyMigrationRunning = false;
+    try { localStorage.removeItem(stickyStorageKey()); } catch {}
+    if (moved) { renderStickyNotes(); toast(`${moved} sticky ${moved === 1 ? "note" : "notes"} moved into the shared trip sheet`); }
   }
 
   function stickyRecord(note) {
@@ -850,13 +880,66 @@
     if (state.demoMode) { saveStickyNotes(); mirrorStickyNotes(); return note; }
     try {
       const saved = await api("saveStickyNote", authPayload({ record: stickyRecord(note), author: state.currentUser }));
-      note.id = saved.id; note.createdAt = saved.createdAt || note.createdAt;
+      note.id = saved.id; note.createdAt = saved.createdAt || note.createdAt; note.saved = true;
       mirrorStickyNotes();
       return saved;
     } catch (error) { if (!silent) toast(error.message, true); return null; }
   }
 
+  const stickyTabPositionKey = "mytrip_sticky_tab_position_v1";
+
+  function applyStickyTabPosition() {
+    const tab = $("#stickyEdgeTab");
+    if (!tab) return;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(stickyTabPositionKey) || "null"); } catch { saved = null; }
+    if (!saved || !Number.isFinite(Number(saved.x)) || !Number.isFinite(Number(saved.y))) return;
+    const x = Math.max(2, Math.min(innerWidth - tab.offsetWidth - 2, Number(saved.x)));
+    const y = Math.max(60, Math.min(innerHeight - tab.offsetHeight - 8, Number(saved.y)));
+    tab.style.left = `${Math.round(x)}px`;
+    tab.style.top = `${Math.round(y)}px`;
+    tab.style.right = "auto";
+    tab.style.bottom = "auto";
+    tab.style.transform = "rotate(180deg)";
+  }
+
+  /** The Administrator can drag the sticky launcher anywhere on the screen. */
+  function makeStickyTabDraggable() {
+    const tab = $("#stickyEdgeTab");
+    if (!tab || tab.dataset.draggable === "true") return;
+    tab.dataset.draggable = "true";
+    let moved = false;
+    tab.addEventListener("pointerdown", (event) => {
+      if (!isAdmin()) return;
+      const rect = tab.getBoundingClientRect();
+      const offsetX = event.clientX - rect.left, offsetY = event.clientY - rect.top;
+      moved = false;
+      tab.setPointerCapture(event.pointerId);
+      tab.classList.add("dragging");
+      const move = (moveEvent) => {
+        if (Math.abs(moveEvent.clientX - event.clientX) + Math.abs(moveEvent.clientY - event.clientY) > 4) moved = true;
+        const x = Math.max(2, Math.min(innerWidth - tab.offsetWidth - 2, moveEvent.clientX - offsetX));
+        const y = Math.max(60, Math.min(innerHeight - tab.offsetHeight - 8, moveEvent.clientY - offsetY));
+        tab.style.left = `${Math.round(x)}px`; tab.style.top = `${Math.round(y)}px`;
+        tab.style.right = "auto"; tab.style.bottom = "auto"; tab.style.transform = "rotate(180deg)";
+      };
+      const finish = () => {
+        tab.removeEventListener("pointermove", move); tab.removeEventListener("pointerup", finish); tab.removeEventListener("pointercancel", finish);
+        tab.classList.remove("dragging");
+        if (moved) {
+          const box = tab.getBoundingClientRect();
+          try { localStorage.setItem(stickyTabPositionKey, JSON.stringify({ x: box.left, y: box.top })); } catch {}
+        }
+      };
+      tab.addEventListener("pointermove", move); tab.addEventListener("pointerup", finish); tab.addEventListener("pointercancel", finish);
+    });
+    tab.addEventListener("click", (event) => { if (moved) { event.preventDefault(); event.stopPropagation(); moved = false; } }, true);
+  }
+
   function setStickyControlsVisible(visible) {
+    applyStickyTabPosition();
+    makeStickyTabDraggable();
+    $("#stickyEdgeTab").classList.toggle("draggable", isAdmin());
     $("#stickyEdgeTab").classList.toggle("hidden", !visible);
     if (!visible) closeStickyPanel();
     renderStickyNotes();
@@ -954,7 +1037,9 @@
       if (!editing) stickyNotes.push(target);
       saveStickyNotes(); closeModal(); renderStickyNotes();
       const saved = await persistSticky(target);
-      if (saved) { renderStickyNotes(); toast(editing ? "Sticky note updated for everyone" : "Sticky note pinned for everyone"); }
+      renderStickyNotes();
+      if (saved) toast(editing ? "Sticky note updated for everyone" : "Sticky note saved for everyone");
+      else if (!state.demoMode) toast("The note could not be saved to the trip sheet", true);
     });
     $("[data-cancel]").addEventListener("click", closeModal);
   }
@@ -1022,9 +1107,11 @@
     if (!canWriteStickyNotes()) return toast("Sticky-note editing is disabled by the Administrator", true);
     try {
       if (!state.demoMode) await api("deleteStickyNote", authPayload({ id: note.id }));
-      stickyNotes = stickyNotes.filter((item) => String(item.id) !== String(note.id));
-      saveStickyNotes(); mirrorStickyNotes(); renderStickyNotes(); toast("Sticky note deleted for everyone");
-    } catch (error) { toast(error.message, true); }
+    } catch (error) {
+      if (!/not found/i.test(error.message)) return toast(error.message, true);
+    }
+    stickyNotes = stickyNotes.filter((item) => String(item.id) !== String(note.id));
+    saveStickyNotes(); mirrorStickyNotes(); renderStickyNotes(); toast("Sticky note deleted for everyone");
   }
 
   /** Administrator control: who may edit or comment on the shared pinned board. */
