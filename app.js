@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.9.1";
+  const frontendVersion = "4.9.2";
   const requiredBackendVersion = "4.8.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -171,6 +171,9 @@
       return result.data;
     } catch (error) {
       if (error.name === "AbortError") throw new Error("The backend took too long to respond. Check the connection and try again.");
+      if (error.name === "TypeError" || /failed to fetch|load failed|networkerror/i.test(error.message || "")) {
+        throw new Error("Google could not be reached at the saved /exec link. In Apps Script open Deploy > Manage deployments, confirm the Web app is deployed with Execute as “Me” and Who has access “Anyone”, copy the current /exec URL, then reconnect it here.");
+      }
       throw error;
     } finally {
       clearTimeout(timeout);
