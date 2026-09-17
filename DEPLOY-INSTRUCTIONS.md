@@ -33,7 +33,7 @@ Existing trips, travellers, assignments, plans, places, expenses, experiences an
 - **Speed build:** sign-in performs the backend capability check concurrently instead of adding another full wait before login.
 - `sw.js` keeps only versioned MyTrip layout files in a controlled same-site cache, so repeat visits open immediately. Passwords, Google Sheet responses, Drive photos and Apps Script requests are never cached by it.
 - Print reports are built only when Print is selected, long lists use progressive browser rendering, view controls use one delegated event handler, the clock updates only when needed, and web fonts load without blocking the first screen.
-- **Quick Find** searches every permitted itinerary, place, expense, photo, experience and traveller from one panel. Open it from the top bar or press `Ctrl + K` / `Command + K`.
+- **Quick Find** searches every permitted itinerary, place, expense, photo, experience and traveller from one panel. It now sits in the Administrator/Traveller access banner so it cannot overlap the live date and time; it also opens with `Ctrl + K` / `Command + K`.
 - Search results never expose a feature hidden for that Traveller ID.
 - A slim animated progress bar appears during backend work, requests have a safe timeout, and the header shows clear online/offline status.
 - Mobile navigation uses larger horizontally scrollable buttons instead of compressing eight unreadable tabs into one row.
@@ -41,6 +41,7 @@ Existing trips, travellers, assignments, plans, places, expenses, experiences an
 - `favicon.svg` gives MyTrip its own colourful browser-tab identity.
 - `repair.html` is a standalone recovery page for stale cache/service-worker problems, especially when MyTrip works in Incognito but the normal browser opens an old or different dashboard.
 - The Overview changes automatically according to the device's local date: **Trip preparation** before departure, **Today’s Journey** during the trip, and **Trip memories** after completion.
+- Overview action shortcuts are shown once only in one colourful row immediately above the Trip Photo. Duplicate Add plan, Add place, Add expense and other journey-panel shortcuts have been removed.
 - During an active trip, Today’s Journey shows the next itinerary item, a Google Maps navigation link, the remaining plan for the day, today’s spending, the most urgent active sticky reminder, and quick buttons for allowed actions.
 - The preparation view shows days to departure, planned days, saved places, active reminders and the photo-gallery status. The completed view summarises spending, experiences, photos and visited places.
 - These panels use only existing MyTrip data and follow every Administrator permission. They require no paid travel API, GPS tracking or backend update.
