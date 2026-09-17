@@ -651,3 +651,23 @@ img{max-width:100%}
   .permission-banner-actions>button:not(.quick-find-trigger){width:100%}
 }
 @media print{.skip-link,.app-progress,.quick-find-layer,.back-to-top,.connection-status,.quick-find-trigger{display:none!important}}
+
+
+/* v4.8 shared pinned sticky board: admin-controlled edit access */
+.sticky-toolbar-actions{display:flex;align-items:center;gap:6px}
+.sticky-access-button{border:1px solid #d9e0e7;border-radius:9px;background:#fff;color:#5c6f82;padding:8px 10px;font-size:8px;font-weight:900;cursor:pointer}
+.sticky-access-button:hover{border-color:#8d7ad8;color:#55429c}
+.sticky-access-bulk{display:flex;align-items:flex-end;gap:8px;margin-bottom:10px}
+.sticky-access-bulk label{flex:1;display:grid;gap:4px;font-size:9px;font-weight:900;color:#4a5b6a}
+.sticky-access-bulk select{border:1px solid #d9e0e7;border-radius:9px;padding:9px 10px;font:inherit;font-size:10px}
+.sticky-access-bulk button{border:1px solid #2f3d8f;border-radius:9px;background:#2f3d8f;color:#fff;padding:10px 12px;font-size:9px;font-weight:900;cursor:pointer}
+.sticky-access-list{display:grid;gap:8px;max-height:280px;overflow-y:auto}
+.sticky-access-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 11px;border:1px solid #e0e4ec;border-radius:11px;background:#fff}
+.sticky-access-row span{display:grid}
+.sticky-access-row b{font-size:10px;color:#243a4d}
+.sticky-access-row small{font-size:8px;font-weight:800;color:#7c8a97}
+.sticky-access-row select,.sticky-level-control select{border:1px solid #d9e0e7;border-radius:9px;padding:8px 9px;font:inherit;font-size:10px}
+.sticky-level-control{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;padding:11px 12px;border:1px solid #e0e4ec;border-radius:11px;background:#fbfcfe}
+.sticky-level-control span{display:grid;gap:2px}
+.sticky-level-control b{font-size:10px;color:#243a4d}
+.sticky-level-control small{font-size:8px;font-weight:700;color:#7c8a97;max-width:230px}

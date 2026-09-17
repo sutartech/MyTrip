@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.7.0";
-  const requiredBackendVersion = "4.6.0";
+  const frontendVersion = "4.8.0";
+  const requiredBackendVersion = "4.8.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -198,7 +198,7 @@
   async function verifyBackendVersion(url = apiUrl) {
     const info = await requestAt(url, "ping");
     backendVersion = String(info && info.version || "");
-    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true) throw backendUpgradeError(backendVersion);
+    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.stickyNoteComments !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true) throw backendUpgradeError(backendVersion);
     return info;
   }
 
@@ -314,7 +314,7 @@
   }
 
   function normalize(data) {
-    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: data.itinerary || [], experiences: data.experiences || [], photos: data.photos || [], stickyDiary: data.stickyDiary || [], expenses: (data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
+    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: data.itinerary || [], experiences: data.experiences || [], photos: data.photos || [], stickyDiary: data.stickyDiary || [], stickyNotes: data.stickyNotes || [], expenses: (data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
   }
 
   function isAdmin() { return state.accessRole === "administrator"; }
@@ -324,7 +324,15 @@
   function canViewExpenses() { return isAdmin() || state.permissions.viewExpenses !== false; }
   function canViewTravellers() { return isAdmin() || state.permissions.viewTravellers !== false; }
   function canPrintReports() { return isAdmin() || state.permissions.printReports !== false; }
-  function canWriteStickyNotes() { return isAdmin() || state.permissions.writeStickyNotes === true; }
+  function stickyAccessLevel() {
+    if (isAdmin()) return "edit";
+    const level = String(state.permissions.stickyAccess || "").toLowerCase();
+    if (level === "edit") return "edit";
+    if (level === "view") return "view";
+    return state.permissions.writeStickyNotes === true ? "edit" : "view";
+  }
+  function canWriteStickyNotes() { return stickyAccessLevel() === "edit"; }
+  function stickyAccessLabel(level) { return level === "edit" ? "Can edit this note" : "View only"; }
   function canAdd(type) {
     const allowed = { plan: canViewItinerary(), experience: canViewExperiences(), place: canViewPlaces(), expense: canViewExpenses(), travellers: isAdmin(), member: isAdmin() };
     return allowed[type] !== false && (isAdmin() || state.permissions[`add${type[0].toUpperCase()}${type.slice(1)}`] !== false);
@@ -817,15 +825,35 @@
   }
 
   function loadStickyNotes() {
+    if (state.data && !state.demoMode) {
+      stickyNotes = (state.data.stickyNotes || []).map((note, index) => normaliseSticky({ ...note, body: note.details || note.body }, index));
+      renderStickyNotes();
+      return;
+    }
     let parsed = [];
     try { parsed = JSON.parse(localStorage.getItem(stickyStorageKey()) || "[]"); } catch { parsed = []; }
     stickyNotes = Array.isArray(parsed) ? parsed.map(normaliseSticky) : [];
     renderStickyNotes();
   }
 
-  function saveStickyNotes() {
-    try { localStorage.setItem(stickyStorageKey(), JSON.stringify(stickyNotes)); }
-    catch { toast("This browser could not save sticky notes", true); }
+  function stickyRecord(note) {
+    return { id: note.id, type: note.type, title: note.title, details: note.body, dueDate: note.dueDate, colour: note.colour, pinned: note.pinned, x: Math.round(note.x), y: Math.round(note.y), width: Math.round(note.width), height: Math.round(note.height), createdAt: note.createdAt };
+  }
+
+  function mirrorStickyNotes() {
+    if (state.data) state.data.stickyNotes = stickyNotes.map(stickyRecord);
+  }
+
+  /** Saves one shared note to the trip's StickyNotes Google Sheet so everyone sees it. */
+  async function persistSticky(note, silent = false) {
+    if (!note) return null;
+    if (state.demoMode) { saveStickyNotes(); mirrorStickyNotes(); return note; }
+    try {
+      const saved = await api("saveStickyNote", authPayload({ record: stickyRecord(note), author: state.currentUser }));
+      note.id = saved.id; note.createdAt = saved.createdAt || note.createdAt;
+      mirrorStickyNotes();
+      return saved;
+    } catch (error) { if (!silent) toast(error.message, true); return null; }
   }
 
   function setStickyControlsVisible(visible) {
@@ -863,7 +891,7 @@
   }
 
   function stickyPanelCard(note) {
-    const controls = canWriteStickyNotes() ? `<footer><button data-sticky-pin="${esc(note.id)}">📌 ${note.pinned ? "Unpin" : "Pin"}</button><button class="complete" data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button class="delete" data-sticky-delete="${esc(note.id)}">Delete</button></footer>` : `<span class="sticky-readonly">VIEW ONLY · Writing disabled by Administrator</span>`;
+    const controls = canWriteStickyNotes() ? `<footer><button data-sticky-pin="${esc(note.id)}">📌 ${note.pinned ? "Unpin" : "Pin"}</button><button class="complete" data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button class="delete" data-sticky-delete="${esc(note.id)}">Delete</button></footer>` : `<span class="sticky-readonly">VIEW ONLY · Editing disabled by Administrator</span>`;
     return `<article class="sticky-card colour-${esc(note.colour)}"><header><span>${esc(note.type)}</span><small>${esc(stickyDueText(note))}</small></header><h4>${esc(note.title)}</h4><p>${esc(note.body || "No additional details")}</p>${controls}</article>`;
   }
 
@@ -878,7 +906,7 @@
     const safeWidth = Math.min(note.width, Math.max(260, innerWidth - 8));
     const safeX = Math.max(4, Math.min(innerWidth - safeWidth - 4, note.x));
     const safeY = Math.max(76, Math.min(innerHeight - 120, note.y));
-    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(note.height)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>↕ Move note</span><button data-sticky-pin="${esc(note.id)}" title="Unpin and return to panel">×</button></header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3>${esc(note.title)}</h3><p>${esc(note.body || "No additional details")}</p></div><footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer></article>`;
+    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(note.height)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>${canWriteStickyNotes() ? "↕ Move note" : "📌 Pinned for everyone"}</span>${canWriteStickyNotes() ? `<button data-sticky-pin="${esc(note.id)}" title="Unpin and return to panel">×</button>` : ""}</header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3>${esc(note.title)}</h3><p>${esc(note.body || "No additional details")}</p></div>${canWriteStickyNotes() ? `<footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer>` : ""}</article>`;
   }
 
   function renderStickyNotes() {
@@ -892,10 +920,11 @@
     $("#stickyActiveCount").textContent = `${active.length} active`;
     $("#stickyCompletedCount").textContent = `${completed.length} completed`;
     $("#addStickyNote").classList.toggle("hidden", !canWriteStickyNotes());
-    $(".sticky-device-note").innerHTML = canWriteStickyNotes() ? `Active notes stay on this device. Completed notes are saved in the trip’s <b>StickyNoteDiary</b> Google Sheet.` : `View-only access. The Administrator controls who can write sticky notes. Completed history comes from the <b>StickyNoteDiary</b> Google Sheet.`;
+    if ($("#stickyAccessButton")) $("#stickyAccessButton").classList.toggle("hidden", !isAdmin());
+    $(".sticky-device-note").innerHTML = { edit: `Pinned notes are shared with every traveller in this trip and saved in the <b>StickyNotes</b> Google Sheet. The Administrator allowed you to edit them.`, view: `Pinned notes are shared with every traveller. Your Traveller ID is <b>view only</b> — ask the Administrator for edit access.` }[stickyAccessLevel()];
     $("#stickyActiveList").innerHTML = active.map(stickyPanelCard).join("") || `<div class="sticky-empty"><b>No active sticky notes</b><p>${canWriteStickyNotes() ? "Add a target or reminder whenever something needs attention." : "The Administrator has not added an active note on this device."}</p></div>`;
     $("#stickyDiaryList").innerHTML = completed.map(stickyDiaryCard).join("") || `<div class="sticky-empty compact"><b>No completed notes yet</b></div>`;
-    const pinned = canWriteStickyNotes() ? active.filter((note) => note.pinned) : [];
+    const pinned = active.filter((note) => note.pinned);
     const layer = $("#floatingStickyLayer");
     layer.classList.toggle("hidden", !state.data || !pinned.length);
     layer.innerHTML = pinned.map(floatingStickyCard).join("");
@@ -906,7 +935,7 @@
     if (!canWriteStickyNotes()) return toast("Sticky-note writing is disabled by the Administrator", true);
     const note = stickyNotes.find((item) => item.id === id);
     if (!note) return;
-    Object.assign(note, changes); saveStickyNotes(); renderStickyNotes();
+    Object.assign(note, changes); saveStickyNotes(); renderStickyNotes(); persistSticky(note);
   }
 
   function showStickyEditor(note) {
@@ -917,13 +946,15 @@
     const form = $("#stickyEditorForm");
     const colourInput = form.elements.colour;
     colourInput.addEventListener("change", () => { const preview = $(".sticky-editor-preview", form); stickyColours.forEach((colour) => preview.classList.remove(`colour-${colour}`)); preview.classList.add(`colour-${colourInput.value}`); });
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const values = Object.fromEntries(new FormData(form).entries());
       const changes = { type: values.type, dueDate: values.dueDate || "", title: values.title, body: values.body || "", colour: values.colour, pinned: Boolean(values.pinned) };
-      if (editing) Object.assign(note, changes);
-      else stickyNotes.push(normaliseSticky({ ...current, ...changes }, stickyNotes.length));
-      saveStickyNotes(); closeModal(); renderStickyNotes(); toast(editing ? "Sticky note updated" : "Sticky note added");
+      const target = editing ? Object.assign(note, changes) : normaliseSticky({ ...current, ...changes }, stickyNotes.length);
+      if (!editing) stickyNotes.push(target);
+      saveStickyNotes(); closeModal(); renderStickyNotes();
+      const saved = await persistSticky(target);
+      if (saved) { renderStickyNotes(); toast(editing ? "Sticky note updated for everyone" : "Sticky note pinned for everyone"); }
     });
     $("[data-cancel]").addEventListener("click", closeModal);
   }
@@ -987,15 +1018,65 @@
     } catch (error) { toast(error.message, true); }
   }
 
+  async function deleteSharedSticky(note) {
+    if (!canWriteStickyNotes()) return toast("Sticky-note editing is disabled by the Administrator", true);
+    try {
+      if (!state.demoMode) await api("deleteStickyNote", authPayload({ id: note.id }));
+      stickyNotes = stickyNotes.filter((item) => String(item.id) !== String(note.id));
+      saveStickyNotes(); mirrorStickyNotes(); renderStickyNotes(); toast("Sticky note deleted for everyone");
+    } catch (error) { toast(error.message, true); }
+  }
+
+  /** Administrator control: who may edit or comment on the shared pinned board. */
+  function showStickyBoardAccess() {
+    if (!isAdmin()) return toast("Administrator access required", true);
+    const members = visibleTripMembers().filter((member) => member.travellerId);
+    if (!members.length) return toast("Create Traveller ID accounts for this trip first", true);
+    const levels = ["view", "edit"];
+    const rows = members.map((member) => {
+      const assignment = assignmentForTraveller(member.travellerId) || {};
+      const current = levels.includes(String(assignment.stickyNoteAccess || "").toLowerCase())
+        ? String(assignment.stickyNoteAccess).toLowerCase()
+        : (String(assignment.canWriteStickyNotes).toUpperCase() === "TRUE" ? "edit" : "view");
+      return `<label class="sticky-access-row"><span><b>${esc(member.name)}</b><small>${esc(member.travellerId)}</small></span><select name="${esc(member.travellerId)}">${levels.map((level) => `<option value="${level}" ${current === level ? "selected" : ""}>${stickyAccessLabel(level)}</option>`).join("")}</select></label>`;
+    }).join("");
+    showModal("Who can work on the pinned sticky notes", `<form class="modal-form" id="stickyAccessForm"><div class="security-note"><i>📌</i><p>Every traveller in <b>${esc(state.data.trip.name)}</b> sees the pinned notes. Choose who may edit and complete them, and who may only read them.</p></div><div class="sticky-access-bulk"><label>Set everyone to<select id="stickyAccessBulkLevel">${levels.map((level) => `<option value="${level}">${stickyAccessLabel(level)}</option>`).join("")}</select></label><button type="button" id="stickyAccessApplyAll">Apply to all travellers</button></div><div class="sticky-access-list">${rows}</div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save access</button></div></form>`);
+    const form = $("#stickyAccessForm");
+    $("#stickyAccessApplyAll").addEventListener("click", () => {
+      const level = $("#stickyAccessBulkLevel").value;
+      $$("select[name]", form).forEach((select) => { select.value = level; });
+      toast(`All travellers set to “${stickyAccessLabel(level)}” — press Save access`);
+    });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const picks = $$("select[name]", form).map((select) => [select.name, select.value]);
+      const submit = form.querySelector("button[type=submit]");
+      submit.disabled = true; submit.textContent = "Saving…";
+      try {
+        const sameLevel = picks.every(([, level]) => level === picks[0][1]);
+        if (!state.demoMode) {
+          if (sameLevel) await api("setTravellerStickyAccess", authPayload({ travellerId: "ALL", level: picks[0][1] }));
+          else for (const [travellerId, level] of picks) await api("setTravellerStickyAccess", authPayload({ travellerId, level }));
+        }
+        picks.forEach(([travellerId, level]) => {
+          const assignment = assignmentForTraveller(travellerId);
+          if (assignment) { assignment.stickyNoteAccess = level; assignment.canWriteStickyNotes = level === "edit" ? "TRUE" : "FALSE"; }
+        });
+        closeModal(); render(); renderStickyNotes(); toast("Sticky note access updated");
+      } catch (error) { submit.disabled = false; submit.textContent = "Save access"; toast(error.message, true); }
+    });
+    $("[data-cancel]").addEventListener("click", closeModal);
+  }
+
   function bindStickyActions() {
     $$('[data-sticky-pin]').forEach((button) => button.addEventListener("click", (event) => { event.stopPropagation(); const note = stickyNotes.find((item) => item.id === button.dataset.stickyPin); if (note) updateSticky(note.id, { pinned: !note.pinned }); }));
     $$('[data-sticky-complete]').forEach((button) => button.addEventListener("click", () => completeStickyNote(button.dataset.stickyComplete)));
     $$('[data-sticky-diary-reopen]').forEach((button) => button.addEventListener("click", () => reopenStickyDiary(button.dataset.stickyDiaryReopen)));
     $$('[data-sticky-diary-delete]').forEach((button) => button.addEventListener("click", () => deleteStickyDiary(button.dataset.stickyDiaryDelete)));
     $$('[data-sticky-edit]').forEach((button) => button.addEventListener("click", () => showStickyEditor(stickyNotes.find((item) => item.id === button.dataset.stickyEdit))));
-    $$('[data-sticky-delete]').forEach((button) => button.addEventListener("click", () => { const note = stickyNotes.find((item) => item.id === button.dataset.stickyDelete); if (note && confirm(`Delete sticky note “${note.title}”?`)) { stickyNotes = stickyNotes.filter((item) => item.id !== note.id); saveStickyNotes(); renderStickyNotes(); toast("Sticky note deleted"); } }));
+    $$('[data-sticky-delete]').forEach((button) => button.addEventListener("click", () => { const note = stickyNotes.find((item) => item.id === button.dataset.stickyDelete); if (note && confirm(`Delete shared sticky note “${note.title}” for everyone?`)) deleteSharedSticky(note); }));
     $$('[data-sticky-autofit]').forEach((button) => button.addEventListener("click", () => { const note = stickyNotes.find((item) => item.id === button.dataset.stickyAutofit), element = $(`[data-floating-sticky="${button.dataset.stickyAutofit}"]`); if (!note || !element) return; element.style.height = "auto"; element.style.width = `${Math.min(430, Math.max(290, element.scrollWidth + 8))}px`; element.style.height = `${Math.min(520, Math.max(190, element.scrollHeight + 8))}px`; const box = element.getBoundingClientRect(); updateSticky(note.id, { width: box.width, height: box.height }); }));
-    $$('[data-sticky-drag]').forEach((handle) => {
+    if (canWriteStickyNotes()) $$('[data-sticky-drag]').forEach((handle) => {
       handle.addEventListener("pointerdown", (event) => {
         if (event.target.closest("button")) return;
         const note = stickyNotes.find((item) => item.id === handle.dataset.stickyDrag), element = handle.closest(".floating-sticky");
@@ -1003,11 +1084,11 @@
         event.preventDefault(); handle.setPointerCapture(event.pointerId);
         const rect = element.getBoundingClientRect(), offsetX = event.clientX - rect.left, offsetY = event.clientY - rect.top;
         const move = (moveEvent) => { const x = Math.max(4, Math.min(innerWidth - element.offsetWidth - 4, moveEvent.clientX - offsetX)); const y = Math.max(76, Math.min(innerHeight - 70, moveEvent.clientY - offsetY)); element.style.left = `${x}px`; element.style.top = `${y}px`; note.x = x; note.y = y; };
-        const finish = () => { handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", finish); handle.removeEventListener("pointercancel", finish); saveStickyNotes(); };
+        const finish = () => { handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", finish); handle.removeEventListener("pointercancel", finish); saveStickyNotes(); persistSticky(note, true); };
         handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", finish); handle.addEventListener("pointercancel", finish);
       });
     });
-    $$('.floating-sticky').forEach((element) => element.addEventListener("pointerup", () => { const note = stickyNotes.find((item) => item.id === element.dataset.floatingSticky); if (!note) return; const box = element.getBoundingClientRect(); note.width = box.width; note.height = box.height; saveStickyNotes(); }));
+    $$('.floating-sticky').forEach((element) => element.addEventListener("pointerup", () => { const note = stickyNotes.find((item) => item.id === element.dataset.floatingSticky); if (!note) return; const box = element.getBoundingClientRect(); note.width = box.width; note.height = box.height; saveStickyNotes(); persistSticky(note, true); }));
   }
 
   function ordinalDay(day) {
@@ -1609,16 +1690,20 @@
       ["viewExpenses", "canViewExpenses", "Expenses", "Budget, payments and traveller totals"],
       ["viewTravellers", "canViewTravellers", "Traveller list", "Names, roles and Traveller IDs in this trip"],
       ["printReports", "canPrint", "Print & Export", "Printable reports for other enabled sections"],
-      ["writeStickyNotes", "canWriteStickyNotes", "Write sticky notes", "Add, edit and complete targets or reminders; completed entries save to Google Sheet"]
     ];
+    const stickyLevels = ["view", "edit"];
+    const currentStickyLevel = stickyLevels.includes(String(assignment.stickyNoteAccess || "").toLowerCase())
+      ? String(assignment.stickyNoteAccess).toLowerCase()
+      : (String(assignment.canWriteStickyNotes).toUpperCase() === "TRUE" ? "edit" : "view");
     showModal("Control traveller access", `<form class="modal-form" id="featureAccessForm"><div class="profile-id-banner"><span>TRAVELLER ID</span><b>${esc(member.travellerId)}</b><small>${esc(member.name)}</small></div><div class="security-note"><i>◆</i><p>Choose exactly what this personal Traveller ID can see or write in <b>${esc(state.data.trip.name)}</b>. Sticky writing is off until the Administrator enables it. Shared trip-PIN users remain view-only for sticky notes.</p></div><div class="feature-access-list">${options.map(([permission, field, label, help]) => `<label class="feature-access-option"><input type="checkbox" name="${permission}" ${assignmentAllows(assignment, field) ? "checked" : ""}><span><b>${label}</b><small>${help}</small></span><em>ALLOW</em></label>`).join("")}</div><div class="feature-access-actions"><button type="button" id="allowAllFeatures">Allow all</button><button type="button" id="hideAllFeatures">Hide all</button></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save access</button></div></form>`);
     const form = $("#featureAccessForm");
-    form.querySelector(".feature-access-actions").insertAdjacentHTML("beforebegin", `<label class="photo-limit-control"><span><b>Maximum photos this traveller may add</b><small>${currentPhotoCount} currently stored · enter 0 to disable photo addition for this traveller · maximum 50</small></span><input name="photoLimit" type="number" min="0" max="50" step="1" value="${currentPhotoLimit}" required></label>`);
+    form.querySelector(".feature-access-actions").insertAdjacentHTML("beforebegin", `<label class="sticky-level-control"><span><b>Pinned sticky notes</b><small>Everyone sees the pinned board. Choose whether this traveller may edit it.</small></span><select name="stickyAccess">${stickyLevels.map((level) => `<option value="${level}" ${currentStickyLevel === level ? "selected" : ""}>${stickyAccessLabel(level)}</option>`).join("")}</select></label><label class="photo-limit-control"><span><b>Maximum photos this traveller may add</b><small>${currentPhotoCount} currently stored · enter 0 to disable photo addition for this traveller · maximum 50</small></span><input name="photoLimit" type="number" min="0" max="50" step="1" value="${currentPhotoLimit}" required></label>`);
     $("#allowAllFeatures").addEventListener("click", () => $$('input[type="checkbox"]', form).forEach((input) => { input.checked = true; }));
     $("#hideAllFeatures").addEventListener("click", () => $$('input[type="checkbox"]', form).forEach((input) => { input.checked = false; }));
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const permissions = Object.fromEntries(options.map(([permission]) => [permission, Boolean(form.elements[permission].checked)]));
+      permissions.stickyAccess = form.elements.stickyAccess.value;
       const photoLimit = Number(form.elements.photoLimit.value);
       if (!Number.isInteger(photoLimit) || photoLimit < 0 || photoLimit > 50) return toast("Photo limit must be a whole number from 0 to 50", true);
       try {
@@ -1631,6 +1716,8 @@
         assignment.photoLimit = photoLimit;
         const fieldByPermission = Object.fromEntries(options.map(([permission, field]) => [permission, field]));
         Object.entries(saved).forEach(([permission, allowed]) => { if (fieldByPermission[permission]) assignment[fieldByPermission[permission]] = allowed ? "TRUE" : "FALSE"; });
+        assignment.stickyNoteAccess = permissions.stickyAccess;
+        assignment.canWriteStickyNotes = permissions.stickyAccess === "edit" ? "TRUE" : "FALSE";
         closeModal(); render(); toast(`Feature access updated for ${member.name}`);
       } catch (error) { toast(error.message, true); }
     });
@@ -1905,7 +1992,7 @@
 
   async function refreshTrip() {
     if (state.demoMode) return toast("Demo data is already up to date");
-    try { const data = await api("getTrip", authPayload()); state.data = normalize(data); state.accessRole = data.accessRole; state.permissions = data.permissions || {}; hydrateShell(); render(); renderStickyNotes(); updatePrintArea(); migrateCompletedStickyNotes(); toast("Latest trip data loaded"); } catch (error) { toast(error.message, true); }
+    try { const data = await api("getTrip", authPayload()); state.data = normalize(data); state.accessRole = data.accessRole; state.permissions = data.permissions || {}; loadStickyNotes(); hydrateShell(); render(); renderStickyNotes(); updatePrintArea(); migrateCompletedStickyNotes(); toast("Latest trip data loaded"); } catch (error) { toast(error.message, true); }
   }
 
   function showCreateTrip() {
@@ -1972,6 +2059,7 @@
   $("#closeStickyPanel").addEventListener("click", closeStickyPanel);
   $("#stickyPanelBackdrop").addEventListener("click", closeStickyPanel);
   $("#addStickyNote").addEventListener("click", () => showStickyEditor());
+  if ($("#stickyAccessButton")) $("#stickyAccessButton").addEventListener("click", showStickyBoardAccess);
   $("#clearAppCache").addEventListener("click", clearAppCacheAndReload);
   $("#closeQuickFind").addEventListener("click", closeQuickFind);
   $("#quickFindLayer").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeQuickFind(); });
