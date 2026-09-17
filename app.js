@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.8.2";
+  const frontendVersion = "4.9.0";
   const requiredBackendVersion = "4.8.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -980,8 +980,9 @@
   }
 
   function stickyPanelCard(note) {
+    const inline = (field) => canWriteStickyNotes() ? ` contenteditable="plaintext-only" spellcheck="false" class="sticky-inline" data-sticky-inline="${esc(note.id)}" data-sticky-field="${field}" title="Click to edit"` : "";
     const controls = canWriteStickyNotes() ? `<footer><button data-sticky-pin="${esc(note.id)}">📌 ${note.pinned ? "Unpin" : "Pin"}</button><button class="complete" data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button class="delete" data-sticky-delete="${esc(note.id)}">Delete</button></footer>` : `<span class="sticky-readonly">VIEW ONLY · Editing disabled by Administrator</span>`;
-    return `<article class="sticky-card colour-${esc(note.colour)}"><header><span>${esc(note.type)}</span><small>${esc(stickyDueText(note))}</small></header><h4>${esc(note.title)}</h4><p>${esc(note.body || "No additional details")}</p>${controls}</article>`;
+    return `<article class="sticky-card colour-${esc(note.colour)}"><header><span>${esc(note.type)}</span><small>${esc(stickyDueText(note))}</small></header><h4${inline("title")}>${esc(note.title)}</h4><p${inline("body")}>${esc(note.body || (canWriteStickyNotes() ? "Tap to add details" : "No additional details"))}</p>${controls}</article>`;
   }
 
   function stickyDiaryCard(note) {
@@ -992,10 +993,11 @@
   }
 
   function floatingStickyCard(note) {
+    const inline = (field) => canWriteStickyNotes() ? ` contenteditable="plaintext-only" spellcheck="false" class="sticky-inline" data-sticky-inline="${esc(note.id)}" data-sticky-field="${field}" title="Click to edit"` : "";
     const safeWidth = Math.min(note.width, Math.max(260, innerWidth - 8));
     const safeX = Math.max(4, Math.min(innerWidth - safeWidth - 4, note.x));
     const safeY = Math.max(76, Math.min(innerHeight - 120, note.y));
-    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(note.height)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>${canWriteStickyNotes() ? "↕ Move note" : "📌 Pinned for everyone"}</span>${canWriteStickyNotes() ? `<button data-sticky-pin="${esc(note.id)}" title="Unpin and return to panel">×</button>` : ""}</header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3>${esc(note.title)}</h3><p>${esc(note.body || "No additional details")}</p></div>${canWriteStickyNotes() ? `<footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer>` : ""}</article>`;
+    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(note.height)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>${canWriteStickyNotes() ? "↕ Move note" : "📌 Pinned for everyone"}</span>${canWriteStickyNotes() ? `<button data-sticky-pin="${esc(note.id)}" title="Unpin and return to panel">×</button>` : ""}</header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3${inline("title")}>${esc(note.title)}</h3><p${inline("body")}>${esc(note.body || (canWriteStickyNotes() ? "Tap to add details" : "No additional details"))}</p></div>${canWriteStickyNotes() ? `<footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer>` : ""}</article>`;
   }
 
   function renderStickyNotes() {
@@ -1161,7 +1163,35 @@
     $("[data-cancel]").addEventListener("click", closeModal);
   }
 
+  /** Saves an in-place edit made straight on the note. */
+  async function saveInlineSticky(element) {
+    const note = stickyNotes.find((item) => String(item.id) === String(element.dataset.stickyInline));
+    if (!note) return;
+    const field = element.dataset.stickyField;
+    const placeholder = field === "body" ? "Tap to add details" : "";
+    const next = element.textContent.replace(/\s+$/, "").replace(/^\s+/, "");
+    const clean = next === placeholder ? "" : next;
+    const previous = field === "title" ? note.title : note.body;
+    if (clean === previous) return;
+    if (field === "title" && !clean) { element.textContent = previous; return toast("A sticky note needs a title", true); }
+    note[field] = field === "title" ? clean.slice(0, 120) : clean.slice(0, 2000);
+    element.dataset.saving = "true";
+    const saved = await persistSticky(note, true);
+    delete element.dataset.saving;
+    if (saved) { mirrorStickyNotes(); toast("Sticky note saved"); renderStickyNotes(); }
+    else { note[field] = previous; element.textContent = previous; toast("The note could not be saved to the trip sheet", true); }
+  }
+
   function bindStickyActions() {
+    $$('[data-sticky-inline]').forEach((element) => {
+      element.addEventListener("pointerdown", (event) => event.stopPropagation());
+      element.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") { event.preventDefault(); element.blur(); renderStickyNotes(); }
+        if (event.key === "Enter" && (element.dataset.stickyField === "title" || event.metaKey || event.ctrlKey)) { event.preventDefault(); element.blur(); }
+      });
+      element.addEventListener("focus", () => { if (element.textContent.trim() === "Tap to add details") element.textContent = ""; });
+      element.addEventListener("blur", () => saveInlineSticky(element));
+    });
     $$('[data-sticky-pin]').forEach((button) => button.addEventListener("click", (event) => { event.stopPropagation(); const note = stickyNotes.find((item) => item.id === button.dataset.stickyPin); if (note) updateSticky(note.id, { pinned: !note.pinned }); }));
     $$('[data-sticky-complete]').forEach((button) => button.addEventListener("click", () => completeStickyNote(button.dataset.stickyComplete)));
     $$('[data-sticky-diary-reopen]').forEach((button) => button.addEventListener("click", () => reopenStickyDiary(button.dataset.stickyDiaryReopen)));

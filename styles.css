@@ -685,3 +685,56 @@ img{max-width:100%}
 .sticky-edge-tab.dragging{box-shadow:0 16px 40px rgba(71,48,155,.46);opacity:.94}
 .sticky-card>footer button,.floating-sticky>footer button{transition:transform .12s ease,box-shadow .12s ease}
 .sticky-card>footer button:hover,.floating-sticky>footer button:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,42,67,.14)}
+
+
+/* v4.8.3 softer, warmer sticky paper */
+.colour-yellow{--sticky-bg:#ffeab0;--sticky-glow:#fffaea;--sticky-line:#e3a029;--sticky-ink:#6a4703}
+.colour-rose{--sticky-bg:#ffd9df;--sticky-glow:#fff4f6;--sticky-line:#e2647c;--sticky-ink:#8c2b41}
+.colour-blue{--sticky-bg:#d6eaff;--sticky-glow:#f0f7ff;--sticky-line:#3b8ccc;--sticky-ink:#175584}
+.colour-green{--sticky-bg:#cdf2e2;--sticky-glow:#edfcf5;--sticky-line:#1da483;--sticky-ink:#0a6650}
+.colour-violet{--sticky-bg:#e2daff;--sticky-glow:#f5f2ff;--sticky-line:#7a61e0;--sticky-ink:#463398}
+
+.sticky-card,.floating-sticky,.sticky-diary-card{
+  position:relative;
+  background:
+    radial-gradient(120% 90% at 100% 0%,rgba(255,255,255,.85),transparent 58%),
+    linear-gradient(158deg,var(--sticky-glow) 0%,var(--sticky-bg) 88%);
+  border:1px solid color-mix(in srgb,var(--sticky-line),#fff 62%);
+  border-left:5px solid color-mix(in srgb,var(--sticky-line),#fff 12%);
+  border-radius:4px 16px 16px 4px;
+  box-shadow:0 1px 1px rgba(28,38,56,.05),0 8px 20px -10px color-mix(in srgb,var(--sticky-line),transparent 55%),0 18px 34px -24px rgba(20,30,48,.5);
+}
+.sticky-card::after,.floating-sticky::after{
+  content:"";position:absolute;right:0;bottom:0;width:22px;height:22px;
+  background:linear-gradient(135deg,transparent 48%,color-mix(in srgb,var(--sticky-line),#fff 70%) 50%,color-mix(in srgb,var(--sticky-line),#fff 40%) 100%);
+  border-bottom-right-radius:16px;opacity:.55;pointer-events:none
+}
+.sticky-card{transition:transform .16s ease,box-shadow .16s ease}
+.sticky-card:hover{transform:translateY(-2px)}
+.sticky-card h4,.floating-sticky h3{letter-spacing:-.01em;text-wrap:pretty}
+.sticky-card p,.floating-sticky p{color:color-mix(in srgb,var(--sticky-ink),#26333f 62%);line-height:1.55}
+.sticky-card>header span,.floating-sticky small{
+  padding:3px 8px;border-radius:999px;
+  background:color-mix(in srgb,var(--sticky-line),#fff 78%);
+  color:var(--sticky-ink);letter-spacing:.08em
+}
+.sticky-card>header small{color:color-mix(in srgb,var(--sticky-ink),#5a6774 45%)}
+.sticky-card>footer button,.floating-sticky>footer button{
+  border:1px solid color-mix(in srgb,var(--sticky-line),#fff 60%);
+  background:rgba(255,255,255,.72);color:var(--sticky-ink);border-radius:9px
+}
+.sticky-card>footer button:hover,.floating-sticky>footer button:hover{background:#fff;border-color:var(--sticky-line)}
+.floating-sticky{border-radius:6px 18px 18px 6px;box-shadow:0 2px 3px rgba(28,38,56,.06),0 14px 30px -12px color-mix(in srgb,var(--sticky-line),transparent 50%),0 28px 50px -30px rgba(20,30,48,.55)}
+.floating-sticky .sticky-drag-handle{background:color-mix(in srgb,var(--sticky-line),#fff 84%);color:var(--sticky-ink)}
+.sticky-editor-preview{border-radius:4px 14px 14px 4px}
+
+.sticky-card>footer,.floating-sticky>footer{display:flex;flex-wrap:wrap;gap:6px}
+.sticky-card>footer button,.floating-sticky>footer button{white-space:nowrap}
+
+
+/* v4.9 in-place sticky editing */
+.sticky-inline{outline:0;border-radius:6px;padding:1px 3px;margin:0 -3px;cursor:text;transition:background .14s ease,box-shadow .14s ease}
+.sticky-inline:hover{background:rgba(255,255,255,.62);box-shadow:inset 0 -1px 0 color-mix(in srgb,var(--sticky-line),#fff 45%)}
+.sticky-inline:focus{background:#fff;box-shadow:0 0 0 2px color-mix(in srgb,var(--sticky-line),#fff 45%)}
+.sticky-inline[data-saving]{opacity:.6}
+.floating-sticky .sticky-inline{cursor:text}
