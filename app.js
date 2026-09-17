@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.9.2";
+  const frontendVersion = "4.9.3";
   const requiredBackendVersion = "4.8.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -1185,6 +1185,24 @@
     else { note[field] = previous; element.textContent = previous; toast("The note could not be saved to the trip sheet", true); }
   }
 
+  function removeInlineActions(card) {
+    const bar = card && card.querySelector(".sticky-inline-actions");
+    if (bar) bar.remove();
+  }
+
+  /** Shows an explicit Save / Cancel bar while a note is being edited in place. */
+  function showInlineActions(element) {
+    const card = element.closest(".sticky-card, .floating-sticky");
+    if (!card || card.querySelector(".sticky-inline-actions")) return;
+    const bar = document.createElement("div");
+    bar.className = "sticky-inline-actions";
+    bar.innerHTML = '<span>Editing…</span><button type="button" data-inline-cancel>Cancel</button><button type="button" class="primary" data-inline-save>✓ Save</button>';
+    card.appendChild(bar);
+    bar.querySelectorAll("button").forEach((button) => button.addEventListener("mousedown", (event) => event.preventDefault()));
+    bar.querySelector("[data-inline-save]").addEventListener("click", () => { element.dataset.commit = "true"; element.blur(); });
+    bar.querySelector("[data-inline-cancel]").addEventListener("click", () => { element.dataset.revert = "true"; element.blur(); renderStickyNotes(); });
+  }
+
   function bindStickyActions() {
     $$('[data-sticky-inline]').forEach((element) => {
       element.addEventListener("pointerdown", (event) => event.stopPropagation());
@@ -1193,8 +1211,15 @@
         if (event.key === "Escape") { event.preventDefault(); element.blur(); renderStickyNotes(); }
         if (event.key === "Enter" && (element.dataset.stickyField === "title" || event.metaKey || event.ctrlKey)) { event.preventDefault(); element.blur(); }
       });
-      element.addEventListener("focus", () => { if (element.textContent.trim() === "Tap to add details") element.textContent = ""; });
-      element.addEventListener("blur", () => saveInlineSticky(element));
+      element.addEventListener("focus", () => { if (element.textContent.trim() === "Tap to add details") element.textContent = ""; showInlineActions(element); });
+      element.addEventListener("input", () => showInlineActions(element));
+      element.addEventListener("blur", () => {
+        const card = element.closest(".sticky-card, .floating-sticky");
+        if (element.dataset.revert === "true") { delete element.dataset.revert; removeInlineActions(card); return; }
+        delete element.dataset.commit;
+        removeInlineActions(card);
+        saveInlineSticky(element);
+      });
     });
     $$('[data-sticky-pin]').forEach((button) => button.addEventListener("click", (event) => { event.stopPropagation(); const note = stickyNotes.find((item) => item.id === button.dataset.stickyPin); if (note) updateSticky(note.id, { pinned: !note.pinned }); }));
     $$('[data-sticky-complete]').forEach((button) => button.addEventListener("click", () => completeStickyNote(button.dataset.stickyComplete)));

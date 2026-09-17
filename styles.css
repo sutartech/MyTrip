@@ -744,3 +744,10 @@ img{max-width:100%}
 .sticky-card h4.sticky-inline::after,.floating-sticky h3.sticky-inline::after{content:" ✎";font-size:.72em;opacity:.45}
 .sticky-card h4.sticky-inline:focus::after,.floating-sticky h3.sticky-inline:focus::after{content:""}
 .sticky-inline:hover{background:#fff}
+
+/* v4.9.3 explicit save bar for in-place editing */
+.sticky-inline-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:9px;padding-top:8px;border-top:1px dashed color-mix(in srgb,var(--sticky-line),#fff 45%)}
+.sticky-inline-actions span{margin-right:auto;font-size:8px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb,var(--sticky-ink),#6b7a88 40%)}
+.sticky-inline-actions button{border:1px solid color-mix(in srgb,var(--sticky-line),#fff 55%);border-radius:9px;background:rgba(255,255,255,.85);color:var(--sticky-ink);padding:7px 11px;font-size:9px;font-weight:900;cursor:pointer}
+.sticky-inline-actions button.primary{border-color:var(--sticky-line);background:var(--sticky-line);color:#fff}
+.sticky-inline-actions button:hover{filter:brightness(1.05)}
