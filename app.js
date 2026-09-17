@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.9.0";
+  const frontendVersion = "4.9.1";
   const requiredBackendVersion = "4.8.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -1185,6 +1185,7 @@
   function bindStickyActions() {
     $$('[data-sticky-inline]').forEach((element) => {
       element.addEventListener("pointerdown", (event) => event.stopPropagation());
+      element.addEventListener("click", (event) => { event.stopPropagation(); if (document.activeElement !== element) element.focus(); });
       element.addEventListener("keydown", (event) => {
         if (event.key === "Escape") { event.preventDefault(); element.blur(); renderStickyNotes(); }
         if (event.key === "Enter" && (element.dataset.stickyField === "title" || event.metaKey || event.ctrlKey)) { event.preventDefault(); element.blur(); }

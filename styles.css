@@ -738,3 +738,9 @@ img{max-width:100%}
 .sticky-inline:focus{background:#fff;box-shadow:0 0 0 2px color-mix(in srgb,var(--sticky-line),#fff 45%)}
 .sticky-inline[data-saving]{opacity:.6}
 .floating-sticky .sticky-inline{cursor:text}
+
+/* v4.9.1 make the in-place edit affordance obvious */
+.sticky-inline{box-shadow:inset 0 -1px 0 color-mix(in srgb,var(--sticky-line),#fff 55%)}
+.sticky-card h4.sticky-inline::after,.floating-sticky h3.sticky-inline::after{content:" ✎";font-size:.72em;opacity:.45}
+.sticky-card h4.sticky-inline:focus::after,.floating-sticky h3.sticky-inline:focus::after{content:""}
+.sticky-inline:hover{background:#fff}
