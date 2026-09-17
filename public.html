@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<title>Malipatana village fund — public account</title>
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#122b38">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaina+2:wght@500;600;700&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f3f1ec; --surface:#fff; --surface-2:#fbfbf8; --line:#e6e8e2; --line-soft:#f2f4ef;
+  --ink:#16211c; --label:#5c6b62; --muted:#7b8780;
+  --brick:#a8341e; --indigo:#122b38; --indigo-2:#22485c; --green:#2c6b41; --turmeric:#b87b05;
+  --display:'Baloo Bhaina 2',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:'Instrument Sans',system-ui,-apple-system,'Noto Sans Oriya',sans-serif;line-height:1.6}
+a{color:var(--brick)}
+a:hover{color:#8a2916}
+.wrap{max-width:1080px;margin:0 auto;padding:0 18px 70px}
+/* Secondary cards sit side by side once there is room. One narrow column of
+   full-width cards wastes most of a laptop screen and buries the lower ones. */
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start}
+.cols>.card{margin-bottom:0}
+.span2{grid-column:1/-1}
+/* The village's own temple carries the header. A flat gradient band said
+   nothing about the place; the photograph does the work, with the gradient
+   kept underneath so the type stays legible before the image loads and on
+   any part of the picture that happens to be pale. */
+header.top{position:relative;color:#fff;overflow:hidden;margin-bottom:26px;
+  background:linear-gradient(158deg,#0c2c40,#17303f 40%,#7d2f1c 88%,#b8701f)}
+header.top .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  object-position:center 38%;opacity:.42}
+header.top .veil{position:absolute;inset:0;
+  background:linear-gradient(176deg,#0b1d27b3 0%,#0e232e8c 42%,#0e232ef2 100%)}
+header.top .in{position:relative;max-width:1080px;margin:0 auto;padding:52px 18px 40px;
+  display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap}
+header.top .crest{width:64px;height:64px;border-radius:20px;flex:none;object-fit:cover;
+  border:2px solid #e0a02f80;box-shadow:0 14px 30px #00000059;background:#17303f}
+header.top .who{min-width:0;flex:1 1 300px}
+header.top .eyebrow{font-size:11px;letter-spacing:.22em;font-weight:700;color:#f0c48b}
+header.top h1{font-family:var(--display);font-size:clamp(30px,5.2vw,50px);margin:9px 0 0;
+  font-weight:700;line-height:1.12;text-shadow:0 2px 20px #0b1d2773;overflow-wrap:anywhere}
+header.top .rule{width:56px;height:3px;border-radius:99px;background:#e0a02f;margin:15px 0 0}
+header.top .sub{color:#dbe8ee;font-size:14.5px;margin-top:13px}
+header.top .sub b{color:#fff;font-weight:600}
+@media(max-width:560px){ header.top .in{padding:38px 18px 30px} }
+.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;
+  box-shadow:0 20px 40px -34px #17303f66;margin-bottom:16px;overflow:hidden}
+.card h2{font-family:var(--display);font-size:19px;margin:0;font-weight:600;line-height:1.5;
+  padding:16px 22px 14px;border-bottom:1px solid var(--line-soft);position:relative}
+.card h2::after{content:'';position:absolute;left:22px;bottom:-1px;width:38px;height:2px;
+  border-radius:99px;background:#e0a02f}
+/* The balance is the reason most people open this page, so it is the one
+   element allowed to be loud: dark ground, gold rule, figure at display size.
+   Everything else stays quiet white. */
+.fund{border:0;background:linear-gradient(158deg,#0c2c40,#17303f 44%,#7d2f1c 92%,#a8561a);
+  color:#fff;box-shadow:0 26px 54px -30px #0e232e99;position:relative;overflow:hidden}
+.fund::after{content:'';position:absolute;width:320px;height:320px;border-radius:50%;
+  right:-120px;top:-140px;background:#ffffff0f;pointer-events:none}
+.fundgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:0;position:relative}
+@media(min-width:720px){ .fundgrid.split{grid-template-columns:minmax(240px,.85fr) minmax(0,1.15fr)} }
+.fundmain{padding:26px 24px}
+.fundmain .cap{font-size:11px;font-weight:700;color:#f0c48b;text-transform:uppercase;letter-spacing:.14em}
+.fundmain .v{font-family:var(--display);font-size:clamp(38px,6.6vw,58px);font-weight:700;
+  line-height:1.15;margin-top:8px;font-variant-numeric:tabular-nums;color:#fff}
+.fundmain .rule{width:54px;height:3px;border-radius:99px;background:#e0a02f;margin:16px 0 0}
+.fundmain .say{font-size:13.5px;color:#cfe1e8;line-height:1.65;margin-top:14px;max-width:34ch}
+.fundledger{padding:20px 24px 22px;background:#ffffff14;border-left:1px solid #ffffff26}
+@media(max-width:719px){ .fundledger{border-left:0;border-top:1px solid #ffffff26} }
+.fundledger .lhead{font-size:10.5px;font-weight:700;color:#f0c48b;text-transform:uppercase;
+  letter-spacing:.12em;margin-bottom:6px}
+.fund .row{border-bottom-color:#ffffff24}
+.fund .row .n{color:#eaf1f4}
+.fund .row .n em{color:#b6cbd6}
+.fund .row.in .a{color:#9fe3b4}
+.fund .row.out .a{color:#ffb9a3}
+.fund .row.total{border-top:2px solid #ffffff59}
+.fund .row.total .n,.fund .row.total .a{color:#fff}
+.fund .note{background:#00000029;border-top-color:#ffffff1f;color:#c6d7e0;position:relative}
+.big{padding:24px 22px}
+.big .cap{font-size:11.5px;font-weight:700;color:var(--label);text-transform:uppercase;letter-spacing:.09em}
+.big .v{font-family:var(--display);font-size:clamp(34px,6vw,48px);font-weight:700;line-height:1.5;
+  color:var(--indigo);font-variant-numeric:tabular-nums}
+.rows{padding:4px 22px 18px}
+.row{display:flex;gap:14px;align-items:baseline;padding:11px 0;border-bottom:1px dotted var(--line)}
+.row:last-child{border-bottom:0}
+.row .n{flex:1;font-size:14.5px}
+.row .n em{font-style:normal;display:block;font-size:12.5px;color:var(--label);margin-top:1px}
+.row .a{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.row.in .a{color:var(--green)}
+.row.out .a{color:var(--brick)}
+.row.total{border-top:2px solid var(--ink);margin-top:6px;padding-top:14px}
+.row.total .n{font-weight:700;font-size:15px}
+.row.total .a{font-family:var(--display);font-size:21px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line-soft)}
+.grid4 div{background:var(--surface);padding:16px 18px}
+.grid4 .k{font-size:11.5px;font-weight:700;color:var(--label);text-transform:uppercase;letter-spacing:.07em}
+.grid4 .v{font-family:var(--display);font-size:29px;font-weight:700;margin-top:4px;
+  font-variant-numeric:tabular-nums;color:var(--indigo);line-height:1.15}
+.grid4 .v.warm{color:var(--brick)}
+.fundhow{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+.fundhow>div{display:flex;flex-direction:column;gap:2px;padding-left:12px;
+  border-left:2px solid #e0a02f66}
+.fundhow b{font-size:13.5px;font-weight:600;color:#fff}
+.fundhow span{font-size:12.5px;line-height:1.55;color:#cfe1e8;text-wrap:pretty}
+
+/* ---------- a word from the committee ---------- */
+.intro{background:linear-gradient(170deg,#fffdf6,#fbf4e6);border:1px solid #e9dcba;
+  border-radius:18px;padding:18px 22px;margin-bottom:16px;box-shadow:0 16px 34px -30px #8a5c0466}
+.intro b{display:block;font-family:var(--display);font-size:16px;font-weight:600;
+  color:#7a5206;margin-bottom:5px}
+.intro p{margin:0;font-size:14.5px;line-height:1.7;color:#4a3a1b;text-wrap:pretty;overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--label);
+  padding:10px 22px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+td{padding:10px 22px;border-bottom:1px solid var(--line-soft)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+.note{font-size:13px;color:var(--label);padding:16px 22px;background:var(--surface-2);
+  border-top:1px solid var(--line-soft);line-height:1.65}
+.foot{text-align:center;color:var(--label);font-size:13px;margin-top:26px;line-height:1.7}
+.state{padding:40px 22px;text-align:center;color:var(--label)}
+.big.tight{padding-bottom:8px}
+.state.tight{padding-top:6px;padding-bottom:26px}
+.state b{display:block;font-family:var(--display);font-size:19px;color:var(--ink);margin-bottom:6px;
+  font-weight:600;line-height:1.5}
+.gform{padding:20px 22px 24px}
+.gform label{display:block;font-size:12.5px;font-weight:700;color:var(--label);letter-spacing:.03em;margin:14px 0 6px}
+.gform label:first-child{margin-top:0}
+.gform input,.gform select,.gform textarea{width:100%;padding:12px 13px;border:1px solid var(--line);
+  border-radius:11px;background:var(--surface-2);font:inherit;font-size:14.5px;color:var(--ink)}
+.gform input:focus,.gform select:focus,.gform textarea:focus{outline:none;border-color:var(--indigo-2);
+  box-shadow:0 0 0 3px #22485c22;background:var(--surface)}
+.gform textarea{min-height:90px;resize:vertical}
+.gform .btnrow{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.gbtn{border:0;border-radius:11px;padding:12px 20px;font:inherit;font-weight:700;font-size:14.5px;
+  cursor:pointer;background:var(--brick);color:#fff;transition:filter .15s ease}
+.gbtn:hover{filter:brightness(1.08)}
+.gbtn.ghost{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+.gmsg{font-size:13.5px;margin-top:14px;padding:11px 14px;border-radius:10px;display:none}
+.gmsg.show{display:block}
+.gmsg.good{background:#e9f3ec;color:#215c33;border:1px solid #bfe0cb}
+.gmsg.bad{background:#fbeee9;color:#8a2916;border:1px solid #eecfc2}
+.gtabs{display:flex;gap:0;border-bottom:1px solid var(--line-soft)}
+.gtabs button{flex:1;background:none;border:0;padding:14px 10px;font:inherit;font-weight:700;font-size:13.5px;
+  color:var(--label);cursor:pointer;border-bottom:2px solid transparent}
+.gtabs button.on{color:var(--indigo-2);border-bottom-color:var(--brick)}
+.gsteps{padding:16px 22px 20px;display:flex;flex-direction:column;gap:0}
+.gstep{display:flex;gap:13px;padding:12px 0;border-bottom:1px dotted var(--line)}
+.gstep:last-child{border-bottom:0}
+.gstep .no{width:26px;height:26px;border-radius:50%;background:var(--indigo);color:#fff;flex:none;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px}
+.gstep .tx b{display:block;font-size:14px}
+.gstep .tx span{font-size:13px;color:var(--label)}
+.gpill{display:inline-block;padding:3px 11px;border-radius:999px;font-size:11.5px;font-weight:700}
+.gpill.recv{background:#eef2ee;color:#3a4640}
+.gpill.warn{background:#fdf3dd;color:#8a5c04}
+.gpill.good{background:#e9f3ec;color:#215c33}
+.gpill.bad{background:#fbeee9;color:#8a2916}
+
+/* ---------- notice board ---------- */
+.noticeboard{margin:22px 0 0}
+.nbhead{display:flex;align-items:baseline;gap:9px;margin-bottom:12px}
+.nbhead b{font-family:var(--display);font-size:17px;font-weight:600;color:var(--ink)}
+.ntcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.ntc{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);
+  display:flex;flex-direction:column;box-shadow:0 14px 30px -26px #17303f5c}
+.ntc .nimg{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#e6e8e2}
+.ntc .nbody{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px}
+.ntc h4{font-family:var(--display);font-size:16px;margin:0;font-weight:600;line-height:1.35;
+  overflow-wrap:anywhere}
+.ntc p{margin:0;font-size:13.5px;line-height:1.6;color:var(--ink);text-wrap:pretty;
+  overflow-wrap:anywhere}
+.ntc .nmeta{font-size:11.5px;font-weight:700;letter-spacing:.04em;color:var(--label);
+  text-transform:uppercase}
+
+/* ---------- the way in ---------- */
+.signin{position:fixed;top:14px;right:16px;z-index:55;display:inline-flex;align-items:center;gap:7px;
+  background:#ffffff1f;color:#fff;border:1px solid #ffffff3d;border-radius:999px;padding:9px 18px;
+  font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;backdrop-filter:blur(8px);
+  transition:background .15s ease,transform .15s ease}
+.signin:hover{background:#ffffff33;color:#fff;text-decoration:none;transform:translateY(-1px)}
+@media print{ .signin{display:none} }
+#pubSticky{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0 0}
+#pubSticky.at-top-left{justify-content:flex-start}
+#pubSticky.at-top-center,#pubSticky.at-bottom-center{justify-content:center}
+#pubSticky.at-top-right,#pubSticky.at-bottom-right{justify-content:flex-end}
+#pubSticky.at-top-left,#pubSticky.at-top-center,#pubSticky.at-top-right{margin:0 0 22px;order:-1}
+.daysband{background:linear-gradient(165deg,#fffdf7,#fdf6e6);border:1px solid #ecdcb4;border-radius:16px;
+  padding:16px 18px;margin:22px 0 0;box-shadow:0 16px 36px -28px #8a5c0466}
+.daysband .dhead{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.daysband .dhead b{font-family:var(--display);font-size:15.5px;font-weight:600;color:#7a5405}
+.daysband .dhead span{font-size:11.5px;color:#a08a55;letter-spacing:.06em;font-weight:700}
+.daysband .drule{flex:1;height:1px;background:linear-gradient(90deg,#d9bd6c80,#d9bd6c00)}
+.daysband .dlist{display:flex;flex-wrap:wrap;gap:11px}
+.dcard{background:#fff;border:1px solid #eee2c4;border-radius:12px;flex:1 1 220px;max-width:320px;
+  overflow:hidden;display:flex;flex-direction:column}
+.dcard .dbody{padding:12px 15px}
+.dcard.haspic{flex:1 1 240px}
+.dcard .dimg{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#f2ead6}
+.dcard .dwhen{font-size:11px;font-weight:800;letter-spacing:.07em;color:#a8341e;text-transform:uppercase}
+.dcard b{display:block;font-size:14.5px;margin-top:5px;color:var(--ink);font-weight:600;line-height:1.3}
+.dcard .ddate{font-size:12.5px;color:var(--label);margin-top:3px;font-variant-numeric:tabular-nums}
+.dcard p{margin:7px 0 0;font-size:13px;color:#4a564f;line-height:1.5}
+.dcard.today{border-color:#e0a02f;background:linear-gradient(170deg,#fffaf0,#fff4dd)}
+.remem{background:linear-gradient(165deg,#1b2833,#243642);border-radius:16px;padding:16px 18px;
+  margin:22px 0 0;border:1px solid #33485a;box-shadow:0 18px 40px -26px #0b141b}
+.remem .rhead{display:flex;align-items:center;gap:9px;margin-bottom:13px}
+.remem .rhead b{font-family:var(--display);font-size:15.5px;font-weight:600;color:#f0e2c4}
+.remem .rhead span{font-size:11.5px;color:#9db2c2;letter-spacing:.06em;font-weight:600}
+.remem .rrule{flex:1;height:1px;background:linear-gradient(90deg,#c9a23f66,#c9a23f00)}
+.remem .rlist{display:flex;flex-wrap:wrap;gap:12px}
+.rperson{display:flex;flex-direction:column;background:#ffffff0f;border:1px solid #ffffff1a;
+  border-radius:13px;padding:11px 15px 11px 11px;flex:1 1 250px;max-width:340px}
+.rtop{display:flex;align-items:center;gap:12px;min-width:0}
+.rperson.hasmsg{flex:1 1 300px;max-width:400px}
+.rmsg{margin:10px 0 0;padding-top:9px;border-top:1px solid #ffffff1f;font-size:13px;
+  line-height:1.6;color:#e2ebf0;text-wrap:pretty;overflow-wrap:anywhere;font-style:italic}
+.rperson .rimg{width:52px;height:52px;border-radius:50%;flex:none;object-fit:cover;object-position:center top;
+  border:2px solid #c9a23f80;background:#33485a;filter:saturate(.72)}
+.rperson .rno{width:52px;height:52px;border-radius:50%;flex:none;display:flex;align-items:center;
+  justify-content:center;border:2px solid #c9a23f80;background:#33485a;color:#c9b98f;font-size:17px}
+.rperson .rtx b{display:block;font-size:14.5px;color:#f4f1ea;font-weight:600;line-height:1.3}
+.rperson .rtx .ryr{font-size:12.5px;color:#a9bdcb;font-variant-numeric:tabular-nums;margin-top:2px}
+.rperson .rtx .rday{font-size:11.5px;color:#e8c87a;font-weight:700;margin-top:4px}
+.rperson.today{background:#c9a23f1f;border-color:#c9a23f6b}
+#pubSticky .pnote{flex:1 1 240px;max-width:320px}
+.pnote{border-radius:12px;padding:14px 16px;box-shadow:0 14px 30px -14px #17303f66;border:1px solid #00000018}
+.pnote .tag{font-size:10.5px;font-weight:800;letter-spacing:.08em;background:#ffffffb3;border-radius:999px;padding:2px 9px}
+.pnote b{display:block;margin-top:8px;font-size:14px;color:#22282c}
+.pnote p{margin:4px 0 0;font-size:13px;color:#3f4a44}
+.pnote.c-amber{background:linear-gradient(170deg,#ffe680,#ffd24d)}
+.pnote.c-lime{background:linear-gradient(170deg,#ccf279,#aee442)}
+.pnote.c-sky{background:linear-gradient(170deg,#a8e4ff,#7ed2fb)}
+.pnote.c-rose{background:linear-gradient(170deg,#ffc2d4,#ff9ebb)}
+.pnote.c-lilac{background:linear-gradient(170deg,#dcc9ff,#c3a7fb)}
+.pnote.c-stone{background:linear-gradient(170deg,#ffd0a8,#ffb673)}
+@media print{ #pubSticky{display:none !important} }
+.gfab{position:fixed;right:22px;bottom:22px;z-index:60;background:var(--brick);color:#fff;border:0;
+  border-radius:999px;padding:15px 22px 15px 18px;font:inherit;font-weight:700;font-size:14.5px;
+  white-space:nowrap;
+  cursor:pointer;box-shadow:0 16px 34px -12px #a8341e99;display:flex;align-items:center;gap:9px;
+  transition:transform .15s ease,box-shadow .15s ease}
+.gfab:hover{transform:translateY(-2px);box-shadow:0 20px 40px -12px #a8341eb0}
+.gfab .ico{font-size:17px}
+.goverlay{position:fixed;inset:0;background:#0e1b22b3;z-index:70;display:none;
+  align-items:flex-end;justify-content:center;padding:0}
+.goverlay.open{display:flex}
+.gmodal{background:var(--surface);width:100%;max-width:560px;border-radius:20px 20px 0 0;
+  max-height:88vh;overflow-y:auto;box-shadow:0 -20px 60px #00000040}
+@media (min-width:640px){
+  .goverlay{align-items:center;padding:22px}
+  .gmodal{border-radius:20px;max-height:82vh}
+}
+.gmhead{display:flex;align-items:center;gap:12px;padding:18px 20px 0}
+.gmhead h3{font-family:var(--display);font-size:19px;margin:0;font-weight:600;flex:1}
+.gmclose{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;width:34px;height:34px;
+  font-size:16px;cursor:pointer;color:var(--label);flex:none}
+@media print{ .gfab,.goverlay{display:none !important} }
+@media print{
+  body{background:#fff}
+  header.top{background:none;color:#000;border-bottom:2px solid #000;padding:0 0 10px;margin-bottom:16px}
+  header.top .bg,header.top .veil,header.top .crest,header.top .rule{display:none}
+  header.top .in{padding:0;display:block}
+  header.top h1{text-shadow:none}
+  header.top .eyebrow,header.top .sub{color:#333}
+  header.top .sub b{color:#000}
+  .card h2::after{display:none}
+  .card{box-shadow:none;break-inside:avoid;border-radius:0}
+  .noprint{display:none}
+}
+
+.topright{position:fixed;top:14px;right:16px;z-index:55;display:flex;gap:8px;align-items:center}
+.topright .signin{position:static;top:auto;right:auto}
+.langbtn{background:#ffffff1f;color:#fff;border:1px solid #ffffff3d;border-radius:999px;
+  padding:9px 15px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;
+  backdrop-filter:blur(8px);transition:background .15s ease,transform .15s ease}
+.langbtn:hover{background:#ffffff33;transform:translateY(-1px)}
+@media print{ .topright{display:none} }
+/* nowrap keeps the pill a pill, but on a narrow phone a long label would then
+   run off the screen instead of wrapping — so there it loses its words and
+   keeps the icon, which is what a thumb aims at anyway. */
+@media(max-width:430px){
+  .gfab{right:14px;bottom:14px;padding:14px;gap:0}
+  .gfab .lbl{display:none}
+  .gfab .ico{font-size:20px}
+}
+@media(max-width:560px){
+  .topright{top:10px;right:10px;gap:6px}
+  .langbtn,.topright .signin{padding:8px 12px;font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <img class="bg" src="village.jpg" alt="" aria-hidden="true">
+  <div class="veil"></div>
+  <div class="in">
+    <img class="crest" src="icon-180.png" alt="" aria-hidden="true">
+    <div class="who">
+      <div class="eyebrow" id="place">JAGATSINGHPUR · ODISHA</div>
+      <h1 id="title">ଆମ ଗାଁ ମାଳିପାଟଣା</h1>
+      <div class="rule"></div>
+      <div class="sub"><span data-t="Village fund · public account">Village fund &middot; public account</span> &middot; <span id="asof">loading&hellip;</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="topright">
+  <button class="langbtn" id="langBtn" type="button" aria-label="Change language">ଓଡିଆ</button>
+  <a class="signin" href="index.html"><span data-t="Committee sign-in">Committee sign-in</span> &rarr;</a>
+</div>
+
+<div class="wrap">
+  <div id="out"><div class="card"><div class="state"><b data-t="Loading the village account…">Loading the village account…</b><span data-t="This page reads the same sheet the committee uses.">This page reads the same sheet the committee uses.</span></div></div></div>
+
+  <button class="gfab noprint" id="gFab" aria-label="Raise or track a grievance"><span class="ico">📣</span> <span class="lbl" data-t="Raise / track a grievance">Raise / track a grievance</span></button>
+
+  <div class="goverlay noprint" id="gOverlay">
+  <div class="gmodal">
+    <div class="gmhead"><h3 data-t="Grievance">Grievance</h3><button class="gmclose" id="gClose">×</button></div>
+    <div class="gtabs">
+      <button class="on" id="tabNew" data-t="Raise a grievance">Raise a grievance</button>
+      <button id="tabTrack" data-t="Track a grievance">Track a grievance</button>
+      <button id="tabSteps" data-t="How it is resolved">How it is resolved</button>
+    </div>
+
+    <form class="gform" id="gformNew">
+      <label for="gName" data-t="Your name">Your name</label>
+      <input id="gName" required placeholder="Full name" data-tph="Full name">
+      <label for="gMobile" data-t="Mobile number">Mobile number</label>
+      <input id="gMobile" required placeholder="10-digit mobile" inputmode="numeric">
+      <label for="gCat" data-t="What is this about">What is this about</label>
+      <select id="gCat">
+        <option>Water</option><option>Road</option><option>Electricity</option><option>Sanitation</option>
+        <option>Fund misuse</option><option>Welfare benefit</option><option>Family record error</option><option>Other</option>
+      </select>
+      <label for="gDesc" data-t="Describe the problem">Describe the problem</label>
+      <textarea id="gDesc" required placeholder="What happened, where, and since when"></textarea>
+      <div class="btnrow">
+        <button type="submit" class="gbtn" id="gSubmitBtn" data-t="Submit grievance">Submit grievance</button>
+      </div>
+      <div class="gmsg" id="gMsg"></div>
+    </form>
+
+    <div class="gform" id="gformTrack" style="display:none">
+      <label for="gLookup" data-t="Grievance number">Grievance number</label>
+      <input id="gLookup" placeholder="e.g. GRV-014">
+      <div class="btnrow"><button class="gbtn ghost" id="gTrackBtn" data-t="Check status">Check status</button></div>
+      <div class="gmsg" id="gTrackMsg"></div>
+    </div>
+
+    <div class="gsteps" id="gformSteps" style="display:none">
+      <div class="gstep"><div class="no">1</div><div class="tx"><b data-t="Received">Received</b><span>Your grievance reaches the committee the moment you submit it, with a grievance number to track it.</span></div></div>
+      <div class="gstep"><div class="no">2</div><div class="tx"><b data-t="Under review">Under review</b><span>A committee member looks into it and may contact you on the mobile number given.</span></div></div>
+      <div class="gstep"><div class="no">3</div><div class="tx"><b data-t="Action taken">Action taken</b><span>The committee acts — repair, correction, or a decision — and notes what was done.</span></div></div>
+      <div class="gstep"><div class="no">4</div><div class="tx"><b data-t="Resolved">Resolved</b><span>Marked resolved with a remark you can read back using your grievance number.</span></div></div>
+    </div>
+  </div>
+  </div>
+
+  <div class="foot">
+    <span data-t="Published by the Malipatana village committee. Figures come straight from the fund register.">Published by the Malipatana village committee. Figures come straight from the fund register.</span><br>
+    <a href="index.html" data-t="Committee sign-in">Committee sign-in</a> · <a href="#" onclick="window.print();return false" class="noprint" data-t="Print this page">Print this page</a>
+  </div>
+</div>
+
+<script src="or.js"></script>
+<script>
+/* Reads ONE endpoint: publicSummary, which returns totals only. It must never
+   call 'bootstrap' — that payload carries names, mobile numbers and logins. */
+var API_URL = 'https://script.google.com/macros/s/AKfycbzTy_-uSI9m_vVuv9G2Q8r0t0x2UWcSrkzrnQtDw9odZW_246TxnT7qj39IT1TQwt-O/exec';
+
+var num = function(v){ var n = Number(String(v == null ? 0 : v).replace(/[^0-9.-]/g, '')); return isNaN(n) ? 0 : n; };
+var money = function(v){ var n = Math.round(num(v)); return (n < 0 ? '−₹' : '₹') + Math.abs(n).toLocaleString('en-IN'); };
+var esc = function(x){ return String(x == null ? '' : x).replace(/[&<>"']/g, function(m){
+  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m]; }); };
+var fmtDate = function(v){
+  if(!v) return '';
+  var m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[3] + '/' + m[2] + '/' + m[1] : String(v);
+};
+
+/* Bilingual by lookup, not duplicated markup: the English string is the key
+   and the Odia is its translation, so a label cannot exist in one language
+   and be forgotten in the other. Anything untranslated falls back to English
+   rather than rendering blank. */
+var OR = window.OR || {};
+var LANG = 'en';
+function t(s){
+  if(LANG !== 'or') return s;
+  var k = String(s == null ? '' : s);
+  return OR[k] || k;
+}
+
+/* Static markup is tagged once with data-t holding its English original, so
+   switching back and forth never loses the source string. */
+function applyLang(){
+  document.documentElement.lang = LANG === 'or' ? 'or' : 'en';
+  document.querySelectorAll('[data-t]').forEach(function(el){
+    el.textContent = t(el.getAttribute('data-t'));
+  });
+  document.querySelectorAll('[data-tph]').forEach(function(el){
+    el.placeholder = t(el.getAttribute('data-tph'));
+  });
+  document.querySelectorAll('#gCat option').forEach(function(o){
+    if(!o.dataset.t) o.dataset.t = o.textContent.trim();
+    /* The value must stay English whatever the reader sees. Without this the
+       option had no value attribute, so .value fell back to the translated
+       textContent and the sheet's Category column filled up half Odia — two
+       parallel sets that no longer group or filter together. */
+    o.value = o.dataset.t;
+    o.textContent = t(o.dataset.t);
+  });
+  var b = document.getElementById('langBtn');
+  if(b) b.textContent = LANG === 'or' ? 'English' : 'ଓଡ଼ିଆ';
+}
+
+function setLang(l, remember){
+  LANG = l === 'or' ? 'or' : 'en';
+  if(remember){ try { localStorage.setItem('mal_pub_lang', LANG); } catch(e){} }
+  applyLang();
+  if(LAST) render(LAST);
+}
+
+function api(action){
+  return new Promise(function(resolve, reject){
+    var cb = 'mpcb' + Date.now();
+    var s = document.createElement('script');
+    var t = setTimeout(function(){ cleanup(); reject(new Error('timeout')); }, 25000);
+    function cleanup(){ clearTimeout(t); try { delete window[cb]; } catch(e){} s.remove(); }
+    window[cb] = function(d){ cleanup(); resolve(d); };
+    s.onerror = function(){ cleanup(); reject(new Error('unreachable')); };
+    s.src = API_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cb;
+    document.body.appendChild(s);
+  });
+}
+
+/* The last payload, kept so a language switch can repaint from memory rather
+   than making the reader wait on the sheet again. */
+var LAST = null;
+
+function render(d){
+  LAST = d;
+  var f = d.fund || null, c = d.counts || null, v = d.village || {};
+  var show = d.shows || {};
+  var available = f ? num(f.available) : 0;
+
+  document.getElementById('title').textContent = v.name || 'Malipatana';
+  document.getElementById('place').textContent = String(v.area || '').toUpperCase();
+  document.getElementById('asof').textContent = t('as on') + ' ' + fmtDate(d.asOf);
+
+  var rows = !f || show.breakdown === false ? [] : [
+    ['in', 'Opening fund', 'Balance carried into the register', num(f.opening)],
+    ['in', 'Contributions collected', (f.contributionCount || 0) + ' entries', num(f.contributions)],
+    ['in', 'Other income', 'Donations, grants, interest', num(f.income)],
+    ['out', 'Expenditure', (f.expenditureCount || 0) + ' entries', -num(f.expenditure)],
+    ['out', 'Emergency help paid', (f.emergencyCases || 0) + ' cases', -num(f.emergencyPaid)],
+    ['out', 'Regular support', 'Standing support per cycle', -num(f.regularSupport)]
+  ].filter(function(r){ return num(r[3]) !== 0; });
+
+  /* The fund leads on its own; everything after it is a quiet card in a grid
+     that reflows, so a laptop does not show one narrow column with three
+     cards stranded below the fold. */
+  var how = function(head, body){
+    return '<div><b>' + t(head) + '</b><span>' + t(body) + '</span></div>';
+  };
+  var lead = '';
+  if(f){
+    var empty = !rows.length;
+    var say = empty
+      ? t('Nothing has been recorded in the fund register yet. This figure will move as soon as the committee enters the first contribution.')
+      : t('Money the committee holds today, after everything recorded in the register.');
+    /* The card is always two columns. With an empty register the right half
+       explains how the fund works instead of sitting blank — a full-bleed dark
+       card with one narrow column of text was the "mostly empty" complaint. */
+    var side = empty
+      ? '<div class="fundledger"><div class="lhead">' + t('How the village fund works') + '</div>' +
+        '<div class="fundhow">' +
+        how('Chanda from families', 'Each household pays a monthly share to the committee.') +
+        how('Donations and interest', 'Gifts from villagers and those living outside.') +
+        how('Spent on the village', 'Emergency help, medical and school support, repairs and festivals.') +
+        '</div></div>'
+      : '<div class="fundledger">' +
+        '<div class="lhead">' + t('How it adds up') + '</div>' +
+        '<div class="rows" style="padding:0">' + rows.map(function(r){
+          return '<div class="row ' + r[0] + '"><div class="n">' + esc(r[1]) + '<em>' + esc(r[2]) + '</em></div>' +
+                 '<div class="a">' + (r[3] < 0 ? '\u2212' : '+') + ' ' + money(Math.abs(r[3])) + '</div></div>';
+        }).join('') +
+        '<div class="row total"><div class="n">' + t('Balance in hand') + '</div><div class="a">' + money(available) + '</div></div>' +
+        '</div></div>';
+    lead += '<div class="card fund"><div class="fundgrid split">' +
+      '<div class="fundmain">' +
+        '<div class="cap">' + t('Fund available today') + '</div>' +
+        '<div class="v">' + money(available) + '</div>' +
+        '<div class="rule"></div>' +
+        '<div class="say">' + say + '</div>' +
+      '</div>' + side +
+      '</div>' +
+      '<div class="note">' + t('Every rupee shown here is entered by the village committee in the fund register. ' +
+      'If something looks wrong, tell any committee member.') + '</div></div>';
+  }
+
+  /* The committee's own words, if they wrote any. */
+  if(v.intro) lead = '<div class="intro"><b>From the village committee</b><p>' + esc(v.intro) + '</p></div>' + lead;
+
+  var cards = [];
+
+  /* Brick red on a count means "this many people needed help". On a zero it
+     reads as an error, so a zero stays in neutral ink. */
+  function tile(label, n, warmWhenSet){
+    var v = Number(n) || 0;
+    return '<div><div class="k">' + esc(label) + '</div>' +
+      '<div class="v' + (warmWhenSet && v > 0 ? ' warm' : '') + '">' + v + '</div></div>';
+  }
+
+  if(c) cards.push('<div class="card"><h2>' + t('The village') + '</h2><div class="grid4">' +
+    tile(t('Families'), c.families) + tile(t('Members'), c.members) +
+    tile(t('Helped this year'), c.helpedThisYear, true) + tile(t('Support running'), c.supportRunning, true) +
+    '</div></div>');
+
+  if((d.events || []).length){
+    cards.push('<div class="card"><h2>' + t('Major expenses completed') + '</h2><table>' +
+      '<thead><tr><th>' + t('Occasion') + '</th><th>' + t('Year') + '</th><th class="num">' + t('Budget') + '</th><th class="num">' + t('Spent') + '</th></tr></thead><tbody>' +
+      d.events.map(function(e){
+        return '<tr><td>' + esc(e.name) + '</td><td>' + esc(e.year) + '</td>' +
+               '<td class="num">' + (num(e.budget) ? money(e.budget) : '\u2014') + '</td>' +
+               '<td class="num">' + money(e.spent) + '</td></tr>';
+      }).join('') + '</tbody></table></div>');
+  }
+
+  if((d.recent || []).length){
+    cards.push('<div class="card"><h2>' + t('Recent spending') + '</h2><table>' +
+      '<thead><tr><th>' + t('Date') + '</th><th>' + t('What for') + '</th><th class="num">' + t('Amount') + '</th></tr></thead><tbody>' +
+      d.recent.map(function(r){
+        return '<tr><td>' + esc(fmtDate(r.date)) + '</td><td>' + esc(r.what) + '</td>' +
+               '<td class="num">' + money(r.amount) + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<div class="note">Only what the money was spent on is published. Who received help is never sent to this page.</div></div>');
+  }
+
+  /* A lone card stretched across the grid looks stranded, so it spans. */
+  if(cards.length === 1) cards[0] = cards[0].replace('class="card"', 'class="card span2"');
+
+  var html = lead + (cards.length ? '<div class="cols">' + cards.join('') + '</div>' : '');
+
+  if(!html) html = '<div class="card"><div class="state"><b>Nothing is published at the moment</b>' +
+    'The village committee has not chosen anything to show here yet.</div></div>';
+  document.getElementById('out').innerHTML = html;
+}
+
+/* ---------- grievances: raise / track / steps ---------- */
+document.getElementById('gFab').onclick = function(){ document.getElementById('gOverlay').classList.add('open'); };
+document.getElementById('gClose').onclick = function(){ document.getElementById('gOverlay').classList.remove('open'); };
+document.getElementById('gOverlay').addEventListener('click', function(ev){
+  if(ev.target.id === 'gOverlay') document.getElementById('gOverlay').classList.remove('open');
+});
+var tabs = { tabNew: 'gformNew', tabTrack: 'gformTrack', tabSteps: 'gformSteps' };
+Object.keys(tabs).forEach(function(tid){
+  document.getElementById(tid).onclick = function(){
+    Object.keys(tabs).forEach(function(o){
+      document.getElementById(o).classList.toggle('on', o === tid);
+      document.getElementById(tabs[o]).style.display = o === tid ? '' : 'none';
+    });
+  };
+});
+
+document.getElementById('gformNew').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  var btn = document.getElementById('gSubmitBtn');
+  var msg = document.getElementById('gMsg');
+  var name = document.getElementById('gName').value.trim();
+  var mobile = document.getElementById('gMobile').value.trim();
+  var desc = document.getElementById('gDesc').value.trim();
+  if(!name || !mobile || !desc){
+    msg.className = 'gmsg show bad'; msg.textContent = 'Please fill your name, mobile number and the problem.'; return;
+  }
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  msg.className = 'gmsg';
+  var payload = { Name: name, Mobile: mobile, Category: document.getElementById('gCat').value,
+    Description: desc, Status: 'Received' };
+  apiPost('publicGrievance', { record: JSON.stringify(payload) }).then(function(r){
+    btn.disabled = false; btn.textContent = 'Submit grievance';
+    if(!r || !r.ok) throw new Error((r && r.error) || 'failed');
+    msg.className = 'gmsg show good';
+    msg.innerHTML = 'Submitted. Your grievance number is <b>' + esc(r.id) +
+      '</b> — write it down to check the status later.';
+    document.getElementById('gformNew').reset();
+  }).catch(function(){
+    btn.disabled = false; btn.textContent = 'Submit grievance';
+    msg.className = 'gmsg show bad';
+    msg.textContent = 'Could not submit right now. Please try again in a moment, or tell a committee member directly.';
+  });
+});
+
+document.getElementById('gTrackBtn').onclick = function(){
+  var id = document.getElementById('gLookup').value.trim();
+  var msg = document.getElementById('gTrackMsg');
+  if(!id){ msg.className = 'gmsg show bad'; msg.textContent = 'Enter your grievance number.'; return; }
+  msg.className = 'gmsg show'; msg.textContent = 'Checking…';
+  api('grievanceStatus&id=' + encodeURIComponent(id)).then(function(r){
+    if(!r || !r.ok || !r.found){
+      msg.className = 'gmsg show bad';
+      msg.textContent = 'No grievance found with that number. Check it and try again.';
+      return;
+    }
+    var tone = { Received:'recv', 'Under Review':'warn', 'Action Taken':'warn', Resolved:'good', Rejected:'bad' }[r.status] || 'recv';
+    msg.className = 'gmsg show good';
+    msg.innerHTML = '<span class="gpill ' + tone + '">' + esc(r.status) + '</span>' +
+      '<div style="margin-top:8px">Raised ' + esc(fmtDate(r.date)) + ' · ' + esc(r.category) + '</div>' +
+      (r.remark ? '<div style="margin-top:6px"><b>Committee remark:</b> ' + esc(r.remark) + '</div>' : '');
+  }).catch(function(){
+    msg.className = 'gmsg show bad'; msg.textContent = 'Could not check right now. Please try again shortly.';
+  });
+};
+
+function apiPost(action, params){
+  return new Promise(function(resolve, reject){
+    var t = setTimeout(function(){ reject(new Error('timeout')); }, 25000);
+    var body = new URLSearchParams(Object.assign({ action: action }, params || {}));
+    fetch(API_URL, { method: 'POST', body: body })
+      .then(function(res){ return res.json(); })
+      .then(function(d){ clearTimeout(t); resolve(d); })
+      .catch(function(e){ clearTimeout(t); reject(e); });
+  });
+}
+
+/* Notes arrive either from their own action or, on an older backend that
+   lacks it, riding along inside publicSummary. Whichever answers first wins. */
+function renderSticky(s){
+  var old = document.getElementById('pubSticky');
+  if(old) old.remove();
+  if(!s || !s.showOnPublic) return;
+  var notes = (s.notes || []).slice(0, 3);
+  if(!notes.length) return;
+  var spot = String(s.spot || 'bottom-right');
+  var layer = document.createElement('div');
+  layer.id = 'pubSticky';
+  layer.className = 'at-' + spot;
+  layer.innerHTML = notes.map(function(n){
+    return '<div class="pnote c-' + esc(n.col || 'amber') + '"><span class="tag">' +
+      (n.kind === 'reminder' ? 'REMINDER' : 'TARGET') + '</span>' +
+      '<b>' + esc(n.title || '') + '</b>' + (n.text ? '<p>' + esc(n.text) + '</p>' : '') + '</div>';
+  }).join('');
+  var wrap = document.querySelector('.wrap') || document.body;
+  if(spot.indexOf('top') === 0){
+    var head = wrap.querySelector('.head');
+    if(head && head.nextSibling) wrap.insertBefore(layer, head.nextSibling);
+    else wrap.insertBefore(layer, wrap.firstChild);
+  } else {
+    var foot = document.querySelector('.foot');
+    if(foot && foot.parentNode) foot.parentNode.insertBefore(layer, foot);
+    else wrap.appendChild(layer);
+  }
+}
+
+/* Drive serves the same file from three different hosts and which one works
+   varies by file and by viewer, so try them in turn rather than trusting one. */
+function driveId(u){
+  var s = String(u || '').trim();
+  var m = s.match(/drive\.google\.com\/file\/d\/([^/]+)/) || s.match(/[?&]id=([^&]+)/) ||
+          s.match(/googleusercontent\.com\/d\/([^=?&]+)/);
+  return m && m[1] && m[1].length >= 25 ? m[1] : '';
+}
+function photoSrcList(u, w){
+  var id = driveId(u);
+  if(!id) return [String(u || '').trim()];
+  return ['https://lh3.googleusercontent.com/d/' + id + '=w' + w,
+          'https://drive.google.com/thumbnail?id=' + id + '&sz=w' + w,
+          'https://drive.usercontent.google.com/download?id=' + id + '&export=view'];
+}
+function wirePubPhotos(root){
+  (root || document).querySelectorAll('img[data-srcs]').forEach(function(img){
+    var list = String(img.getAttribute('data-srcs') || '').split('|').filter(Boolean);
+    var i = 0;
+    img.onerror = function(){ i++; if(i < list.length) img.src = list[i]; else img.onerror = null; };
+    if(list.length) img.src = list[0];
+  });
+}
+
+function renderDays(d){
+  var old = document.getElementById('pubDays');
+  if(old) old.remove();
+  if(!d || !(d.days || []).length) return;
+  var cards = d.days.map(function(x){
+    var when = x.daysAway === 0 ? 'Today' : x.daysAway === 1 ? 'Tomorrow' : 'In ' + x.daysAway + ' days';
+    return '<div class="dcard' + (x.daysAway === 0 ? ' today' : '') + (x.photo ? ' haspic' : '') + '">' +
+      (x.photo ? '<img class="dimg" data-srcs="' + esc(photoSrcList(x.photo, 480).join('|')) + '" alt="" loading="lazy">' : '') +
+      '<div class="dbody">' +
+      '<div class="dwhen">' + esc(when) + '</div><b>' + esc(x.title) + '</b>' +
+      '<div class="ddate">' + esc(fmtDate(x.date)) + '</div>' +
+      (x.note ? '<p>' + esc(x.note) + '</p>' : '') + '</div></div>';
+  }).join('');
+  var box = document.createElement('div');
+  box.className = 'daysband';
+  box.id = 'pubDays';
+  box.innerHTML = '<div class="dhead"><b>ଆସୁଥିବା ଦିନ · Coming up</b><span>' + d.days.length +
+    '</span><i class="drule"></i></div><div class="dlist">' + cards + '</div>';
+  var wrap = document.querySelector('.wrap') || document.body;
+  var head = wrap.querySelector('.head');
+  if(head && head.nextSibling) wrap.insertBefore(box, head.nextSibling);
+  else wrap.insertBefore(box, wrap.firstChild);
+  wirePubPhotos(box);
+}
+
+function renderRemembrance(r){
+  var old = document.getElementById('pubRemem');
+  if(old) old.remove();
+  if(!r || !r.showOnPublic) return;
+  var people = r.people || [];
+  if(!people.length) return;
+  var cards = people.map(function(p){
+    var when = p.daysAway === 0 ? 'Remembrance day is today'
+      : p.daysAway === 1 ? 'Tomorrow · ' + fmtDate(p.anniv)
+      : 'In ' + p.daysAway + ' days · ' + fmtDate(p.anniv);
+    var yrs = (p.dob ? new Date(p.dob).getFullYear() + ' – ' : '') + new Date(p.dod).getFullYear();
+    var src = p.memPhoto || p.photo;
+    var img = src
+      ? '<img class="rimg" data-srcs="' + esc(photoSrcList(src, 200).join('|')) + '" alt="' + esc(p.name) + '" loading="lazy">'
+      : '<span class="rno">◦</span>';
+    return '<div class="rperson' + (p.daysAway === 0 ? ' today' : '') + (p.message ? ' hasmsg' : '') + '">' +
+      '<div class="rtop">' + img +
+      '<div class="rtx"><b>' + esc(p.name) + '</b><div class="ryr">' + esc(yrs) +
+      (p.years ? ' · ' + p.years + (p.years === 1 ? ' year' : ' years') : '') + '</div>' +
+      '<div class="rday">' + esc(when) + '</div></div></div>' +
+      (p.message ? '<p class="rmsg">' + esc(p.message) + '</p>' : '') +
+      '</div>';
+  }).join('');
+  var box = document.createElement('div');
+  box.className = 'remem';
+  box.id = 'pubRemem';
+  box.innerHTML = '<div class="rhead"><b>ସ୍ମୃତି · In remembrance</b><span>' + people.length +
+    '</span><i class="rrule"></i></div><div class="rlist">' + cards + '</div>';
+  var foot = document.querySelector('.foot');
+  if(foot && foot.parentNode) foot.parentNode.insertBefore(box, foot);
+  else document.body.appendChild(box);
+  wirePubPhotos(box);
+}
+
+/* One request carries the whole page — fund, notes, remembrance and days —
+   so the reader never sees a half-loaded mixture of fresh and stale sections.
+   A cold Apps Script container can take a few seconds and occasionally times
+   out, so one silent retry sits between that and the apology message. */
+function renderNotices(n){
+  var old = document.getElementById('pubNotices');
+  if(old) old.remove();
+  if(!n || !(n.notices || []).length) return;
+  var list = n.notices;
+  var cards = list.map(function(p){
+    return '<article class="ntc">' +
+      (p.photo ? '<img class="nimg" data-srcs="' + esc(photoSrcList(p.photo, 640).join('|')) +
+        '" alt="' + esc(p.title) + '" loading="lazy">' : '') +
+      '<div class="nbody"><h4>' + esc(p.title) + '</h4>' +
+      (p.text ? '<p>' + esc(p.text) + '</p>' : '') +
+      (p.by || p.date ? '<div class="nmeta">' + esc(p.by) + (p.by && p.date ? ' \u00b7 ' : '') +
+        (p.date ? esc(fmtDate(p.date)) : '') + '</div>' : '') +
+      '</div></article>';
+  }).join('');
+  var box = document.createElement('div');
+  box.className = 'noticeboard';
+  box.id = 'pubNotices';
+  box.innerHTML = '<div class="nbhead"><b>\u0B38\u0B42\u0B1A\u0B28\u0B3E \u00b7 Notice board</b>' +
+    '<span class="muted small">' + list.length + ' ' + t(list.length === 1 ? 'post' : 'posts') + '</span></div>' +
+    '<div class="ntcs">' + cards + '</div>';
+  var foot = document.querySelector('.foot');
+  if(foot && foot.parentNode) foot.parentNode.insertBefore(box, foot);
+  else document.body.appendChild(box);
+  wirePubPhotos(box);
+}
+
+function loadPublic(attempt){
+  return api('publicSummary').then(function(r){
+    if(!r || !r.ok) throw new Error('no public data');
+    /* The admin's choice is the default a first-time reader lands on; once
+       someone picks a language themselves, their choice wins on that phone. */
+    var saved = null;
+    try { saved = localStorage.getItem('mal_pub_lang'); } catch(e){}
+    setLang(saved || (r.lang === 'or' ? 'or' : 'en'), false);
+    if(r.off){
+      document.getElementById('asof').textContent = 'not public at the moment';
+      document.getElementById('out').innerHTML =
+        '<div class="card"><div class="state"><b>This page is switched off</b>' +
+        'The village committee has chosen not to publish the account right now. ' +
+        'Ask any committee member to see the register.</div></div>';
+      renderSticky(null);
+      renderRemembrance(null);
+      renderDays(null);
+      renderNotices(null);
+      return;
+    }
+    render(r);
+    renderSticky(r.sticky);
+    renderRemembrance(r.remembrance);
+    renderDays(r.days);
+    renderNotices(r.notices);
+  }).catch(function(){
+    if((attempt || 0) < 1){
+      document.getElementById('asof').textContent = 'loading\u2026';
+      return new Promise(function(res){ setTimeout(res, 1800); }).then(function(){
+        return loadPublic((attempt || 0) + 1);
+      });
+    }
+    document.getElementById('asof').textContent = 'could not load';
+    document.getElementById('out').innerHTML =
+      '<div class="card"><div class="state"><b>' + t('Could not load the account just now') + '</b>' +
+      t('The connection to the village register did not answer.') + ' ' +
+      '<button class="gbtn ghost" onclick="loadPublic(0)" style="margin-top:12px">' + t('Try again') + '</button></div></div>';
+  });
+}
+
+document.getElementById('langBtn').onclick = function(){
+  setLang(LANG === 'or' ? 'en' : 'or', true);
+};
+applyLang();
+
+loadPublic(0);
+</script>
+</body>
+</html>
