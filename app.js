@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.9.3";
+  const frontendVersion = "4.9.4";
   const requiredBackendVersion = "4.8.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -877,6 +877,8 @@
     if (state.data) state.data.stickyNotes = stickyNotes.map(stickyRecord);
   }
 
+  let lastStickyError = "";
+
   /** Saves one shared note to the trip's StickyNotes Google Sheet so everyone sees it. */
   async function persistSticky(note, silent = false) {
     if (!note) return null;
@@ -886,7 +888,19 @@
       note.id = saved.id; note.createdAt = saved.createdAt || note.createdAt; note.saved = true;
       mirrorStickyNotes();
       return saved;
-    } catch (error) { if (!silent) toast(error.message, true); return null; }
+    } catch (error) {
+      lastStickyError = error.message || "The trip sheet did not accept the note.";
+      if (/not found|no sticky/i.test(lastStickyError)) {
+        try {
+          const record = stickyRecord(note); delete record.id;
+          const rescued = await api("saveStickyNote", authPayload({ record, author: state.currentUser }));
+          note.id = rescued.id; mirrorStickyNotes(); lastStickyError = "";
+          return rescued;
+        } catch (retryError) { lastStickyError = retryError.message || lastStickyError; }
+      }
+      if (!silent) toast(lastStickyError, true);
+      return null;
+    }
   }
 
   function saveStickyNotes() {
@@ -1050,7 +1064,7 @@
       const saved = await persistSticky(target);
       renderStickyNotes();
       if (saved) toast(editing ? "Sticky note updated for everyone" : "Sticky note saved for everyone");
-      else if (!state.demoMode) toast("The note could not be saved to the trip sheet", true);
+      else if (!state.demoMode) toast(lastStickyError || "The note could not be saved to the trip sheet", true);
     });
     $("[data-cancel]").addEventListener("click", closeModal);
   }
@@ -1172,17 +1186,18 @@
     if (!note) return;
     const field = element.dataset.stickyField;
     const placeholder = field === "body" ? "Tap to add details" : "";
-    const next = element.textContent.replace(/\s+$/, "").replace(/^\s+/, "");
+    const next = (element.innerText || element.textContent || "").replace(/\u00a0/g, " ").replace(/\s+$/, "").replace(/^[ \t]+/, "");
     const clean = next === placeholder ? "" : next;
     const previous = field === "title" ? note.title : note.body;
     if (clean === previous) return;
     if (field === "title" && !clean) { element.textContent = previous; return toast("A sticky note needs a title", true); }
     note[field] = field === "title" ? clean.slice(0, 120) : clean.slice(0, 2000);
     element.dataset.saving = "true";
+    lastStickyError = "";
     const saved = await persistSticky(note, true);
     delete element.dataset.saving;
     if (saved) { mirrorStickyNotes(); toast("Sticky note saved"); renderStickyNotes(); }
-    else { note[field] = previous; element.textContent = previous; toast("The note could not be saved to the trip sheet", true); }
+    else { note[field] = previous; element.textContent = previous; toast(lastStickyError || "The note could not be saved to the trip sheet", true); }
   }
 
   function removeInlineActions(card) {

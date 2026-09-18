@@ -751,3 +751,6 @@ img{max-width:100%}
 .sticky-inline-actions button{border:1px solid color-mix(in srgb,var(--sticky-line),#fff 55%);border-radius:9px;background:rgba(255,255,255,.85);color:var(--sticky-ink);padding:7px 11px;font-size:9px;font-weight:900;cursor:pointer}
 .sticky-inline-actions button.primary{border-color:var(--sticky-line);background:var(--sticky-line);color:#fff}
 .sticky-inline-actions button:hover{filter:brightness(1.05)}
+
+/* v4.9.4 keep multi-line sticky details readable */
+.sticky-card p,.floating-sticky p,.sticky-diary-card p{white-space:pre-wrap}
