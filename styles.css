@@ -754,3 +754,5 @@ img{max-width:100%}
 
 /* v4.9.4 keep multi-line sticky details readable */
 .sticky-card p,.floating-sticky p,.sticky-diary-card p{white-space:pre-wrap}
+
+.sticky-inline[data-unsaved]{box-shadow:0 0 0 2px #e8556f}
