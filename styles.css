@@ -756,3 +756,10 @@ img{max-width:100%}
 .sticky-card p,.floating-sticky p,.sticky-diary-card p{white-space:pre-wrap}
 
 .sticky-inline[data-unsaved]{box-shadow:0 0 0 2px #e8556f}
+
+/* v4.9.6 multi-line sticky text and bold runs */
+.sticky-card p,.floating-sticky p,.sticky-diary-card p{white-space:pre-wrap;word-break:break-word}
+.sticky-card p b,.floating-sticky p b{font-weight:900;color:var(--sticky-ink)}
+.sticky-inline[data-sticky-field="body"]{display:block;min-height:1.6em}
+.sticky-inline-actions button.bold{min-width:30px;font-size:11px;padding:5px 9px}
+.sticky-inline-actions button.bold b{font-weight:900}

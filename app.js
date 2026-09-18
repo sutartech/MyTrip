@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.9.5";
+  const frontendVersion = "4.9.6";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -996,10 +996,16 @@
     return prefix + displayDate(note.dueDate, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
   }
 
+  /** Escapes a note body, keeps its line breaks and renders **bold** runs. */
+  function stickyBodyHtml(note) {
+    const raw = note.body || (canWriteStickyNotes() ? "Tap to add details" : "No additional details");
+    return esc(raw).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  }
+
   function stickyPanelCard(note) {
     const inline = (field) => canWriteStickyNotes() ? ` contenteditable="plaintext-only" spellcheck="false" class="sticky-inline" data-sticky-inline="${esc(note.id)}" data-sticky-field="${field}" title="Click to edit"` : "";
     const controls = canWriteStickyNotes() ? `<footer><button data-sticky-pin="${esc(note.id)}">📌 ${note.pinned ? "Unpin" : "Pin"}</button><button class="complete" data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button class="delete" data-sticky-delete="${esc(note.id)}">Delete</button></footer>` : `<span class="sticky-readonly">VIEW ONLY · Editing disabled by Administrator</span>`;
-    return `<article class="sticky-card colour-${esc(note.colour)}"><header><span>${esc(note.type)}</span><small>${esc(stickyDueText(note))}</small></header><h4${inline("title")}>${esc(note.title)}</h4><p${inline("body")}>${esc(note.body || (canWriteStickyNotes() ? "Tap to add details" : "No additional details"))}</p>${controls}</article>`;
+    return `<article class="sticky-card colour-${esc(note.colour)}"><header><span>${esc(note.type)}</span><small>${esc(stickyDueText(note))}</small></header><h4${inline("title")}>${esc(note.title)}</h4><p${inline("body")}>${stickyBodyHtml(note)}</p>${controls}</article>`;
   }
 
   function stickyDiaryCard(note) {
@@ -1014,7 +1020,7 @@
     const safeWidth = Math.min(note.width, Math.max(260, innerWidth - 8));
     const safeX = Math.max(4, Math.min(innerWidth - safeWidth - 4, note.x));
     const safeY = Math.max(76, Math.min(innerHeight - 120, note.y));
-    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(note.height)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>${canWriteStickyNotes() ? "↕ Move note" : "📌 Pinned for everyone"}</span>${canWriteStickyNotes() ? `<button data-sticky-pin="${esc(note.id)}" title="Unpin and return to panel">×</button>` : ""}</header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3${inline("title")}>${esc(note.title)}</h3><p${inline("body")}>${esc(note.body || (canWriteStickyNotes() ? "Tap to add details" : "No additional details"))}</p></div>${canWriteStickyNotes() ? `<footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer>` : ""}</article>`;
+    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(note.height)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>${canWriteStickyNotes() ? "↕ Move note" : "📌 Pinned for everyone"}</span>${canWriteStickyNotes() ? `<button data-sticky-pin="${esc(note.id)}" title="Unpin and return to panel">×</button>` : ""}</header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3${inline("title")}>${esc(note.title)}</h3><p${inline("body")}>${stickyBodyHtml(note)}</p></div>${canWriteStickyNotes() ? `<footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer>` : ""}</article>`;
   }
 
   function renderStickyNotes() {
@@ -1200,6 +1206,18 @@
     else { note[field] = previous; element.textContent = previous; toast(lastStickyError || "The note could not be saved to the trip sheet", true); }
   }
 
+  /** Wraps the selected words in ** ** so they render bold once saved. */
+  function wrapStickySelection(element) {
+    element.focus();
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount || !element.contains(selection.anchorNode)) return toast("Select the words to make bold first", true);
+    const text = selection.toString();
+    if (!text.trim()) return toast("Select the words to make bold first", true);
+    const bolded = /^\*\*[\s\S]+\*\*$/.test(text) ? text.slice(2, -2) : `**${text.trim()}**`;
+    document.execCommand("insertText", false, bolded);
+    element.dispatchEvent(new Event("input"));
+  }
+
   function removeInlineActions(card) {
     const bar = card && card.querySelector(".sticky-inline-actions");
     if (bar) bar.remove();
@@ -1211,9 +1229,12 @@
     if (!card || card.querySelector(".sticky-inline-actions")) return;
     const bar = document.createElement("div");
     bar.className = "sticky-inline-actions";
-    bar.innerHTML = '<span>Editing…</span><button type="button" data-inline-cancel>Cancel</button><button type="button" class="primary" data-inline-save>✓ Save</button>';
+    const boldButton = element.dataset.stickyField === "body" ? '<button type="button" class="bold" data-inline-bold title="Bold the selected words"><b>B</b></button>' : "";
+    bar.innerHTML = '<span>Editing…</span>' + boldButton + '<button type="button" data-inline-cancel>Cancel</button><button type="button" class="primary" data-inline-save>✓ Save</button>';
     card.appendChild(bar);
     bar.querySelectorAll("button").forEach((button) => button.addEventListener("mousedown", (event) => event.preventDefault()));
+    const bold = bar.querySelector("[data-inline-bold]");
+    if (bold) bold.addEventListener("click", () => wrapStickySelection(element));
     bar.querySelector("[data-inline-save]").addEventListener("click", () => { element.dataset.commit = "true"; element.blur(); });
     bar.querySelector("[data-inline-cancel]").addEventListener("click", () => { element.dataset.revert = "true"; element.blur(); renderStickyNotes(); });
   }
@@ -1226,7 +1247,12 @@
         if (event.key === "Escape") { event.preventDefault(); element.blur(); renderStickyNotes(); }
         if (event.key === "Enter" && (element.dataset.stickyField === "title" || event.metaKey || event.ctrlKey)) { event.preventDefault(); element.blur(); }
       });
-      element.addEventListener("focus", () => { if (element.textContent.trim() === "Tap to add details") element.textContent = ""; showInlineActions(element); });
+      element.addEventListener("focus", () => {
+        const note = stickyNotes.find((item) => String(item.id) === String(element.dataset.stickyInline));
+        if (note && element.dataset.stickyField === "body") element.textContent = note.body || "";
+        if (element.textContent.trim() === "Tap to add details") element.textContent = "";
+        showInlineActions(element);
+      });
       element.addEventListener("input", () => showInlineActions(element));
       element.addEventListener("blur", () => {
         const card = element.closest(".sticky-card, .floating-sticky");
