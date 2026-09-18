@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.9.6";
+  const frontendVersion = "4.9.8";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -806,13 +806,20 @@
     return `${stickyStoragePrefix}:${tripId}`;
   }
 
+  /* Google's text cleaner strips control characters, and \n is one of them.
+     Sticky details therefore travel as U+2028 LINE SEPARATOR, which survives
+     every backend build, and are decoded back to \n for display and editing. */
+  const stickyLineSeparator = "\u2028";
+  const encodeStickyText = (text) => String(text == null ? "" : text).replace(/\r\n?/g, "\n").split("\n").join(stickyLineSeparator);
+  const decodeStickyText = (text) => String(text == null ? "" : text).replace(/\r\n?/g, "\n").split(stickyLineSeparator).join("\n");
+
   function normaliseSticky(note, index) {
     const value = note || {};
     return {
       id: String(value.id || uid()),
       type: value.type === "Reminder" ? "Reminder" : "Target",
       title: String(value.title || "Untitled note").slice(0, 120),
-      body: String(value.body || value.details || "").slice(0, 2000),
+      body: decodeStickyText(value.body || value.details).slice(0, 2000),
       dueDate: /^\d{4}-\d{2}-\d{2}$/.test(String(value.dueDate || "")) ? String(value.dueDate) : "",
       colour: stickyColours.includes(value.colour) ? value.colour : stickyColours[index % stickyColours.length],
       pinned: Boolean(value.pinned),
@@ -870,7 +877,7 @@
   }
 
   function stickyRecord(note) {
-    return { id: note.id, type: note.type, title: note.title, details: note.body, dueDate: note.dueDate, colour: note.colour, pinned: note.pinned, x: Math.round(note.x), y: Math.round(note.y), width: Math.round(note.width), height: Math.round(note.height), createdAt: note.createdAt };
+    return { id: note.id, type: note.type, title: note.title, details: encodeStickyText(note.body), dueDate: note.dueDate, colour: note.colour, pinned: note.pinned, x: Math.round(note.x), y: Math.round(note.y), width: Math.round(note.width), height: Math.round(note.height), createdAt: note.createdAt };
   }
 
   function mirrorStickyNotes() {
@@ -1082,7 +1089,7 @@
     }
     const alreadySaved = (state.data.stickyDiary || []).find((item) => String(item.id) === String(note.id));
     try {
-      const record = { id: note.id, type: note.type, title: note.title, details: note.body, dueDate: note.dueDate, colour: note.colour, createdAt: note.createdAt, completedBy: state.currentUser };
+      const record = { id: note.id, type: note.type, title: note.title, details: encodeStickyText(note.body), dueDate: note.dueDate, colour: note.colour, createdAt: note.createdAt, completedBy: state.currentUser };
       const saved = alreadySaved || (state.demoMode ? { ...record, tripId: state.data.trip.tripId, completedAt: new Date().toISOString() } : await api("archiveStickyNote", authPayload({ record })));
       if (!alreadySaved) state.data.stickyDiary.push(saved);
       stickyNotes = stickyNotes.filter((item) => String(item.id) !== String(note.id));
