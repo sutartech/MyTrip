@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.16.3";
+  const frontendVersion = "4.16.4";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -2399,7 +2399,7 @@
   function showAddModal(type) {
     if (!canAdd(type)) return toast("Global Administrator access required for this action", true);
     if (type === "travellers") return showAddTravellersToCurrentTrip();
-    if (type === "plan") showModal("Add to itinerary", `<form class="modal-form" data-form="plan"><label>Plan title<input name="title" placeholder="e.g. Sunset cruise" required></label><div class="form-row"><label>Date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(state.data.trip.startDate)}" required></label><label>Time<input name="time" type="time" value="10:00" required></label></div><label>Place<input name="place" placeholder="Place or address" required></label><label>Planning note<textarea name="notes" rows="3" placeholder="Tickets, reminders, meeting point or other preparation"></textarea></label>${actions}</form>`);
+    if (type === "plan") showModal("Add to itinerary", `<form class="modal-form" data-form="plan"><label>Plan title<input name="title" placeholder="e.g. Sunset cruise" required></label><div class="form-row"><label>Date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(state.data.trip.startDate)}" required></label><label>Time<input name="time" type="time" value="10:00" required></label></div><label>Place<input name="place" placeholder="Place or address" required></label><label>Planning note<textarea name="notes" rows="3" placeholder="Tickets, reminders, meeting point or other preparation"></textarea></label><details class="plan-extra-fields"><summary>Optional booking detail</summary><div class="form-row"><label>Category<select name="category"><option value="">—</option>${planCategories.map((value) => `<option>${value}</option>`).join("")}</select></label><label>Status<select name="status"><option value="">—</option>${planStatuses.map((value) => `<option${value === "To book" ? " selected" : ""}>${value}</option>`).join("")}</select></label></div><div class="form-row"><label>Booking reference<input name="bookingRef" maxlength="80" placeholder="PNR / confirmation"></label><label>Planned cost (₹)<input name="cost" type="number" min="0" step="1" placeholder="0"></label></div></details>${actions}</form>`);
     if (type === "experience") {
       const writer = state.currentUser === "Traveller" ? "" : state.currentUser;
       const writerNames = [...new Set(visibleTripMembers().map((member) => member.name).filter(Boolean))];
@@ -2416,6 +2416,7 @@
     const form = event.currentTarget, type = form.dataset.form, values = Object.fromEntries(new FormData(form).entries());
     if (!canAdd(type)) return toast("Global Administrator access required for this action", true);
     const record = { id: uid(), ...values }; if (type === "expense") record.amount = Number(record.amount);
+    if (type === "plan") { record.cost = Number(record.cost) > 0 ? Number(record.cost) : ""; record.sortOrder = nextPlanSortOrder(record.date); }
     record.createdBy = type === "experience" ? values.writer : state.currentUser;
     const collection = { plan: "itinerary", place: "places", expense: "expenses", experience: "experiences", member: "members" }[type];
     try {
