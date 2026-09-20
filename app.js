@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.10.1";
+  const frontendVersion = "4.10.3";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -638,7 +638,8 @@
 
   async function savePlanRow(event) {
     event.preventDefault();
-    const form = event.currentTarget;
+    const form = event.target.closest("[data-plan-row-form]");
+    if (!form) return;
     const id = form.dataset.planRowForm;
     const item = state.data.itinerary.find((row) => String(row.id) === String(id));
     if (!item || !canEditRecords("Itinerary")) return toast("Itinerary editing is not allowed for this account", true);
@@ -723,7 +724,8 @@
 
   async function saveExpenseRow(event) {
     event.preventDefault();
-    const form = event.currentTarget;
+    const form = event.target.closest("[data-expense-row-form]");
+    if (!form) return;
     const id = form.dataset.expenseRowForm;
     const expense = state.data.expenses.find((item) => String(item.id) === String(id));
     if (!expense || !canEditRecords("Expenses")) return toast("Expense editing is not allowed for this account", true);
@@ -960,8 +962,12 @@
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(stickyTabPositionKey) || "null"); } catch { saved = null; }
     if (!saved || !Number.isFinite(Number(saved.x)) || !Number.isFinite(Number(saved.y))) return;
-    const x = Math.max(2, Math.min(innerWidth - tab.offsetWidth - 2, Number(saved.x)));
-    const y = Math.max(60, Math.min(innerHeight - tab.offsetHeight - 8, Number(saved.y)));
+    /* offsetWidth is 0 while the tab is still hidden, so fall back to its real size
+       — otherwise the clamp parks the launcher off the bottom-right of the screen. */
+    const width = tab.offsetWidth || 42;
+    const height = tab.offsetHeight || 132;
+    const x = Math.max(2, Math.min(Math.max(2, innerWidth - width - 2), Number(saved.x)));
+    const y = Math.max(60, Math.min(Math.max(60, innerHeight - height - 8), Number(saved.y)));
     tab.style.left = `${Math.round(x)}px`;
     tab.style.top = `${Math.round(y)}px`;
     tab.style.right = "auto";
@@ -1000,13 +1006,25 @@
       tab.addEventListener("pointermove", move); tab.addEventListener("pointerup", finish); tab.addEventListener("pointercancel", finish);
     });
     tab.addEventListener("click", (event) => { if (moved) { event.preventDefault(); event.stopPropagation(); moved = false; } }, true);
+    tab.addEventListener("dblclick", (event) => { event.preventDefault(); event.stopPropagation(); if (isAdmin()) resetStickyTabPosition(); }, true);
+    addEventListener("resize", () => { if (!tab.classList.contains("hidden")) applyStickyTabPosition(); });
+  }
+
+  /** Puts the launcher back on the right edge if it was dragged out of reach. */
+  function resetStickyTabPosition(notify = true) {
+    const tab = $("#stickyEdgeTab");
+    if (!tab) return;
+    try { localStorage.removeItem(stickyTabPositionKey); } catch {}
+    tab.style.left = ""; tab.style.top = ""; tab.style.right = ""; tab.style.bottom = ""; tab.style.transform = "";
+    if (notify) toast("Sticky button moved back to the right edge");
   }
 
   function setStickyControlsVisible(visible) {
-    applyStickyTabPosition();
     makeStickyTabDraggable();
-    $("#stickyEdgeTab").classList.toggle("draggable", isAdmin());
-    $("#stickyEdgeTab").classList.toggle("hidden", !visible);
+    const tab = $("#stickyEdgeTab");
+    tab.classList.toggle("draggable", isAdmin());
+    tab.classList.toggle("hidden", !visible);
+    if (visible) applyStickyTabPosition();
     if (!visible) closeStickyPanel();
     renderStickyNotes();
   }
