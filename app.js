@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.16.5";
+  const frontendVersion = "4.17.2";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -378,6 +378,19 @@
     $("#accessScreen").classList.add("hidden"); $("#dashboard").classList.add("hidden"); $("#accountHub").classList.remove("hidden");
     $("#hubAccountLabel").textContent = accountLabel;
     closeModal(); updateVersionLabels(); startIdleTimer();
+  }
+
+  const tripCacheKey = "mytrip_last_trip_v1";
+  function cacheTripBundle(data, meta) {
+    try { localStorage.setItem(tripCacheKey, JSON.stringify({ savedAt: Date.now(), meta, data })); } catch {}
+  }
+  function readCachedTrip(tripId) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(tripCacheKey) || "null");
+      if (!cached || !cached.data || !cached.data.trip) return null;
+      if (tripId && String(cached.data.trip.tripId) !== String(tripId)) return null;
+      return cached;
+    } catch { return null; }
   }
 
   async function openTrip(data, pin, demoMode, name, roleOverride, travellerId = "", loginMode = "trip") {
@@ -786,21 +799,12 @@
 
   function planCost(item) { return Number(item.cost) > 0 ? Number(item.cost) : 0; }
 
-  function renderItinerary() {
-    const all = sortedPlans();
-    const days = [...new Set(all.map((item) => item.date).filter(Boolean))];
-    if (state.planDayFilter && !days.includes(state.planDayFilter)) state.planDayFilter = "";
-    const items = state.planDayFilter ? all.filter((item) => item.date === state.planDayFilter) : all;
+
+  /** One itinerary row, reusable so a single row can be patched in place. */
+  function planRowMarkup(item, previous, all) {
     const canEdit = canEditRecords("Itinerary");
-    const plannedTotal = all.reduce((sum, item) => sum + planCost(item), 0);
-
-    const filterRow = `<div class="filter-row plan-filter-row"><button class="${state.planDayFilter ? "" : "active"}" data-plan-day="">All days</button>${days.map((date, index) => `<button class="${state.planDayFilter === date ? "active" : ""}" data-plan-day="${esc(date)}">Day ${index + 1} · ${displayDate(date, { day: "numeric", month: "short" })}</button>`).join("")}${state.planDayFilter ? `<span class="plan-day-actions">${canPrintReports() ? `<button type="button" data-print-day="${esc(state.planDayFilter)}">▤ Print this day</button>` : ""}${canAdd("plan") ? `<button type="button" data-add-plan-row="${esc(state.planDayFilter)}">＋ Add row to this day</button>` : ""}</span>` : ""}</div>`;
-
-    let lastDate = null;
-    const rows = items.map((item) => {
-      const firstOfDay = item.date !== lastDate;
-      const dayBreak = "";
-      lastDate = item.date;
+    const firstOfDay = !previous || previous.date !== item.date;
+    const dayBreak = "";
       if (String(state.planRowEditId) === String(item.id)) return dayBreak + renderPlanRowEditor(item);
       if (String(state.planRowDeleteId) === String(item.id)) return dayBreak + `<div class="plan-row plan-row-deleting"><span class="plan-delete-message"><b>Delete “${esc(item.title)}”?</b><small>${displayDate(item.date, { weekday: "short", day: "numeric", month: "short" })}${item.time ? " · " + esc(displayTime(item.time)) : ""} · removed for everyone</small></span><span class="plan-row-actions"><button class="delete" data-confirm-plan-delete="${esc(item.id)}">Yes, delete row</button><button type="button" data-cancel-plan-delete>Keep row</button></span></div>`;
 
@@ -817,7 +821,20 @@
       const positionInDay = dayRowIds.indexOf(String(item.id));
       const handle = canEdit ? `<span class="plan-move"><i class="plan-drag" data-plan-drag="${esc(item.id)}" title="Drag to reorder inside this day">⠿</i><button type="button" data-move-plan="${esc(item.id)}" data-direction="-1"${positionInDay === 0 ? " disabled" : ""} title="Move up in this day">↑</button><button type="button" data-move-plan="${esc(item.id)}" data-direction="1"${positionInDay === dayRowIds.length - 1 ? " disabled" : ""} title="Move down in this day">↓</button></span>` : "";
       return `<div class="plan-row${firstOfDay ? " day-start" : ""}" draggable="false" data-plan-row="${esc(item.id)}" data-plan-date="${esc(item.date)}"><span class="plan-cell-day">${handle}<span>${firstOfDay ? `<small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit", month: "short" })}</b>` : `<em class="plan-same-day">same day</em>`}</span></span><span class="plan-cell-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="plan-cell-title"><b>${esc(item.title)}</b>${chips ? `<span class="plan-chips">${chips}</span>` : ""}</span><span class="plan-cell-place">${mapLink}${meta ? `<span class="plan-meta">${meta}</span>` : ""}</span><span class="plan-cell-remark">${esc(item.notes || "—")}</span><span class="plan-row-actions">${actions}</span></div>`;
-    }).join("");
+    }
+
+
+  function renderItinerary() {
+    const all = sortedPlans();
+    const days = [...new Set(all.map((item) => item.date).filter(Boolean))];
+    if (state.planDayFilter && !days.includes(state.planDayFilter)) state.planDayFilter = "";
+    const items = state.planDayFilter ? all.filter((item) => item.date === state.planDayFilter) : all;
+    const canEdit = canEditRecords("Itinerary");
+    const plannedTotal = all.reduce((sum, item) => sum + planCost(item), 0);
+
+    const filterRow = `<div class="filter-row plan-filter-row"><button class="${state.planDayFilter ? "" : "active"}" data-plan-day="">All days</button>${days.map((date, index) => `<button class="${state.planDayFilter === date ? "active" : ""}" data-plan-day="${esc(date)}">Day ${index + 1} · ${displayDate(date, { day: "numeric", month: "short" })}</button>`).join("")}${state.planDayFilter ? `<span class="plan-day-actions">${canPrintReports() ? `<button type="button" data-print-day="${esc(state.planDayFilter)}">▤ Print this day</button>` : ""}${canAdd("plan") ? `<button type="button" data-add-plan-row="${esc(state.planDayFilter)}">＋ Add row to this day</button>` : ""}</span>` : ""}</div>`;
+
+    const rows = items.map((item, index) => planRowMarkup(item, items[index - 1], all)).join("");
 
     const newRow = canAdd("plan")
       ? (state.planAddDate
@@ -825,7 +842,7 @@
         : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.planDayFilter || state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
       : "";
 
-    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><span class="plan-width-control print-width-control"><small>PRINT SIZE</small><button type="button" data-print-width="-1" aria-label="Smaller print rows">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger print rows">＋</button></span><button type="button" class="plan-wrap-toggle${printPlanWrap() ? " on" : ""}" data-print-wrap>${printPlanWrap() ? "↵ Wrap text: on" : "↵ Wrap text: off"}</button><span class="plan-seg" role="group" aria-label="Print layout">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span><span class="plan-seg" role="group" aria-label="Print alignment">${[["left", "⇤"], ["center", "⇔"], ["right", "⇥"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align printed text ${value}">${label}</button>`).join("")}</span><button type="button" class="plan-wrap-toggle" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button><button type="button" class="plan-wrap-toggle" data-reset-plan-columns title="Restore the default column widths">⇔ Reset columns</button>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
+    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button><details class="plan-print-menu"${state.printMenuOpen ? " open" : ""}><summary class="plan-tool">▤ Print options</summary><div class="plan-print-panel"><label class="plan-print-line"><span>Text size</span><span class="plan-width-control"><button type="button" data-print-width="-1" aria-label="Smaller">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger">＋</button></span></label><label class="plan-print-line"><span>Wrap long text</span><button type="button" class="plan-switch${printPlanWrap() ? " on" : ""}" data-print-wrap aria-pressed="${printPlanWrap()}">${printPlanWrap() ? "On" : "Off"}</button></label><label class="plan-print-line"><span>Page layout</span><span class="plan-seg">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span></label><label class="plan-print-line"><span>Alignment</span><span class="plan-seg">${[["left", "⇤"], ["center", "⇔"], ["right", "⇥"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align ${value}">${label}</button>`).join("")}</span></label><label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label></div></details>${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
   }
 
   function renderExperiences() {
@@ -947,11 +964,21 @@
     return `${heading("READY FOR PAPER", "Print and export", "Create a clean A4 copy or save allowed reports as PDF.")}<div class="print-grid">${itineraryCard}${planCard}${expenseCard}<article class="print-card"><i>▤</i><h3>Available trip book</h3><p>Only the sections enabled by the Administrator are included.</p><button data-print="full">Print available sections →</button></article></div>`;
   }
 
+  function skeletonView() {
+    return `<div class="skeleton-view" aria-hidden="true"><div class="skeleton-head"></div>${[0,1,2,3,4].map(() => `<div class="skeleton-row"><i></i><i></i><i></i><i></i></div>`).join("")}</div>`;
+  }
+
+  function showSkeleton() { if ($("#view")) $("#view").innerHTML = skeletonView(); }
+
   function render() {
     if (!state.data) return;
     const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint };
     $("#view").innerHTML = accessNotice() + renderers[state.tab]();
-    if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
+    if (state.tab === "itinerary") {
+      bindPlanColumnResizers(); bindPlanRowDragging();
+      const menu = $(".plan-print-menu");
+      if (menu) menu.addEventListener("toggle", () => { state.printMenuOpen = menu.open; });
+    }
   }
 
   function handleViewClick(event) {
@@ -980,6 +1007,7 @@
     if (button.dataset.rowDeletePlan) { if (!isAdmin()) return toast("Administrator access is required to delete an itinerary row", true); state.planRowEditId = ""; state.planRowDeleteId = button.dataset.rowDeletePlan; return render(); }
     if (button.hasAttribute("data-cancel-plan-delete")) { state.planRowDeleteId = ""; return render(); }
     if (button.dataset.confirmPlanDelete) return deletePlanRow(button.dataset.confirmPlanDelete);
+    if (button.closest(".plan-print-menu")) state.printMenuOpen = true;
     if (button.dataset.printWidth) return stepPrintWidth(Number(button.dataset.printWidth));
     if (button.dataset.printLayout) return setPrintLayout(button.dataset.printLayout);
     if (button.dataset.printAlign) return setPrintAlign(button.dataset.printAlign);
@@ -1675,11 +1703,27 @@
         closeModal(); await openTrip(bundle, pin, true, traveller ? traveller.name : summary.createdBy, role, traveller ? traveller.travellerId : "", traveller ? "personal" : "admin");
       } else {
         const payload = { tripId, username: state.accountUsername, password: pin, pin, ...(traveller ? { travellerId: traveller.travellerId } : {}) };
+        const cached = readCachedTrip(tripId);
+        if (cached && !traveller) {
+          closeModal();
+          await openTrip(cached.data, pin, false, cached.meta.name, cached.meta.role, cached.meta.travellerId || "", cached.meta.loginMode || "admin");
+          toast("Showing your saved copy · refreshing…");
+          api("getTrip", payload).then((fresh) => {
+            if (!fresh || !fresh.trip || String(fresh.trip.tripId) !== String(tripId)) return;
+            state.data = normalize(fresh); state.permissions = fresh.permissions || {};
+            cacheTripBundle(fresh, cached.meta);
+            loadStickyNotes(); hydrateShell(); render(); updatePrintArea();
+          }).catch(() => {});
+          return;
+        }
+        showSkeleton();
         const bundle = await api("getTrip", payload);
         if (bundle && bundle.trip && String(bundle.trip.tripId).trim().toUpperCase() !== String(tripId).trim().toUpperCase()) {
           return toast(`The server returned ${bundle.trip.tripId} instead of ${tripId}. Please try again.`, true);
         }
-        closeModal(); await openTrip(bundle, pin, false, traveller ? traveller.name : bundle.trip.createdBy, role, traveller ? traveller.travellerId : "", traveller ? "personal" : "admin");
+        const meta = { name: traveller ? traveller.name : bundle.trip.createdBy, role, travellerId: traveller ? traveller.travellerId : "", loginMode: traveller ? "personal" : "admin" };
+        cacheTripBundle(bundle, meta);
+        closeModal(); await openTrip(bundle, pin, false, meta.name, role, meta.travellerId, meta.loginMode);
       }
     } catch (error) { toast(error.message, true); }
   }
@@ -2537,7 +2581,7 @@
 
   async function refreshTrip() {
     if (state.demoMode) return toast("Demo data is already up to date");
-    try { const data = await api("getTrip", authPayload()); state.data = normalize(data); state.accessRole = data.accessRole; state.permissions = data.permissions || {}; loadStickyNotes(); hydrateShell(); render(); renderStickyNotes(); updatePrintArea(); migrateCompletedStickyNotes(); toast("Latest trip data loaded"); } catch (error) { toast(error.message, true); }
+    try { const data = await api("getTrip", authPayload()); state.data = normalize(data); state.accessRole = data.accessRole; state.permissions = data.permissions || {}; cacheTripBundle(data, { name: state.currentUser, role: state.accessRole, travellerId: state.travellerId, loginMode: state.loginMode }); loadStickyNotes(); hydrateShell(); render(); renderStickyNotes(); updatePrintArea(); migrateCompletedStickyNotes(); toast("Latest trip data loaded"); } catch (error) { toast(error.message, true); }
   }
 
   function showCreateTrip() {
@@ -2701,15 +2745,30 @@
   }
 
   /** The tick in the ACTIONS column is the same "Done" status the printed box shows. */
+  /** Swaps one row's markup in place — no full redraw, no scroll jump. */
+  function patchPlanRow(id) {
+    const element = $(`[data-plan-row="${CSS.escape(String(id))}"]`);
+    if (!element) { render(); return; }
+    const all = sortedPlans();
+    const item = all.find((row) => String(row.id) === String(id));
+    if (!item) { render(); return; }
+    const index = all.findIndex((row) => String(row.id) === String(id));
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = planRowMarkup(item, all[index - 1], all);
+    const fresh = wrapper.firstElementChild;
+    if (fresh) element.replaceWith(fresh);
+    else render();
+  }
+
   async function togglePlanDone(id) {
     const item = state.data.itinerary.find((row) => String(row.id) === String(id));
     if (!item || !canEditRecords("Itinerary")) return toast("Itinerary editing is not allowed for this account", true);
     const status = String(item.status || "") === "Done" ? "" : "Done";
     const previous = item.status || "";
     item.status = status;
-    render();
+    patchPlanRow(id);
     try { if (!state.demoMode) await api("updateRecord", authPayload({ sheet: "Itinerary", id, record: { status } })); updatePrintArea(); }
-    catch (error) { item.status = previous; render(); toast(error.message, true); }
+    catch (error) { item.status = previous; patchPlanRow(id); toast(error.message, true); }
   }
 
   /** Moves a row one step up or down inside its own day and saves the order. */
@@ -2741,11 +2800,11 @@
 
   /** Saves the new running order after a drag, one row at a time. */
   async function persistPlanOrder(rows) {
-    for (const row of rows) {
-      try { if (!state.demoMode) await api("updateRecord", authPayload({ sheet: "Itinerary", id: row.id, record: { sortOrder: row.sortOrder } })); }
-      catch (error) { toast(error.message, true); return false; }
-    }
-    return true;
+    if (state.demoMode || !rows.length) return true;
+    try {
+      await Promise.all(rows.map((row) => api("updateRecord", authPayload({ sheet: "Itinerary", id: row.id, record: { sortOrder: row.sortOrder } }))));
+      return true;
+    } catch (error) { toast(error.message, true); return false; }
   }
 
   /** Drag a row by its grip. Listeners live on the document so the pointer can
