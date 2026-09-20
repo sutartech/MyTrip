@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.15.2";
+  const frontendVersion = "4.16.0";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -717,6 +717,61 @@
   function sortedPlans() {
     return [...state.data.itinerary].sort((a, b) => planSortValue(a).localeCompare(planSortValue(b)));
   }
+  /* An expense created from an itinerary row carries the row id in its own id,
+     so the two stay linked without any extra sheet column. */
+  const planExpensePrefix = "PLANPAY-";
+  function expenseForPlan(item) {
+    return (state.data.expenses || []).find((expense) => String(expense.id) === planExpensePrefix + String(item.id));
+  }
+  function planPaymentTag(item) {
+    const expense = expenseForPlan(item);
+    if (!expense) return "";
+    return `<span class="plan-paid-tag" title="Recorded in the Expenses tab"><b>${money.format(Number(expense.amount || 0))}</b><small>${esc(expense.paidBy || "Not specified")}</small></span>`;
+  }
+
+  /** Records who paid for a plan row — the payment itself lives in Expenses. */
+  function showPlanPayment(id) {
+    const item = state.data.itinerary.find((row) => String(row.id) === String(id));
+    if (!item) return toast("Itinerary row not found", true);
+    if (!canViewExpenses() || !canAdd("expense")) return toast("Expense access is not enabled for this account", true);
+    const existing = expenseForPlan(item);
+    const payers = [...new Set([...visibleTripMembers().map((member) => member.name), state.currentUser].filter(Boolean))];
+    const categoryMap = { Travel: "Travel", Stay: "Stay", Food: "Food", Sightseeing: "Activities", Activity: "Activities", Other: "Other" };
+    const category = categoryMap[item.category] || "Other";
+    const categories = ["Food", "Stay", "Travel", "Local travel", "Activities", "Shopping", "Other"];
+    showModal(existing ? "Update payment" : "Record payment", `<form class="modal-form" id="planPaymentForm"><div class="security-note traveller-note"><i>₹</i><p>This payment is saved in the <b>Expenses</b> tab, so the budget and the traveller-wise totals stay correct. The itinerary row only shows who paid.</p></div><label>Expense description<input name="label" maxlength="180" value="${esc((existing && existing.label) || item.title)}" required></label><div class="form-row"><label>Amount (₹)<input name="amount" type="number" min="1" step="0.01" value="${esc((existing && existing.amount) || item.cost || "")}" required></label><label>Date<input name="date" type="date" value="${esc((existing && existing.date) || item.date)}" required></label></div><div class="form-row"><label>Paid by<select name="paidBy" required>${payers.map((payer) => `<option${((existing && existing.paidBy) || state.currentUser) === payer ? " selected" : ""}>${esc(payer)}</option>`).join("")}</select></label><label>Category<select name="category">${categories.map((value) => `<option${((existing && existing.category) || category) === value ? " selected" : ""}>${value}</option>`).join("")}</select></label></div><div class="form-actions">${existing && isAdmin() ? `<button type="button" id="removePlanPayment" class="danger-action">Remove payment</button>` : ""}<button type="button" data-cancel>Cancel</button><button type="submit">${existing ? "Save payment" : "Record payment"}</button></div></form>`);
+    const form = $("#planPaymentForm");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const values = Object.fromEntries(new FormData(form).entries());
+      const record = { id: planExpensePrefix + item.id, ...values, amount: Number(values.amount), createdBy: state.currentUser };
+      const submit = form.querySelector("button[type=submit]");
+      submit.disabled = true; submit.textContent = "Saving…";
+      try {
+        if (!state.demoMode) {
+          if (existing) await api("updateRecord", authPayload({ sheet: "Expenses", id: record.id, record: values }));
+          else await api("addExpense", authPayload({ record }));
+          if (String(item.status || "") !== "Paid") await api("updateRecord", authPayload({ sheet: "Itinerary", id: item.id, record: { status: "Paid" } }));
+        }
+        if (existing) Object.assign(existing, record); else state.data.expenses.push(record);
+        item.status = "Paid";
+        closeModal(); render(); hydrateShell(); updatePrintArea(); toast(`Payment saved · ${record.paidBy}`);
+      } catch (error) { submit.disabled = false; submit.textContent = existing ? "Save payment" : "Record payment"; toast(error.message, true); }
+    });
+    if ($("#removePlanPayment")) $("#removePlanPayment").addEventListener("click", async () => {
+      try {
+        if (!state.demoMode) {
+          await api("deleteRecord", authPayload({ sheet: "Expenses", id: existing.id }));
+          await api("updateRecord", authPayload({ sheet: "Itinerary", id: item.id, record: { status: "Booked" } }));
+        }
+        state.data.expenses = state.data.expenses.filter((expense) => String(expense.id) !== String(existing.id));
+        item.status = "Booked";
+        closeModal(); render(); hydrateShell(); updatePrintArea(); toast("Payment removed from Expenses");
+      } catch (error) { toast(error.message, true); }
+    });
+    $("[data-cancel]").addEventListener("click", closeModal);
+  }
+
   function planCost(item) { return Number(item.cost) > 0 ? Number(item.cost) : 0; }
 
   function renderItinerary() {
@@ -739,11 +794,13 @@
 
       const done = String(item.status || "") === "Done";
       const tick = canEdit ? `<button class="plan-tick${done ? " on" : ""}" data-toggle-plan-done="${esc(item.id)}" title="${done ? "Mark as not done" : "Mark as done"}" aria-pressed="${done}">${done ? "☑" : "☐"}</button>` : "";
-      const actions = `${tick}${canEdit ? `<button class="row-edit" data-row-edit-plan="${esc(item.id)}">Row edit</button>` : ""}${canAdd("plan") ? `<button data-duplicate-plan="${esc(item.id)}" title="Duplicate this row">⧉</button>` : ""}${canEdit ? `<button data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}`;
+      const paid = expenseForPlan(item);
+      const payButton = canViewExpenses() && canAdd("expense") ? `<button class="plan-pay${paid ? " on" : ""}" data-plan-pay="${esc(item.id)}" title="${paid ? "Update who paid" : "Record who paid (saved in Expenses)"}">₹</button>` : "";
+      const actions = `${tick}${payButton}${canEdit ? `<button class="row-edit" data-row-edit-plan="${esc(item.id)}">Row edit</button>` : ""}${canAdd("plan") ? `<button data-duplicate-plan="${esc(item.id)}" title="Duplicate this row">⧉</button>` : ""}${canEdit ? `<button data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}`;
       const mapLink = item.place ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">⌖ ${esc(item.place)}</a>` : `<span class="plan-muted">Not set</span>`;
       const category = item.category && planCategories.includes(item.category) ? item.category : "";
       const chips = `${category ? `<em class="plan-chip" style="--chip:${planCategoryTint[category]}">${esc(category)}</em>` : ""}${item.status ? `<em class="plan-status status-${esc(String(item.status).toLowerCase().replace(/\s+/g, "-"))}">${esc(item.status)}</em>` : ""}`;
-      const meta = `${item.bookingRef ? `<small class="plan-ref">REF ${esc(item.bookingRef)}</small>` : ""}${planCost(item) ? `<small class="plan-cost">${money.format(planCost(item))}</small>` : ""}`;
+      const meta = `${item.bookingRef ? `<small class="plan-ref">REF ${esc(item.bookingRef)}</small>` : ""}${planCost(item) && !paid ? `<small class="plan-cost">Est ${money.format(planCost(item))}</small>` : ""}${planPaymentTag(item)}`;
       const handle = canEdit ? `<i class="plan-drag" data-plan-drag="${esc(item.id)}" title="Drag to reorder inside this day">⠿</i>` : "";
       return `<div class="plan-row${firstOfDay ? " day-start" : ""}" draggable="false" data-plan-row="${esc(item.id)}" data-plan-date="${esc(item.date)}"><span class="plan-cell-day">${handle}<span>${firstOfDay ? `<small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit", month: "short" })}</b>` : `<em class="plan-same-day">same day</em>`}</span></span><span class="plan-cell-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="plan-cell-title"><b>${esc(item.title)}</b>${chips ? `<span class="plan-chips">${chips}</span>` : ""}</span><span class="plan-cell-place">${mapLink}${meta ? `<span class="plan-meta">${meta}</span>` : ""}</span><span class="plan-cell-remark">${esc(item.notes || "—")}</span><span class="plan-row-actions">${actions}</span></div>`;
     }).join("");
@@ -899,6 +956,7 @@
     if (button.hasAttribute("data-edit")) return showEditRecord(button.dataset.sheet, button.dataset.id);
     if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
     if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
+    if (button.dataset.planPay) return showPlanPayment(button.dataset.planPay);
     if (button.dataset.togglePlanDone) return togglePlanDone(button.dataset.togglePlanDone);
     if (button.dataset.duplicatePlan) return duplicatePlanRow(button.dataset.duplicatePlan);
     if (button.dataset.planDay !== undefined) { state.planDayFilter = button.dataset.planDay; return render(); }
@@ -2442,7 +2500,8 @@
       const header = "";
       const body = dayRows.map((item, rowIndex) => {
         const tags = [item.category, item.status].filter(Boolean).join(" · ");
-        const extra = [item.bookingRef ? `Ref ${item.bookingRef}` : "", planCost(item) ? money.format(planCost(item)) : ""].filter(Boolean).join(" · ");
+        const paidExpense = expenseForPlan(item);
+        const extra = [item.bookingRef ? `Ref ${item.bookingRef}` : "", paidExpense ? `${money.format(Number(paidExpense.amount || 0))} paid by ${paidExpense.paidBy || "—"}` : (planCost(item) ? `Est ${money.format(planCost(item))}` : "")].filter(Boolean).join(" · ");
         return `<tr class="${rowIndex === 0 ? "print-day-start" : ""}"><td>${rowIndex === 0 ? `<b>${displayDate(item.date, { weekday: "short", day: "2-digit", month: "short" })}</b>${dayCost ? `<span class="print-tag">${money.format(dayCost)}</span>` : ""}` : ""}</td><td>${item.time ? displayTime(item.time) : "Any time"}</td><td><b>${esc(item.title)}</b>${tags ? `<span class="print-tag">${esc(tags)}</span>` : ""}</td><td>${esc(item.place || "—")}${extra ? `<span class="print-tag">${esc(extra)}</span>` : ""}</td><td>${esc(item.notes || "—")}</td><td class="print-tick">${String(item.status || "") === "Done" ? "☑" : ""}</td></tr>`;
       }).join("");
       const lines = printPlanLines() ? `<tr class="print-note-lines"><td colspan="6"><span>Notes</span><i></i><i></i><i></i></td></tr>` : "";

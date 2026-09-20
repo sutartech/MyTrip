@@ -974,3 +974,13 @@ img{max-width:100%}
 .plan-extra-fields summary{font-size:11px;font-weight:900;color:#5d6f80;cursor:pointer}
 .plan-extra-fields .form-row{margin-top:8px}
 @media(max-width:1180px){.plan-row-editing{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.plan-row-editing .plan-row-actions{grid-column:1/-1;justify-content:flex-end}}
+
+/* v4.16 itinerary row ↔ expense link */
+.plan-pay{border:1px solid var(--line);border-radius:8px;background:#fff;color:#8b97a6;font-size:12px;font-weight:900;line-height:1;padding:6px 9px;cursor:pointer}
+.plan-pay:hover{border-color:#2f7d72;color:#2f7d72}
+.plan-pay.on{border-color:#bfe3d6;background:#eefaf5;color:#0a6650}
+.plan-paid-tag{display:inline-flex;align-items:baseline;gap:5px;padding:2px 8px;border-radius:999px;background:#eefaf5;border:1px solid #bfe3d6}
+.plan-paid-tag b{font-size:10px;font-weight:900;color:#0a6650}
+.plan-paid-tag small{font-size:9px;font-weight:800;color:#5b7a70}
+.danger-action{border:1px solid #e3c3ca;border-radius:9px;background:#fff6f7;color:#a23148;padding:9px 12px;font-size:11px;font-weight:900;cursor:pointer;margin-right:auto}
+.danger-action:hover{border-color:#c4566c}
