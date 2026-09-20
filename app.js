@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.16.0";
+  const frontendVersion = "4.16.1";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -712,7 +712,26 @@
   const planCategoryTint = { Travel: "#3b8ccc", Stay: "#7a61e0", Food: "#e2647c", Sightseeing: "#1da483", Activity: "#e3a029", Other: "#7a8997" };
 
   function planSortValue(item) {
-    return [String(item.date || ""), String(Number(item.sortOrder || 0)).padStart(6, "0"), String(item.time || "")].join("|");
+    return [String(item.date || ""), String(Number(item.sortOrder || 0)).padStart(6, "0"), String(item.time || "~")].join("|");
+  }
+
+  /** Renumbers a day (or the whole trip) into clock order and saves it. */
+  async function sortPlansByTime(date = "") {
+    if (!canEditRecords("Itinerary")) return toast("Itinerary editing is not allowed for this account", true);
+    const days = date ? [date] : [...new Set(state.data.itinerary.map((row) => row.date).filter(Boolean))];
+    const changed = [];
+    days.forEach((day) => {
+      state.data.itinerary
+        .filter((row) => row.date === day)
+        .sort((a, b) => String(a.time || "~").localeCompare(String(b.time || "~")))
+        .forEach((row, index) => {
+          const order = (index + 1) * 10;
+          if (Number(row.sortOrder || 0) !== order) { row.sortOrder = order; changed.push(row); }
+        });
+    });
+    if (!changed.length) return toast("Already in time order");
+    render();
+    if (await persistPlanOrder(changed)) { updatePrintArea(); toast(date ? "Day sorted by time" : "Every day sorted by time"); }
   }
   function sortedPlans() {
     return [...state.data.itinerary].sort((a, b) => planSortValue(a).localeCompare(planSortValue(b)));
@@ -811,7 +830,7 @@
         : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.planDayFilter || state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
       : "";
 
-    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><span class="plan-width-control print-width-control"><small>PRINT SIZE</small><button type="button" data-print-width="-1" aria-label="Smaller print rows">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger print rows">＋</button></span><button type="button" class="plan-wrap-toggle${printPlanWrap() ? " on" : ""}" data-print-wrap>${printPlanWrap() ? "↵ Wrap text: on" : "↵ Wrap text: off"}</button><span class="plan-seg" role="group" aria-label="Print layout">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span><span class="plan-seg" role="group" aria-label="Print alignment">${[["left", "⇤"], ["center", "⇔"], ["right", "⇥"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align printed text ${value}">${label}</button>`).join("")}</span><button type="button" class="plan-wrap-toggle${printPlanLines() ? " on" : ""}" data-print-lines>${printPlanLines() ? "▤ Note lines: on" : "▤ Note lines: off"}</button><button type="button" class="plan-wrap-toggle" data-reset-plan-columns title="Restore the default column widths">⇔ Reset columns</button>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
+    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><span class="plan-width-control print-width-control"><small>PRINT SIZE</small><button type="button" data-print-width="-1" aria-label="Smaller print rows">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger print rows">＋</button></span><button type="button" class="plan-wrap-toggle${printPlanWrap() ? " on" : ""}" data-print-wrap>${printPlanWrap() ? "↵ Wrap text: on" : "↵ Wrap text: off"}</button><span class="plan-seg" role="group" aria-label="Print layout">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span><span class="plan-seg" role="group" aria-label="Print alignment">${[["left", "⇤"], ["center", "⇔"], ["right", "⇥"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align printed text ${value}">${label}</button>`).join("")}</span><button type="button" class="plan-wrap-toggle${printPlanLines() ? " on" : ""}" data-print-lines>${printPlanLines() ? "▤ Note lines: on" : "▤ Note lines: off"}</button><button type="button" class="plan-wrap-toggle" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button><button type="button" class="plan-wrap-toggle" data-reset-plan-columns title="Restore the default column widths">⇔ Reset columns</button>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
   }
 
   function renderExperiences() {
@@ -956,6 +975,7 @@
     if (button.hasAttribute("data-edit")) return showEditRecord(button.dataset.sheet, button.dataset.id);
     if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
     if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
+    if (button.dataset.sortPlanTime !== undefined) return sortPlansByTime(button.dataset.sortPlanTime);
     if (button.dataset.planPay) return showPlanPayment(button.dataset.planPay);
     if (button.dataset.togglePlanDone) return togglePlanDone(button.dataset.togglePlanDone);
     if (button.dataset.duplicatePlan) return duplicatePlanRow(button.dataset.duplicatePlan);
