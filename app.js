@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.16.1";
+  const frontendVersion = "4.16.3";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -820,7 +820,9 @@
       const category = item.category && planCategories.includes(item.category) ? item.category : "";
       const chips = `${category ? `<em class="plan-chip" style="--chip:${planCategoryTint[category]}">${esc(category)}</em>` : ""}${item.status ? `<em class="plan-status status-${esc(String(item.status).toLowerCase().replace(/\s+/g, "-"))}">${esc(item.status)}</em>` : ""}`;
       const meta = `${item.bookingRef ? `<small class="plan-ref">REF ${esc(item.bookingRef)}</small>` : ""}${planCost(item) && !paid ? `<small class="plan-cost">Est ${money.format(planCost(item))}</small>` : ""}${planPaymentTag(item)}`;
-      const handle = canEdit ? `<i class="plan-drag" data-plan-drag="${esc(item.id)}" title="Drag to reorder inside this day">⠿</i>` : "";
+      const dayRowIds = all.filter((row) => row.date === item.date).map((row) => String(row.id));
+      const positionInDay = dayRowIds.indexOf(String(item.id));
+      const handle = canEdit ? `<span class="plan-move"><i class="plan-drag" data-plan-drag="${esc(item.id)}" title="Drag to reorder inside this day">⠿</i><button type="button" data-move-plan="${esc(item.id)}" data-direction="-1"${positionInDay === 0 ? " disabled" : ""} title="Move up in this day">↑</button><button type="button" data-move-plan="${esc(item.id)}" data-direction="1"${positionInDay === dayRowIds.length - 1 ? " disabled" : ""} title="Move down in this day">↓</button></span>` : "";
       return `<div class="plan-row${firstOfDay ? " day-start" : ""}" draggable="false" data-plan-row="${esc(item.id)}" data-plan-date="${esc(item.date)}"><span class="plan-cell-day">${handle}<span>${firstOfDay ? `<small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit", month: "short" })}</b>` : `<em class="plan-same-day">same day</em>`}</span></span><span class="plan-cell-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="plan-cell-title"><b>${esc(item.title)}</b>${chips ? `<span class="plan-chips">${chips}</span>` : ""}</span><span class="plan-cell-place">${mapLink}${meta ? `<span class="plan-meta">${meta}</span>` : ""}</span><span class="plan-cell-remark">${esc(item.notes || "—")}</span><span class="plan-row-actions">${actions}</span></div>`;
     }).join("");
 
@@ -975,6 +977,7 @@
     if (button.hasAttribute("data-edit")) return showEditRecord(button.dataset.sheet, button.dataset.id);
     if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
     if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
+    if (button.dataset.movePlan) return movePlanRow(button.dataset.movePlan, Number(button.dataset.direction));
     if (button.dataset.sortPlanTime !== undefined) return sortPlansByTime(button.dataset.sortPlanTime);
     if (button.dataset.planPay) return showPlanPayment(button.dataset.planPay);
     if (button.dataset.togglePlanDone) return togglePlanDone(button.dataset.togglePlanDone);
@@ -2716,6 +2719,22 @@
     catch (error) { item.status = previous; render(); toast(error.message, true); }
   }
 
+  /** Moves a row one step up or down inside its own day and saves the order. */
+  async function movePlanRow(id, direction) {
+    if (!canEditRecords("Itinerary")) return toast("Itinerary editing is not allowed for this account", true);
+    const item = state.data.itinerary.find((row) => String(row.id) === String(id));
+    if (!item) return;
+    const dayRows = sortedPlans().filter((row) => row.date === item.date);
+    const index = dayRows.findIndex((row) => String(row.id) === String(id));
+    const target = index + direction;
+    if (target < 0 || target >= dayRows.length) return;
+    dayRows.splice(target, 0, dayRows.splice(index, 1)[0]);
+    const changed = dayRows.map((row, position) => { row.sortOrder = (position + 1) * 10; return row; });
+    render();
+    if (await persistPlanOrder(changed)) { updatePrintArea(); toast("Row moved"); }
+    else render();
+  }
+
   async function duplicatePlanRow(id) {
     if (!canAdd("plan")) return toast("Adding itinerary rows is not allowed for this account", true);
     const source = state.data.itinerary.find((row) => String(row.id) === String(id));
@@ -2736,43 +2755,50 @@
     return true;
   }
 
+  /** Drag a row by its grip. Listeners live on the document so the pointer can
+      leave the small grip without the drag dying. */
   function bindPlanRowDragging() {
     const table = $(".plan-table");
-    if (!table) return;
-    $$("[data-plan-drag]", table).forEach((handle) => {
+    if (!table || table.dataset.dragBound === "true") return;
+    table.dataset.dragBound = "true";
+    table.addEventListener("pointerdown", (event) => {
+      const handle = event.target.closest("[data-plan-drag]");
+      if (!handle) return;
+      event.preventDefault();
       const row = handle.closest("[data-plan-row]");
-      handle.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
-        const date = row.dataset.planDate;
-        const siblings = $$(`[data-plan-row][data-plan-date="${date}"]`, table);
-        if (siblings.length < 2) return;
-        handle.setPointerCapture(event.pointerId);
-        row.classList.add("dragging");
-        const move = (moveEvent) => {
-          const target = siblings.find((candidate) => {
-            if (candidate === row) return false;
-            const box = candidate.getBoundingClientRect();
-            return moveEvent.clientY > box.top && moveEvent.clientY < box.bottom;
-          });
-          if (!target) return;
-          const box = target.getBoundingClientRect();
-          const after = moveEvent.clientY > box.top + box.height / 2;
-          target.parentNode.insertBefore(row, after ? target.nextSibling : target);
-        };
-        const finish = async () => {
-          handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", finish); handle.removeEventListener("pointercancel", finish);
-          row.classList.remove("dragging");
-          const ordered = $$(`[data-plan-row][data-plan-date="${date}"]`, table)
-            .map((element, index) => {
-              const record = state.data.itinerary.find((candidate) => String(candidate.id) === element.dataset.planRow);
-              if (record) record.sortOrder = (index + 1) * 10;
-              return record;
-            }).filter(Boolean);
-          if (await persistPlanOrder(ordered)) { render(); updatePrintArea(); toast("Day order saved"); }
-          else render();
-        };
-        handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", finish); handle.addEventListener("pointercancel", finish);
-      });
+      const date = row.dataset.planDate;
+      const siblings = () => [...table.querySelectorAll(`[data-plan-row][data-plan-date="${date}"]`)];
+      if (siblings().length < 2) return;
+      row.classList.add("dragging");
+      document.body.classList.add("plan-dragging");
+      const move = (moveEvent) => {
+        const target = siblings().find((candidate) => {
+          if (candidate === row) return false;
+          const box = candidate.getBoundingClientRect();
+          return moveEvent.clientY >= box.top && moveEvent.clientY <= box.bottom;
+        });
+        if (!target) return;
+        const box = target.getBoundingClientRect();
+        const after = moveEvent.clientY > box.top + box.height / 2;
+        target.parentNode.insertBefore(row, after ? target.nextSibling : target);
+      };
+      const finish = async () => {
+        document.removeEventListener("pointermove", move);
+        document.removeEventListener("pointerup", finish);
+        document.removeEventListener("pointercancel", finish);
+        row.classList.remove("dragging");
+        document.body.classList.remove("plan-dragging");
+        const changed = siblings().map((element, index) => {
+          const record = state.data.itinerary.find((candidate) => String(candidate.id) === element.dataset.planRow);
+          if (record) record.sortOrder = (index + 1) * 10;
+          return record;
+        }).filter(Boolean);
+        render();
+        if (await persistPlanOrder(changed)) { updatePrintArea(); toast("Day order saved"); }
+      };
+      document.addEventListener("pointermove", move);
+      document.addEventListener("pointerup", finish);
+      document.addEventListener("pointercancel", finish);
     });
   }
 })();
