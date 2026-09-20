@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.9.8";
+  const frontendVersion = "4.10.1";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -615,8 +615,40 @@
   }
 
   function renderItinerary() {
-    const items = [...state.data.itinerary].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
-    return `${heading("DAY BY DAY", "Trip itinerary", "Plan each day and keep the group organised.", "plan")}<div class="filter-row"><button class="active">All days</button>${[...new Set(items.map((item) => item.date))].map((date) => `<button>${displayDate(date, { weekday: "short", day: "numeric" })}</button>`).join("")}</div><div class="plan-list">${items.map((item) => `<article class="plan-item"><span class="date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b></span><time>${displayTime(item.time)}</time><div><h3>${esc(item.title)}</h3><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">⌖ ${esc(item.place)}</a><p>${esc(item.notes || "")}</p></div><span class="record-actions">${canEditRecords("Itinerary") ? `<button class="edit-control" data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control" data-delete data-sheet="Itinerary" data-id="${esc(item.id)}">Delete</button>` : ""}</span></article>`).join("") || `<div class="empty-trip-members"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}</div>`;
+    const items = [...state.data.itinerary].sort((a, b) => `${a.date || ""}${a.time || ""}`.localeCompare(`${b.date || ""}${b.time || ""}`));
+    const days = [...new Set(items.map((item) => item.date).filter(Boolean))];
+    const canEdit = canEditRecords("Itinerary");
+    let lastDate = null;
+    const rows = items.map((item) => {
+      const dayBreak = item.date !== lastDate
+        ? `<div class="plan-day-row"><b>${displayDate(item.date, { weekday: "long", day: "numeric", month: "short" })}</b><small>Day ${days.indexOf(item.date) + 1} of ${days.length}</small></div>`
+        : "";
+      lastDate = item.date;
+      if (String(state.planRowEditId) === String(item.id)) return dayBreak + renderPlanRowEditor(item);
+      const actions = `${canEdit ? `<button class="row-edit" data-row-edit-plan="${esc(item.id)}">Row edit</button><button data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete" data-delete data-sheet="Itinerary" data-id="${esc(item.id)}">Delete</button>` : ""}`;
+      const mapLink = item.place ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">⌖ ${esc(item.place)}</a>` : `<span class="plan-muted">Not set</span>`;
+      return `${dayBreak}<div class="plan-row"><span class="plan-cell-day"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit", month: "short" })}</b></span><span class="plan-cell-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="plan-cell-title"><b>${esc(item.title)}</b></span><span class="plan-cell-place">${mapLink}</span><span class="plan-cell-remark">${esc(item.notes || "—")}</span><span class="plan-row-actions">${actions}</span></div>`;
+    }).join("");
+    return `${heading("DAY BY DAY", "Trip itinerary", "Plan each day in one row. Use Row edit for a quick change, Edit for every field.", "plan")}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${items.length} ${items.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}.</p></div>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</div><div class="plan-table"><div class="plan-table-header"><span>DAY</span><span>TIME</span><span>ITINERARY</span><span>PLACE</span><span>REMARK</span><span>ACTIONS</span></div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}</div></section>`;
+  }
+
+  function renderPlanRowEditor(item) {
+    return `<form class="plan-row plan-row-editing" data-plan-row-form="${esc(item.id)}"><label><small>DAY</small><input name="date" type="date" value="${esc(item.date)}" required></label><label><small>TIME</small><input name="time" type="time" value="${esc(item.time || "")}"></label><label><small>ITINERARY</small><input name="title" maxlength="180" value="${esc(item.title)}" required></label><label><small>PLACE</small><input name="place" maxlength="180" value="${esc(item.place || "")}"></label><label><small>REMARK</small><input name="notes" maxlength="500" value="${esc(item.notes || "")}" placeholder="Booking reference, who arranges it, what to carry"></label><span class="plan-row-actions editing"><button class="save" type="submit">Save row</button><button type="button" data-cancel-plan-row>Cancel</button></span></form>`;
+  }
+
+  async function savePlanRow(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const id = form.dataset.planRowForm;
+    const item = state.data.itinerary.find((row) => String(row.id) === String(id));
+    if (!item || !canEditRecords("Itinerary")) return toast("Itinerary editing is not allowed for this account", true);
+    const update = Object.fromEntries(new FormData(form).entries());
+    const submit = form.querySelector('button[type="submit"]');
+    submit.disabled = true; submit.textContent = "Saving…";
+    try {
+      if (!state.demoMode) await api("updateRecord", authPayload({ sheet: "Itinerary", id, record: update }));
+      Object.assign(item, update); state.planRowEditId = ""; render(); hydrateShell(); updatePrintArea(); toast("Itinerary row saved to Google Sheet");
+    } catch (error) { submit.disabled = false; submit.textContent = "Save row"; toast(error.message, true); }
   }
 
   function renderExperiences() {
@@ -732,8 +764,9 @@
   function renderPrint() {
     if (!canPrintReports()) return `<section class="feature-locked"><i>▤</i><h2>Print & Export hidden</h2><p>The Administrator has not enabled this feature for your Traveller ID.</p></section>`;
     const planCard = canViewItinerary() || canViewExperiences() ? `<article class="print-card"><i>▦</i><h3>Itinerary & experiences</h3><p>Print the plan and experience notes currently available to you.</p><button data-print="plan">Print itinerary →</button></article>` : "";
+    const itineraryCard = canViewItinerary() ? `<article class="print-card"><i>▦</i><h3>Itinerary only</h3><p>A clean day-by-day table with a tick column — carry it before the trip for easy management.</p><button data-print="itinerary">Print itinerary →</button></article>` : "";
     const expenseCard = canViewExpenses() ? `<article class="print-card"><i>₹</i><h3>Expenses only</h3><p>Budget summary and every expense entry.</p><button data-print="expenses">Print expenses →</button></article>` : "";
-    return `${heading("READY FOR PAPER", "Print and export", "Create a clean A4 copy or save allowed reports as PDF.")}<div class="print-grid">${planCard}${expenseCard}<article class="print-card"><i>▤</i><h3>Available trip book</h3><p>Only the sections enabled by the Administrator are included.</p><button data-print="full">Print available sections →</button></article></div>`;
+    return `${heading("READY FOR PAPER", "Print and export", "Create a clean A4 copy or save allowed reports as PDF.")}<div class="print-grid">${itineraryCard}${planCard}${expenseCard}<article class="print-card"><i>▤</i><h3>Available trip book</h3><p>Only the sections enabled by the Administrator are included.</p><button data-print="full">Print available sections →</button></article></div>`;
   }
 
   function render() {
@@ -758,6 +791,8 @@
     if (button.hasAttribute("data-edit")) return showEditRecord(button.dataset.sheet, button.dataset.id);
     if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
     if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
+    if (button.dataset.rowEditPlan) { state.planRowEditId = button.dataset.rowEditPlan; return render(); }
+    if (button.hasAttribute("data-cancel-plan-row")) { state.planRowEditId = ""; return render(); }
     if (button.hasAttribute("data-cancel-expense-row")) { state.expenseRowEditId = ""; return render(); }
     if (button.dataset.deleteExpense) return showDeleteExpenseConfirmation(button.dataset.deleteExpense);
     if (button.dataset.givePin) return showAddTravellersToCurrentTrip(state.data.members.find((member) => String(member.id) === String(button.dataset.givePin)));
@@ -781,6 +816,7 @@
 
   function handleViewSubmit(event) {
     if (event.target.matches("[data-expense-row-form]")) saveExpenseRow(event);
+    if (event.target.matches("[data-plan-row-form]")) savePlanRow(event);
   }
 
   function openMap(query) { window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer"); }
@@ -1199,7 +1235,7 @@
     if (!note) return;
     const field = element.dataset.stickyField;
     const placeholder = field === "body" ? "Tap to add details" : "";
-    const next = (element.innerText || element.textContent || "").replace(/\u00a0/g, " ").replace(/\s+$/, "").replace(/^[ \t]+/, "");
+    const next = (element.innerText || element.textContent || "").replace(/\u00a0/g, " ").replace(/\r\n?/g, "\n").replace(/\n+$/, "");
     const clean = next === placeholder ? "" : next;
     const previous = field === "title" ? note.title : note.body;
     if (clean === previous) return;
@@ -2179,7 +2215,8 @@
     const printedTravellerTotals = expenseTotalsByTraveller().map((row) => `<tr><td>${esc(row.name)}</td><td>${row.count}</td><td>${money.format(row.total)}</td></tr>`).join("");
     const photo = tripPhotoUrl(state.data.trip.photoUrl);
     const memberText = canViewTravellers() ? ` · ${members.length} trip members` : "";
-    const planSection = canViewItinerary() ? `<section class="print-plan"><h2>Itinerary</h2>${[...state.data.itinerary].sort((a,b)=>`${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).map((item) => `<article><time>${displayDate(item.date, { weekday:"short", day:"2-digit", month:"short" })} · ${displayTime(item.time)}</time><div><h3>${esc(item.title)}</h3><span>${esc(item.place)}</span><p>${esc(item.notes || "")}</p></div></article>`).join("") || `<p>No itinerary items were added.</p>`}</section>` : "";
+    const printedPlans = [...state.data.itinerary].sort((a,b)=>`${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).map((item) => `<tr><td>${displayDate(item.date, { weekday:"short", day:"2-digit", month:"short" })}</td><td>${item.time ? displayTime(item.time) : "Any time"}</td><td><b>${esc(item.title)}</b></td><td>${esc(item.place || "—")}</td><td>${esc(item.notes || "—")}</td><td class="print-tick"></td></tr>`).join("");
+    const planSection = canViewItinerary() ? `<section class="print-plan"><h2>Itinerary</h2><table class="print-plan-table"><thead><tr><th>Day</th><th>Time</th><th>Itinerary</th><th>Place</th><th>Remark</th><th class="print-tick">✓</th></tr></thead><tbody>${printedPlans || `<tr><td colspan="6">No itinerary items were added.</td></tr>`}</tbody></table></section>` : "";
     const experienceSection = canViewExperiences() ? `<section class="print-experiences"><h2>Trip experience notes</h2>${printedExperiences || `<p>No experience notes were added.</p>`}</section>` : "";
     const expenseSection = canViewExpenses() ? `<section class="print-expenses"><h2>Expense statement</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div><div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div><h3>Detailed expense statement</h3><table><thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${state.data.expenses.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label)}</td><td>${esc(expense.category)}</td><td>${esc(expense.paidBy)}</td><td>${money.format(expense.amount)}</td></tr>`).join("")}</tbody></table></section>` : "";
     $("#printArea").innerHTML = `${photo ? `<img class="print-cover-photo" src="${esc(photo)}" alt="Trip cover photo">` : ""}<header><div><span class="kicker">MYTRIP · TRIP BOOK · FRONTEND v${frontendVersion}</span><h1>${esc(state.data.trip.name)}</h1><p>${displayDate(state.data.trip.startDate)}–${displayDate(state.data.trip.endDate)}${memberText}</p></div><b>${esc(state.data.trip.tripId)}</b></header>${planSection}${experienceSection}${expenseSection}`;
@@ -2188,7 +2225,7 @@
 
   function updatePrintArea(force = false) { printAreaDirty = true; if (force) buildPrintArea(); }
 
-  function printReport(target) { if (!canPrintReports()) return toast("Print & Export is hidden for your Traveller ID", true); if (target === "expenses" && !canViewExpenses()) return toast("Expense access is hidden for your Traveller ID", true); document.body.dataset.print = target; if (printAreaDirty) buildPrintArea(); const clear = () => { delete document.body.dataset.print; removeEventListener("afterprint", clear); }; addEventListener("afterprint", clear); print(); setTimeout(clear, 1200); }
+  function printReport(target) { if (!canPrintReports()) return toast("Print & Export is hidden for your Traveller ID", true); if ((target === "itinerary" || target === "plan") && !canViewItinerary()) return toast("Itinerary access is hidden for your Traveller ID", true); if (target === "expenses" && !canViewExpenses()) return toast("Expense access is hidden for your Traveller ID", true); document.body.dataset.print = target; if (printAreaDirty) buildPrintArea(); const clear = () => { delete document.body.dataset.print; removeEventListener("afterprint", clear); }; addEventListener("afterprint", clear); print(); setTimeout(clear, 1200); }
 
   async function refreshTrip() {
     if (state.demoMode) return toast("Demo data is already up to date");
