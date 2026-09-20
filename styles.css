@@ -932,3 +932,18 @@ img{max-width:100%}
   .print-note-lines i{display:block;height:13px;border-bottom:1px dotted #aab6c0}
   body.print-plan-nowrap .print-day-head td,body.print-plan-nowrap .print-note-lines td{white-space:normal}
 }
+
+/* v4.14 personal trip order */
+.trip-library-card{position:relative}
+.trip-order-controls{position:absolute;top:10px;right:10px;display:flex;align-items:center;gap:4px;z-index:2}
+.trip-order-controls b{font-size:9px;font-weight:950;letter-spacing:.05em;color:#9aa6b3}
+.trip-order-controls button{width:24px;height:24px;border:1px solid var(--line);border-radius:7px;background:#fff;color:#5d6f80;font-size:11px;font-weight:900;line-height:1;cursor:pointer}
+.trip-order-controls button:hover:not(:disabled){border-color:#2f7d72;color:#2f7d72}
+.trip-order-controls button:disabled{opacity:.35;cursor:not-allowed}
+
+/* v4.14.1 hide a trip from your own library */
+.trip-order-controls{right:44px}
+.trip-hide-button{position:absolute;top:10px;right:10px;width:26px;height:26px;z-index:2;border:1px solid var(--line);border-radius:7px;background:#fff;color:#8b97a6;font-size:12px;line-height:1;cursor:pointer}
+.trip-hide-button:hover{border-color:#2f7d72;color:#2f7d72}
+.trip-hide-button.hidden-on{border-color:#e0c9a8;background:#fdf6ea;color:#8a5f16}
+.secondary-action.on{border-color:#cfe3df;background:#f2f9f7;color:#2f7d72}
