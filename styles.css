@@ -878,3 +878,57 @@ img{max-width:100%}
   body.print-plan-nowrap .print-plan-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   body.print-plan-nowrap .print-plan-table{table-layout:auto}
 }
+
+
+/* v4.12 drag-resizable itinerary columns + print layout options */
+.plan-table{--plan-col-0:76px;--plan-col-1:74px;--plan-col-2:230px;--plan-col-3:180px;--plan-col-4:250px;overflow-x:auto}
+.plan-table-header,.plan-row{grid-template-columns:var(--plan-col-0) var(--plan-col-1) var(--plan-col-2) var(--plan-col-3) var(--plan-col-4) minmax(120px,1fr)}
+.plan-table-header span{position:relative;padding-right:10px}
+.plan-col-grip{position:absolute;top:-10px;right:-6px;bottom:-10px;width:12px;cursor:col-resize;display:block}
+.plan-col-grip::after{content:"";position:absolute;top:6px;bottom:6px;left:5px;width:2px;border-radius:2px;background:#d3dde3}
+.plan-col-grip:hover::after{background:#2f7d72;width:3px}
+.plan-table.resizing{user-select:none;cursor:col-resize}
+.plan-table.resizing .plan-col-grip::after{background:#2f7d72}
+.plan-seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.plan-seg button{border:0;border-right:1px solid var(--line);background:#fff;color:#7a8997;padding:8px 10px;font-size:10px;font-weight:900;cursor:pointer}
+.plan-seg button:last-child{border-right:0}
+.plan-seg button.on{background:#f2f9f7;color:#2f7d72}
+.plan-seg button:hover{color:#2f7d72}
+@media(max-width:1180px){.plan-table{--plan-col-0:auto}.plan-col-grip{display:none}}
+@media print{
+  .print-plan-table td{text-align:var(--print-plan-align,left)}
+  .print-plan-table th{text-align:var(--print-plan-align,left)}
+  .print-plan-table td.print-tick,.print-plan-table th.print-tick{text-align:center}
+}
+
+
+/* v4.13 planner chips, drag handles, richer print */
+.plan-cell-day{display:flex;align-items:flex-start;gap:6px}
+.plan-cell-day>span{display:grid;gap:1px}
+.plan-drag{color:#b7c3cc;font-size:13px;font-style:normal;cursor:grab;line-height:1;padding-top:2px;touch-action:none}
+.plan-drag:hover{color:#2f7d72}
+.plan-row.dragging{opacity:.65;background:#eef6f5;box-shadow:0 8px 20px -12px rgba(16,42,67,.5)}
+.plan-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.plan-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--chip),#fff 86%);color:color-mix(in srgb,var(--chip),#1b2b3a 25%);font-size:9px;font-style:normal;font-weight:900;letter-spacing:.04em}
+.plan-chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--chip)}
+.plan-status{padding:2px 8px;border-radius:999px;border:1px solid #d9e0e7;background:#fff;color:#6b7a88;font-size:9px;font-style:normal;font-weight:900}
+.plan-status.status-booked{border-color:#bfe3d6;background:#eefaf5;color:#0a6650}
+.plan-status.status-paid{border-color:#cfe0f3;background:#eff6fd;color:#175584}
+.plan-status.status-done{border-color:#dcd7f3;background:#f4f2fd;color:#463398}
+.plan-status.status-to-book{border-color:#f3dfc2;background:#fdf6ea;color:#8a5f16}
+.plan-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.plan-ref,.plan-cost{font-size:9px;font-weight:900;letter-spacing:.04em;color:#7a8997}
+.plan-cost{color:#2f7d72}
+.plan-day-tools{display:flex;gap:6px;flex-wrap:wrap}
+.plan-filter-row{margin-bottom:12px}
+.plan-row-actions button[data-duplicate-plan]{font-size:12px;padding:6px 8px}
+@media print{
+  .print-day-head td{background:#eef3f6;padding:5px 7px;border:1px solid #c9d2da}
+  .print-day-head b{font-size:calc(var(--print-plan-font,9px) + 1px)}
+  .print-day-head span{margin-left:8px;color:#5a6774;font-size:var(--print-plan-font,9px)}
+  .print-tag{display:block;margin-top:2px;color:#5a6774;font-size:calc(var(--print-plan-font,9px) - 1px)}
+  .print-note-lines td{padding:6px 7px;border:1px solid #c9d2da}
+  .print-note-lines span{font-size:calc(var(--print-plan-font,9px) - 1px);color:#8b97a6;letter-spacing:.06em}
+  .print-note-lines i{display:block;height:13px;border-bottom:1px dotted #aab6c0}
+  body.print-plan-nowrap .print-day-head td,body.print-plan-nowrap .print-note-lines td{white-space:normal}
+}

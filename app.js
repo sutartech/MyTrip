@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.11.2";
+  const frontendVersion = "4.13.0";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -201,7 +201,7 @@
   async function verifyBackendVersion(url = apiUrl) {
     const info = await requestAt(url, "ping");
     backendVersion = String(info && info.version || "");
-    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true) throw backendUpgradeError(backendVersion);
+    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true) throw backendUpgradeError(backendVersion);
     return info;
   }
 
@@ -614,105 +614,56 @@
     return `${renderJourneyStage(today)}<section class="quick-actions overview-primary-actions" aria-label="Quick actions">${planQuickAction}${expenseQuickAction}${placeQuickAction}${peopleQuickAction}${experienceQuickAction}${printQuickAction}</section>${cover}<section class="stats"><article class="stat"><i>◫</i><div><small>TRIP LENGTH</small><strong>${nights()} nights</strong><span>${displayDate(state.data.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(state.data.trip.endDate, { day: "numeric", month: "short" })}</span></div></article>${expenseStat}${placeStat}${peopleStat}${notesStat}</section><section class="main-grid overview-grid ${canViewExpenses() ? "" : "no-expenses"}">${itineraryPanel}${expensePanels}</section>`;
   }
 
+  const planCategories = ["Travel", "Stay", "Food", "Sightseeing", "Activity", "Other"];
+  const planStatuses = ["To book", "Booked", "Paid", "Done"];
+  const planCategoryTint = { Travel: "#3b8ccc", Stay: "#7a61e0", Food: "#e2647c", Sightseeing: "#1da483", Activity: "#e3a029", Other: "#7a8997" };
+
+  function planSortValue(item) {
+    return [String(item.date || ""), String(Number(item.sortOrder || 0)).padStart(6, "0"), String(item.time || "")].join("|");
+  }
+  function sortedPlans() {
+    return [...state.data.itinerary].sort((a, b) => planSortValue(a).localeCompare(planSortValue(b)));
+  }
+  function planCost(item) { return Number(item.cost) > 0 ? Number(item.cost) : 0; }
+
   function renderItinerary() {
-    const items = [...state.data.itinerary].sort((a, b) => `${a.date || ""}${a.time || ""}`.localeCompare(`${b.date || ""}${b.time || ""}`));
-    const days = [...new Set(items.map((item) => item.date).filter(Boolean))];
+    const all = sortedPlans();
+    const days = [...new Set(all.map((item) => item.date).filter(Boolean))];
+    if (state.planDayFilter && !days.includes(state.planDayFilter)) state.planDayFilter = "";
+    const items = state.planDayFilter ? all.filter((item) => item.date === state.planDayFilter) : all;
     const canEdit = canEditRecords("Itinerary");
+    const plannedTotal = all.reduce((sum, item) => sum + planCost(item), 0);
+
+    const filterRow = `<div class="filter-row plan-filter-row"><button class="${state.planDayFilter ? "" : "active"}" data-plan-day="">All days</button>${days.map((date, index) => `<button class="${state.planDayFilter === date ? "active" : ""}" data-plan-day="${esc(date)}">Day ${index + 1} · ${displayDate(date, { day: "numeric", month: "short" })}</button>`).join("")}</div>`;
+
     let lastDate = null;
     const rows = items.map((item) => {
-      const dayBreak = item.date !== lastDate
-        ? `<div class="plan-day-row"><b>${displayDate(item.date, { weekday: "long", day: "numeric", month: "short" })}</b><small>Day ${days.indexOf(item.date) + 1} of ${days.length}</small>${canAdd("plan") ? `<button type="button" data-add-plan-row="${esc(item.date)}">＋ Add row to this day</button>` : ""}</div>`
-        : "";
+      let dayBreak = "";
+      if (item.date !== lastDate) {
+        const dayItems = all.filter((row) => row.date === item.date);
+        const dayCost = dayItems.reduce((sum, row) => sum + planCost(row), 0);
+        dayBreak = `<div class="plan-day-row"><b>${displayDate(item.date, { weekday: "long", day: "numeric", month: "short" })}</b><small>Day ${days.indexOf(item.date) + 1} of ${days.length} · ${dayItems.length} ${dayItems.length === 1 ? "plan" : "plans"}${dayCost ? " · " + money.format(dayCost) + " planned" : ""}</small><span class="plan-day-tools">${canPrintReports() ? `<button type="button" data-print-day="${esc(item.date)}">▤ Print this day</button>` : ""}${canAdd("plan") ? `<button type="button" data-add-plan-row="${esc(item.date)}">＋ Add row</button>` : ""}</span></div>`;
+      }
       lastDate = item.date;
       if (String(state.planRowEditId) === String(item.id)) return dayBreak + renderPlanRowEditor(item);
       if (String(state.planRowDeleteId) === String(item.id)) return dayBreak + `<div class="plan-row plan-row-deleting"><span class="plan-delete-message"><b>Delete “${esc(item.title)}”?</b><small>${displayDate(item.date, { weekday: "short", day: "numeric", month: "short" })}${item.time ? " · " + esc(displayTime(item.time)) : ""} · removed for everyone</small></span><span class="plan-row-actions"><button class="delete" data-confirm-plan-delete="${esc(item.id)}">Yes, delete row</button><button type="button" data-cancel-plan-delete>Keep row</button></span></div>`;
-      const actions = `${canEdit ? `<button class="row-edit" data-row-edit-plan="${esc(item.id)}">Row edit</button><button data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}`;
+
+      const actions = `${canEdit ? `<button class="row-edit" data-row-edit-plan="${esc(item.id)}">Row edit</button>` : ""}${canAdd("plan") ? `<button data-duplicate-plan="${esc(item.id)}" title="Duplicate this row">⧉</button>` : ""}${canEdit ? `<button data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}`;
       const mapLink = item.place ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">⌖ ${esc(item.place)}</a>` : `<span class="plan-muted">Not set</span>`;
-      return `${dayBreak}<div class="plan-row"><span class="plan-cell-day"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit", month: "short" })}</b></span><span class="plan-cell-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="plan-cell-title"><b>${esc(item.title)}</b></span><span class="plan-cell-place">${mapLink}</span><span class="plan-cell-remark">${esc(item.notes || "—")}</span><span class="plan-row-actions">${actions}</span></div>`;
+      const category = item.category && planCategories.includes(item.category) ? item.category : "";
+      const chips = `${category ? `<em class="plan-chip" style="--chip:${planCategoryTint[category]}">${esc(category)}</em>` : ""}${item.status ? `<em class="plan-status status-${esc(String(item.status).toLowerCase().replace(/\s+/g, "-"))}">${esc(item.status)}</em>` : ""}`;
+      const meta = `${item.bookingRef ? `<small class="plan-ref">REF ${esc(item.bookingRef)}</small>` : ""}${planCost(item) ? `<small class="plan-cost">${money.format(planCost(item))}</small>` : ""}`;
+      const handle = canEdit ? `<i class="plan-drag" data-plan-drag="${esc(item.id)}" title="Drag to reorder inside this day">⠿</i>` : "";
+      return `${dayBreak}<div class="plan-row" draggable="false" data-plan-row="${esc(item.id)}" data-plan-date="${esc(item.date)}"><span class="plan-cell-day">${handle}<span><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit", month: "short" })}</b></span></span><span class="plan-cell-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="plan-cell-title"><b>${esc(item.title)}</b>${chips ? `<span class="plan-chips">${chips}</span>` : ""}</span><span class="plan-cell-place">${mapLink}${meta ? `<span class="plan-meta">${meta}</span>` : ""}</span><span class="plan-cell-remark">${esc(item.notes || "—")}</span><span class="plan-row-actions">${actions}</span></div>`;
     }).join("");
+
     const newRow = canAdd("plan")
       ? (state.planAddDate
-        ? renderPlanRowEditor({ id: "", date: state.planAddDate, time: "", title: "", place: "", notes: "" }, true)
-        : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
+        ? renderPlanRowEditor({ id: "", date: state.planAddDate, time: "", title: "", place: "", notes: "", category: "", status: "To book", bookingRef: "", cost: "" }, true)
+        : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.planDayFilter || state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
       : "";
-    return `${heading("DAY BY DAY", "Trip itinerary", "Plan each day in one row. Use Row edit for a quick change, Edit for every field.", "plan")}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${items.length} ${items.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}.</p></div><span class="plan-table-tools"><span class="plan-width-control print-width-control"><small>PRINT SIZE</small><button type="button" data-print-width="-1" aria-label="Smaller print rows">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger print rows">＋</button></span><button type="button" class="plan-wrap-toggle${printPlanWrap() ? " on" : ""}" data-print-wrap>${printPlanWrap() ? "↵ Wrap text: on" : "↵ Wrap text: off"}</button><span class="plan-width-control"><small>REMARK WIDTH</small><button type="button" data-plan-width="-1" aria-label="Narrower remark column">−</button><b id="planWidthValue">${planRemarkWidth().toFixed(1)}×</b><button type="button" data-plan-width="1" aria-label="Wider remark column">＋</button></span>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="--plan-remark:${planRemarkWidth()}fr"><div class="plan-table-header"><span>DAY</span><span>TIME</span><span>ITINERARY</span><span>PLACE</span><span>REMARK</span><span>ACTIONS</span></div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
-  }
 
-  const planWidthKey = "mytrip_plan_remark_width_v1";
-  function planRemarkWidth() {
-    const stored = Number(localStorage.getItem(planWidthKey));
-    return Number.isFinite(stored) && stored >= 0.6 && stored <= 4 ? stored : 1.6;
-  }
-  function stepPlanWidth(direction) {
-    const next = Math.min(4, Math.max(0.6, Math.round((planRemarkWidth() + direction * 0.4) * 10) / 10));
-    try { localStorage.setItem(planWidthKey, String(next)); } catch {}
-    render();
-  }
-
-  async function deletePlanRow(id) {
-    if (!isAdmin()) return toast("Administrator access is required to delete an itinerary row", true);
-    try {
-      if (!state.demoMode) await api("deleteRecord", authPayload({ sheet: "Itinerary", id }));
-      state.data.itinerary = state.data.itinerary.filter((row) => String(row.id) !== String(id));
-      state.planRowDeleteId = ""; render(); hydrateShell(); updatePrintArea(); toast("Itinerary row deleted for everyone");
-    } catch (error) { toast(error.message, true); }
-  }
-
-  const printWidthKey = "mytrip_print_plan_scale_v1";
-  const printWrapKey = "mytrip_print_plan_wrap_v1";
-  function printPlanScale() {
-    const stored = Number(localStorage.getItem(printWidthKey));
-    return Number.isFinite(stored) && stored >= 7 && stored <= 13 ? stored : 9;
-  }
-  function printPlanWrap() { return localStorage.getItem(printWrapKey) !== "off"; }
-  function applyPrintPlanSettings() {
-    document.body.style.setProperty("--print-plan-font", `${printPlanScale()}px`);
-    document.body.classList.toggle("print-plan-nowrap", !printPlanWrap());
-  }
-  function stepPrintWidth(direction) {
-    const next = Math.min(13, Math.max(7, printPlanScale() + direction));
-    try { localStorage.setItem(printWidthKey, String(next)); } catch {}
-    applyPrintPlanSettings(); render();
-  }
-  function togglePrintWrap() {
-    try { localStorage.setItem(printWrapKey, printPlanWrap() ? "off" : "on"); } catch {}
-    applyPrintPlanSettings(); render();
-    toast(printPlanWrap() ? "Printed rows will wrap onto several lines" : "Printed rows kept to one line each");
-  }
-
-  function renderPlanRowEditor(item, isNew = false) {
-    return `<form class="plan-row plan-row-editing${isNew ? " plan-row-new" : ""}" data-plan-row-form="${esc(item.id)}"${isNew ? ' data-plan-row-new="true"' : ""}>${isNew ? `<span class="plan-new-flag">NEW ROW</span>` : ""}<label><small>DAY</small><input name="date" type="date" value="${esc(item.date)}" required></label><label><small>TIME</small><input name="time" type="time" value="${esc(item.time || "")}"></label><label><small>ITINERARY</small><input name="title" maxlength="180" value="${esc(item.title)}" required></label><label><small>PLACE</small><input name="place" maxlength="180" value="${esc(item.place || "")}"></label><label><small>REMARK</small><input name="notes" maxlength="500" value="${esc(item.notes || "")}" placeholder="Booking reference, who arranges it, what to carry"></label><span class="plan-row-actions editing"><button class="save" type="submit">Save row</button><button type="button" data-cancel-plan-row>Cancel</button>${!isNew && isAdmin() ? `<button type="button" class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}</span></form>`;
-  }
-
-  async function savePlanRow(event) {
-    event.preventDefault();
-    const form = event.target.closest("[data-plan-row-form]");
-    if (!form) return;
-    const id = form.dataset.planRowForm;
-    const update = Object.fromEntries(new FormData(form).entries());
-    const submit = form.querySelector('button[type="submit"]');
-    const isNew = form.dataset.planRowNew === "true";
-
-    if (isNew) {
-      if (!canAdd("plan")) return toast("Adding itinerary rows is not allowed for this account", true);
-      const record = { id: uid(), ...update, createdBy: state.currentUser };
-      submit.disabled = true; submit.textContent = "Saving…";
-      try {
-        if (!state.demoMode) await api("addPlan", authPayload({ record }));
-        state.data.itinerary.push(record);
-        state.planAddDate = record.date;
-        render(); hydrateShell(); updatePrintArea(); toast("Itinerary row added for everyone");
-      } catch (error) { submit.disabled = false; submit.textContent = "Save row"; toast(error.message, true); }
-      return;
-    }
-
-    const item = state.data.itinerary.find((row) => String(row.id) === String(id));
-    if (!item || !canEditRecords("Itinerary")) return toast("Itinerary editing is not allowed for this account", true);
-    submit.disabled = true; submit.textContent = "Saving…";
-    try {
-      if (!state.demoMode) await api("updateRecord", authPayload({ sheet: "Itinerary", id, record: update }));
-      Object.assign(item, update); state.planRowEditId = ""; render(); hydrateShell(); updatePrintArea(); toast("Itinerary row saved to Google Sheet");
-    } catch (error) { submit.disabled = false; submit.textContent = "Save row"; toast(error.message, true); }
+    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><span class="plan-width-control print-width-control"><small>PRINT SIZE</small><button type="button" data-print-width="-1" aria-label="Smaller print rows">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger print rows">＋</button></span><button type="button" class="plan-wrap-toggle${printPlanWrap() ? " on" : ""}" data-print-wrap>${printPlanWrap() ? "↵ Wrap text: on" : "↵ Wrap text: off"}</button><span class="plan-seg" role="group" aria-label="Print layout">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span><span class="plan-seg" role="group" aria-label="Print alignment">${[["left", "⇤"], ["center", "⇔"], ["right", "⇥"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align printed text ${value}">${label}</button>`).join("")}</span><button type="button" class="plan-wrap-toggle${printPlanLines() ? " on" : ""}" data-print-lines>${printPlanLines() ? "▤ Note lines: on" : "▤ Note lines: off"}</button><button type="button" class="plan-wrap-toggle" data-reset-plan-columns title="Restore the default column widths">⇔ Reset columns</button>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
   }
 
   function renderExperiences() {
@@ -838,6 +789,7 @@
     if (!state.data) return;
     const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint };
     $("#view").innerHTML = accessNotice() + renderers[state.tab]();
+    if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
   }
 
   function handleViewClick(event) {
@@ -856,12 +808,18 @@
     if (button.hasAttribute("data-edit")) return showEditRecord(button.dataset.sheet, button.dataset.id);
     if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
     if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
+    if (button.dataset.duplicatePlan) return duplicatePlanRow(button.dataset.duplicatePlan);
+    if (button.dataset.planDay !== undefined) { state.planDayFilter = button.dataset.planDay; return render(); }
+    if (button.dataset.printDay) return printReport("itinerary", button.dataset.printDay);
+    if (button.hasAttribute("data-print-lines")) return togglePrintLines();
     if (button.dataset.rowDeletePlan) { if (!isAdmin()) return toast("Administrator access is required to delete an itinerary row", true); state.planRowEditId = ""; state.planRowDeleteId = button.dataset.rowDeletePlan; return render(); }
     if (button.hasAttribute("data-cancel-plan-delete")) { state.planRowDeleteId = ""; return render(); }
     if (button.dataset.confirmPlanDelete) return deletePlanRow(button.dataset.confirmPlanDelete);
     if (button.dataset.printWidth) return stepPrintWidth(Number(button.dataset.printWidth));
+    if (button.dataset.printLayout) return setPrintLayout(button.dataset.printLayout);
+    if (button.dataset.printAlign) return setPrintAlign(button.dataset.printAlign);
+    if (button.hasAttribute("data-reset-plan-columns")) { savePlanColumns([...planColumnDefaults]); return render(); }
     if (button.hasAttribute("data-print-wrap")) return togglePrintWrap();
-    if (button.dataset.planWidth) return stepPlanWidth(Number(button.dataset.planWidth));
     if (button.dataset.rowEditPlan) { state.planRowEditId = button.dataset.rowEditPlan; return render(); }
     if (button.hasAttribute("data-cancel-plan-row")) { state.planRowEditId = ""; state.planAddDate = ""; return render(); }
     if (button.dataset.addPlanRow !== undefined) { if (!canAdd("plan")) return toast("Adding itinerary rows is not allowed for this account", true); state.planRowEditId = ""; state.planAddDate = button.dataset.addPlanRow || state.data.trip.startDate || localDateKey(); return render(); }
@@ -2303,8 +2261,25 @@
     const printedTravellerTotals = expenseTotalsByTraveller().map((row) => `<tr><td>${esc(row.name)}</td><td>${row.count}</td><td>${money.format(row.total)}</td></tr>`).join("");
     const photo = tripPhotoUrl(state.data.trip.photoUrl);
     const memberText = canViewTravellers() ? ` · ${members.length} trip members` : "";
-    const printedPlans = [...state.data.itinerary].sort((a,b)=>`${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).map((item) => `<tr><td>${displayDate(item.date, { weekday:"short", day:"2-digit", month:"short" })}</td><td>${item.time ? displayTime(item.time) : "Any time"}</td><td><b>${esc(item.title)}</b></td><td>${esc(item.place || "—")}</td><td>${esc(item.notes || "—")}</td><td class="print-tick"></td></tr>`).join("");
-    const planSection = canViewItinerary() ? `<section class="print-plan"><h2>Itinerary</h2><table class="print-plan-table"><thead><tr><th>Day</th><th>Time</th><th>Itinerary</th><th>Place</th><th>Remark</th><th class="print-tick">✓</th></tr></thead><tbody>${printedPlans || `<tr><td colspan="6">No itinerary items were added.</td></tr>`}</tbody></table></section>` : "";
+    const printPlans = sortedPlans().filter((item) => !state.printDay || item.date === state.printDay);
+    const printDays = [...new Set(printPlans.map((item) => item.date))];
+    const printWidths = planColumnWidths();
+    const printTotal = printWidths.reduce((sum, width) => sum + width, 0);
+    const printCols = printWidths.map((width) => `<col style="width:${Math.round(width / printTotal * 100)}%">`).join("") + '<col style="width:24px">';
+    const printedPlans = printDays.map((date) => {
+      const dayRows = printPlans.filter((item) => item.date === date);
+      const dayCost = dayRows.reduce((sum, item) => sum + planCost(item), 0);
+      const header = `<tr class="print-day-head"><td colspan="6"><b>${displayDate(date, { weekday: "long", day: "numeric", month: "long" })}</b><span>${dayRows.length} ${dayRows.length === 1 ? "plan" : "plans"}${dayCost ? " · " + money.format(dayCost) : ""}</span></td></tr>`;
+      const body = dayRows.map((item) => {
+        const tags = [item.category, item.status].filter(Boolean).join(" · ");
+        const extra = [item.bookingRef ? `Ref ${item.bookingRef}` : "", planCost(item) ? money.format(planCost(item)) : ""].filter(Boolean).join(" · ");
+        return `<tr><td>${displayDate(item.date, { weekday: "short", day: "2-digit", month: "short" })}</td><td>${item.time ? displayTime(item.time) : "Any time"}</td><td><b>${esc(item.title)}</b>${tags ? `<span class="print-tag">${esc(tags)}</span>` : ""}</td><td>${esc(item.place || "—")}${extra ? `<span class="print-tag">${esc(extra)}</span>` : ""}</td><td>${esc(item.notes || "—")}</td><td class="print-tick"></td></tr>`;
+      }).join("");
+      const lines = printPlanLines() ? `<tr class="print-note-lines"><td colspan="6"><span>Notes</span><i></i><i></i><i></i></td></tr>` : "";
+      return header + body + lines;
+    }).join("");
+    const planTitle = state.printDay ? `Itinerary · ${displayDate(state.printDay, { weekday: "long", day: "numeric", month: "long" })}` : "Itinerary";
+    const planSection = canViewItinerary() ? `<section class="print-plan"><h2>${esc(planTitle)}</h2><table class="print-plan-table"><colgroup>${printCols}</colgroup><thead><tr><th>Day</th><th>Time</th><th>Itinerary</th><th>Place</th><th>Remark</th><th class="print-tick">✓</th></tr></thead><tbody>${printedPlans || `<tr><td colspan="6">No itinerary items were added.</td></tr>`}</tbody></table></section>` : "";
     const experienceSection = canViewExperiences() ? `<section class="print-experiences"><h2>Trip experience notes</h2>${printedExperiences || `<p>No experience notes were added.</p>`}</section>` : "";
     const expenseSection = canViewExpenses() ? `<section class="print-expenses"><h2>Expense statement</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div><div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div><h3>Detailed expense statement</h3><table><thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${state.data.expenses.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label)}</td><td>${esc(expense.category)}</td><td>${esc(expense.paidBy)}</td><td>${money.format(expense.amount)}</td></tr>`).join("")}</tbody></table></section>` : "";
     $("#printArea").innerHTML = `${photo ? `<img class="print-cover-photo" src="${esc(photo)}" alt="Trip cover photo">` : ""}<header><div><span class="kicker">MYTRIP · TRIP BOOK · FRONTEND v${frontendVersion}</span><h1>${esc(state.data.trip.name)}</h1><p>${displayDate(state.data.trip.startDate)}–${displayDate(state.data.trip.endDate)}${memberText}</p></div><b>${esc(state.data.trip.tripId)}</b></header>${planSection}${experienceSection}${expenseSection}`;
@@ -2313,7 +2288,7 @@
 
   function updatePrintArea(force = false) { printAreaDirty = true; if (force) buildPrintArea(); }
 
-  function printReport(target) { if (!canPrintReports()) return toast("Print & Export is hidden for your Traveller ID", true); if ((target === "itinerary" || target === "plan") && !canViewItinerary()) return toast("Itinerary access is hidden for your Traveller ID", true); if (target === "expenses" && !canViewExpenses()) return toast("Expense access is hidden for your Traveller ID", true); document.body.dataset.print = target; if (printAreaDirty) buildPrintArea(); const clear = () => { delete document.body.dataset.print; removeEventListener("afterprint", clear); }; addEventListener("afterprint", clear); print(); setTimeout(clear, 1200); }
+  function printReport(target, day = "") { if (!canPrintReports()) return toast("Print & Export is hidden for your Traveller ID", true); if ((target === "itinerary" || target === "plan") && !canViewItinerary()) return toast("Itinerary access is hidden for your Traveller ID", true); if (target === "expenses" && !canViewExpenses()) return toast("Expense access is hidden for your Traveller ID", true); state.printDay = day; document.body.dataset.print = target; buildPrintArea(); const clear = () => { delete document.body.dataset.print; state.printDay = ""; printAreaDirty = true; removeEventListener("afterprint", clear); }; addEventListener("afterprint", clear); print(); setTimeout(clear, 1200); }
 
   async function refreshTrip() {
     if (state.demoMode) return toast("Demo data is already up to date");
@@ -2436,4 +2411,76 @@
   if (apiUrlReady()) scheduleBackgroundTask(() => ensureCurrentBackend().catch(() => {}));
   if ("serviceWorker" in navigator && location.protocol === "https:") scheduleBackgroundTask(() => navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }).catch(() => {}));
   const invitedTrip = inviteQuery.get("trip"); if (invitedTrip) $("#joinTripId").value = invitedTrip.toUpperCase();
-})();
+})();  function renderPlanRowEditor(item, isNew = false) {
+    const category = planCategories.includes(item.category) ? item.category : "";
+    const status = planStatuses.includes(item.status) ? item.status : (isNew ? "To book" : "");
+    return `<form class="plan-row plan-row-editing${isNew ? " plan-row-new" : ""}" data-plan-row-form="${esc(item.id)}"${isNew ? ' data-plan-row-new="true"' : ""}>${isNew ? `<span class="plan-new-flag">NEW ROW</span>` : ""}<label><small>DAY</small><input name="date" type="date" value="${esc(item.date)}" required></label><label><small>TIME</small><input name="time" type="time" value="${esc(item.time || "")}"></label><label><small>ITINERARY</small><input name="title" maxlength="180" value="${esc(item.title)}" placeholder="What happens" required></label><label><small>PLACE</small><input name="place" maxlength="180" value="${esc(item.place || "")}" placeholder="Where"></label><label><small>REMARK</small><input name="notes" maxlength="500" value="${esc(item.notes || "")}" placeholder="Booking detail, who arranges, what to carry"></label><label><small>CATEGORY</small><select name="category"><option value=""${category ? "" : " selected"}>—</option>${planCategories.map((value) => `<option${category === value ? " selected" : ""}>${value}</option>`).join("")}</select></label><label><small>STATUS</small><select name="status"><option value=""${status ? "" : " selected"}>—</option>${planStatuses.map((value) => `<option${status === value ? " selected" : ""}>${value}</option>`).join("")}</select></label><label><small>BOOKING REF</small><input name="bookingRef" maxlength="80" value="${esc(item.bookingRef || "")}" placeholder="PNR / confirmation"></label><label><small>COST (₹)</small><input name="cost" type="number" min="0" step="1" value="${esc(item.cost || "")}" placeholder="0"></label><span class="plan-row-actions editing"><button class="save" type="submit">Save row</button><button type="button" data-cancel-plan-row>Cancel</button>${!isNew && isAdmin() ? `<button type="button" class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}</span></form>`;
+  }
+
+  /** New rows land at the end of their day; duplicates sit right after their source. */
+  function nextPlanSortOrder(date) {
+    const dayRows = state.data.itinerary.filter((row) => row.date === date);
+    return dayRows.length ? Math.max(...dayRows.map((row) => Number(row.sortOrder || 0))) + 10 : 10;
+  }
+
+  async function duplicatePlanRow(id) {
+    if (!canAdd("plan")) return toast("Adding itinerary rows is not allowed for this account", true);
+    const source = state.data.itinerary.find((row) => String(row.id) === String(id));
+    if (!source) return toast("Itinerary row not found", true);
+    const record = { ...source, id: uid(), sortOrder: Number(source.sortOrder || 0) + 5, createdBy: state.currentUser };
+    try {
+      if (!state.demoMode) await api("addPlan", authPayload({ record }));
+      state.data.itinerary.push(record); render(); hydrateShell(); updatePrintArea(); toast("Row duplicated");
+    } catch (error) { toast(error.message, true); }
+  }
+
+  /** Saves the new running order after a drag, one row at a time. */
+  async function persistPlanOrder(rows) {
+    for (const row of rows) {
+      try { if (!state.demoMode) await api("updateRecord", authPayload({ sheet: "Itinerary", id: row.id, record: { sortOrder: row.sortOrder } })); }
+      catch (error) { toast(error.message, true); return false; }
+    }
+    return true;
+  }
+
+  function bindPlanRowDragging() {
+    const table = $(".plan-table");
+    if (!table) return;
+    $$("[data-plan-drag]", table).forEach((handle) => {
+      const row = handle.closest("[data-plan-row]");
+      handle.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        const date = row.dataset.planDate;
+        const siblings = $$(`[data-plan-row][data-plan-date="${date}"]`, table);
+        if (siblings.length < 2) return;
+        handle.setPointerCapture(event.pointerId);
+        row.classList.add("dragging");
+        const move = (moveEvent) => {
+          const target = siblings.find((candidate) => {
+            if (candidate === row) return false;
+            const box = candidate.getBoundingClientRect();
+            return moveEvent.clientY > box.top && moveEvent.clientY < box.bottom;
+          });
+          if (!target) return;
+          const box = target.getBoundingClientRect();
+          const after = moveEvent.clientY > box.top + box.height / 2;
+          target.parentNode.insertBefore(row, after ? target.nextSibling : target);
+        };
+        const finish = async () => {
+          handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", finish); handle.removeEventListener("pointercancel", finish);
+          row.classList.remove("dragging");
+          const ordered = $$(`[data-plan-row][data-plan-date="${date}"]`, table)
+            .map((element, index) => {
+              const record = state.data.itinerary.find((candidate) => String(candidate.id) === element.dataset.planRow);
+              if (record) record.sortOrder = (index + 1) * 10;
+              return record;
+            }).filter(Boolean);
+          if (await persistPlanOrder(ordered)) { render(); updatePrintArea(); toast("Day order saved"); }
+          else render();
+        };
+        handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", finish); handle.addEventListener("pointercancel", finish);
+      });
+    });
+  }
+
+
