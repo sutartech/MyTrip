@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.10.3";
+  const frontendVersion = "4.11.0";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -629,11 +629,22 @@
       const mapLink = item.place ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">⌖ ${esc(item.place)}</a>` : `<span class="plan-muted">Not set</span>`;
       return `${dayBreak}<div class="plan-row"><span class="plan-cell-day"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit", month: "short" })}</b></span><span class="plan-cell-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="plan-cell-title"><b>${esc(item.title)}</b></span><span class="plan-cell-place">${mapLink}</span><span class="plan-cell-remark">${esc(item.notes || "—")}</span><span class="plan-row-actions">${actions}</span></div>`;
     }).join("");
-    return `${heading("DAY BY DAY", "Trip itinerary", "Plan each day in one row. Use Row edit for a quick change, Edit for every field.", "plan")}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${items.length} ${items.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}.</p></div>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</div><div class="plan-table"><div class="plan-table-header"><span>DAY</span><span>TIME</span><span>ITINERARY</span><span>PLACE</span><span>REMARK</span><span>ACTIONS</span></div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}</div></section>`;
+    return `${heading("DAY BY DAY", "Trip itinerary", "Plan each day in one row. Use Row edit for a quick change, Edit for every field.", "plan")}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${items.length} ${items.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}.</p></div><span class="plan-table-tools"><span class="plan-width-control"><small>REMARK WIDTH</small><button type="button" data-plan-width="-1" aria-label="Narrower remark column">−</button><b id="planWidthValue">${planRemarkWidth().toFixed(1)}×</b><button type="button" data-plan-width="1" aria-label="Wider remark column">＋</button></span>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="--plan-remark:${planRemarkWidth()}fr"><div class="plan-table-header"><span>DAY</span><span>TIME</span><span>ITINERARY</span><span>PLACE</span><span>REMARK</span><span>ACTIONS</span></div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}</div></section>`;
+  }
+
+  const planWidthKey = "mytrip_plan_remark_width_v1";
+  function planRemarkWidth() {
+    const stored = Number(localStorage.getItem(planWidthKey));
+    return Number.isFinite(stored) && stored >= 0.6 && stored <= 4 ? stored : 1.6;
+  }
+  function stepPlanWidth(direction) {
+    const next = Math.min(4, Math.max(0.6, Math.round((planRemarkWidth() + direction * 0.4) * 10) / 10));
+    try { localStorage.setItem(planWidthKey, String(next)); } catch {}
+    render();
   }
 
   function renderPlanRowEditor(item) {
-    return `<form class="plan-row plan-row-editing" data-plan-row-form="${esc(item.id)}"><label><small>DAY</small><input name="date" type="date" value="${esc(item.date)}" required></label><label><small>TIME</small><input name="time" type="time" value="${esc(item.time || "")}"></label><label><small>ITINERARY</small><input name="title" maxlength="180" value="${esc(item.title)}" required></label><label><small>PLACE</small><input name="place" maxlength="180" value="${esc(item.place || "")}"></label><label><small>REMARK</small><input name="notes" maxlength="500" value="${esc(item.notes || "")}" placeholder="Booking reference, who arranges it, what to carry"></label><span class="plan-row-actions editing"><button class="save" type="submit">Save row</button><button type="button" data-cancel-plan-row>Cancel</button></span></form>`;
+    return `<form class="plan-row plan-row-editing" data-plan-row-form="${esc(item.id)}"><label><small>DAY</small><input name="date" type="date" value="${esc(item.date)}" required></label><label><small>TIME</small><input name="time" type="time" value="${esc(item.time || "")}"></label><label><small>ITINERARY</small><input name="title" maxlength="180" value="${esc(item.title)}" required></label><label><small>PLACE</small><input name="place" maxlength="180" value="${esc(item.place || "")}"></label><label><small>REMARK</small><input name="notes" maxlength="500" value="${esc(item.notes || "")}" placeholder="Booking reference, who arranges it, what to carry"></label><span class="plan-row-actions editing"><button class="save" type="submit">Save row</button><button type="button" data-cancel-plan-row>Cancel</button>${isAdmin() ? `<button type="button" class="delete" data-delete data-sheet="Itinerary" data-id="${esc(item.id)}">Delete</button>` : ""}</span></form>`;
   }
 
   async function savePlanRow(event) {
@@ -793,6 +804,7 @@
     if (button.hasAttribute("data-edit")) return showEditRecord(button.dataset.sheet, button.dataset.id);
     if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
     if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
+    if (button.dataset.planWidth) return stepPlanWidth(Number(button.dataset.planWidth));
     if (button.dataset.rowEditPlan) { state.planRowEditId = button.dataset.rowEditPlan; return render(); }
     if (button.hasAttribute("data-cancel-plan-row")) { state.planRowEditId = ""; return render(); }
     if (button.hasAttribute("data-cancel-expense-row")) { state.expenseRowEditId = ""; return render(); }

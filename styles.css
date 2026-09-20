@@ -817,3 +817,38 @@ img{max-width:100%}
   .print-plan-table th.print-tick,.print-plan-table td.print-tick{width:22px;text-align:center}
   .print-plan-table td.print-tick::before{content:"";display:inline-block;width:10px;height:10px;border:1px solid #6b7a88}
 }
+
+
+/* v4.11 itinerary table: fits the dashboard, wraps, adjustable remark width */
+.plan-table{min-width:0;--plan-remark:1.6fr}
+.plan-table-header,.plan-row{grid-template-columns:72px 68px minmax(120px,1.2fr) minmax(110px,1fr) minmax(120px,var(--plan-remark)) minmax(120px,auto);gap:10px;align-items:start}
+.plan-table-header{align-items:center}
+.plan-row{padding:11px 12px}
+.plan-cell-title b,.plan-cell-place a,.plan-cell-remark{overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap}
+.plan-cell-day,.plan-cell-time{padding-top:2px}
+.plan-row-actions{justify-content:flex-start}
+.plan-row-actions button{padding:6px 9px;font-size:10.5px}
+.plan-table-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.plan-width-control{display:flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.plan-width-control small{font-size:8px;font-weight:950;letter-spacing:.07em;color:#7a8997}
+.plan-width-control button{width:24px;height:24px;border:1px solid var(--line);border-radius:7px;background:#f6fafa;color:#2f7d72;font-size:13px;font-weight:900;line-height:1;cursor:pointer}
+.plan-width-control button:hover{border-color:#2f7d72}
+.plan-width-control b{min-width:22px;text-align:center;font-size:10px;font-weight:900;color:var(--navy)}
+.plan-row-editing{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.plan-row-editing .plan-row-actions{grid-column:1/-1;justify-content:flex-end}
+@media(max-width:1180px){
+  .plan-table-header{display:none}
+  .plan-row{grid-template-columns:76px 1fr;gap:6px 12px;padding:13px 12px}
+  .plan-cell-time{grid-column:2;font-size:12px}
+  .plan-cell-title,.plan-cell-place,.plan-cell-remark,.plan-row-actions{grid-column:2}
+  .plan-cell-remark::before{content:"Remark: ";font-weight:900;color:#7a8997;font-size:10px}
+}
+@media print{
+  .print-plan-table{table-layout:fixed}
+  .print-plan-table th:nth-child(1),.print-plan-table td:nth-child(1){width:15%}
+  .print-plan-table th:nth-child(2),.print-plan-table td:nth-child(2){width:11%}
+  .print-plan-table th:nth-child(3),.print-plan-table td:nth-child(3){width:24%}
+  .print-plan-table th:nth-child(4),.print-plan-table td:nth-child(4){width:20%}
+  .print-plan-table th:nth-child(5),.print-plan-table td:nth-child(5){width:26%}
+  .print-plan-table td{overflow-wrap:anywhere;word-break:break-word;hyphens:auto}
+}
