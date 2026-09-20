@@ -947,3 +947,22 @@ img{max-width:100%}
 .trip-hide-button:hover{border-color:#2f7d72;color:#2f7d72}
 .trip-hide-button.hidden-on{border-color:#e0c9a8;background:#fdf6ea;color:#8a5f16}
 .secondary-action.on{border-color:#cfe3df;background:#f2f9f7;color:#2f7d72}
+
+
+/* v4.15 no repeated day rows; a real done tick on screen and in print */
+.plan-row.day-start{border-top:2px solid #dbe6e4}
+.plan-same-day{font-size:9px;font-style:normal;font-weight:800;color:#b7c3cc;letter-spacing:.04em}
+.plan-tick{border:1px solid var(--line);border-radius:8px;background:#fff;color:#8b97a6;font-size:13px;line-height:1;padding:5px 8px;cursor:pointer}
+.plan-tick:hover{border-color:#2f7d72;color:#2f7d72}
+.plan-tick.on{border-color:#bfe3d6;background:#eefaf5;color:#0a6650}
+.plan-day-actions{display:inline-flex;gap:6px;margin-left:auto}
+.plan-day-actions button{border:1px solid #cfe3df;border-radius:9px;background:#f2f9f7;color:#2f7d72;padding:7px 10px;font-size:10.5px;font-weight:900;cursor:pointer}
+.plan-day-actions button:hover{border-color:#2f7d72}
+.plan-filter-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+@media print{
+  .print-day-start td{border-top:1.5px solid #8fa0ad}
+  .print-plan-table td:first-child b{white-space:nowrap}
+  .print-plan-table td.print-tick{font-size:calc(var(--print-plan-font,9px) + 2px)}
+  .print-plan-table td.print-tick::before{content:"";display:inline-block;width:10px;height:10px;border:1px solid #6b7a88}
+  .print-plan-table td.print-tick:not(:empty)::before{display:none}
+}

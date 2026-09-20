@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.14.3";
+  const frontendVersion = "4.15.0";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -727,27 +727,25 @@
     const canEdit = canEditRecords("Itinerary");
     const plannedTotal = all.reduce((sum, item) => sum + planCost(item), 0);
 
-    const filterRow = `<div class="filter-row plan-filter-row"><button class="${state.planDayFilter ? "" : "active"}" data-plan-day="">All days</button>${days.map((date, index) => `<button class="${state.planDayFilter === date ? "active" : ""}" data-plan-day="${esc(date)}">Day ${index + 1} · ${displayDate(date, { day: "numeric", month: "short" })}</button>`).join("")}</div>`;
+    const filterRow = `<div class="filter-row plan-filter-row"><button class="${state.planDayFilter ? "" : "active"}" data-plan-day="">All days</button>${days.map((date, index) => `<button class="${state.planDayFilter === date ? "active" : ""}" data-plan-day="${esc(date)}">Day ${index + 1} · ${displayDate(date, { day: "numeric", month: "short" })}</button>`).join("")}${state.planDayFilter ? `<span class="plan-day-actions">${canPrintReports() ? `<button type="button" data-print-day="${esc(state.planDayFilter)}">▤ Print this day</button>` : ""}${canAdd("plan") ? `<button type="button" data-add-plan-row="${esc(state.planDayFilter)}">＋ Add row to this day</button>` : ""}</span>` : ""}</div>`;
 
     let lastDate = null;
     const rows = items.map((item) => {
-      let dayBreak = "";
-      if (item.date !== lastDate) {
-        const dayItems = all.filter((row) => row.date === item.date);
-        const dayCost = dayItems.reduce((sum, row) => sum + planCost(row), 0);
-        dayBreak = `<div class="plan-day-row"><b>${displayDate(item.date, { weekday: "long", day: "numeric", month: "short" })}</b><small>Day ${days.indexOf(item.date) + 1} of ${days.length} · ${dayItems.length} ${dayItems.length === 1 ? "plan" : "plans"}${dayCost ? " · " + money.format(dayCost) + " planned" : ""}</small><span class="plan-day-tools">${canPrintReports() ? `<button type="button" data-print-day="${esc(item.date)}">▤ Print this day</button>` : ""}${canAdd("plan") ? `<button type="button" data-add-plan-row="${esc(item.date)}">＋ Add row</button>` : ""}</span></div>`;
-      }
+      const firstOfDay = item.date !== lastDate;
+      const dayBreak = "";
       lastDate = item.date;
       if (String(state.planRowEditId) === String(item.id)) return dayBreak + renderPlanRowEditor(item);
       if (String(state.planRowDeleteId) === String(item.id)) return dayBreak + `<div class="plan-row plan-row-deleting"><span class="plan-delete-message"><b>Delete “${esc(item.title)}”?</b><small>${displayDate(item.date, { weekday: "short", day: "numeric", month: "short" })}${item.time ? " · " + esc(displayTime(item.time)) : ""} · removed for everyone</small></span><span class="plan-row-actions"><button class="delete" data-confirm-plan-delete="${esc(item.id)}">Yes, delete row</button><button type="button" data-cancel-plan-delete>Keep row</button></span></div>`;
 
-      const actions = `${canEdit ? `<button class="row-edit" data-row-edit-plan="${esc(item.id)}">Row edit</button>` : ""}${canAdd("plan") ? `<button data-duplicate-plan="${esc(item.id)}" title="Duplicate this row">⧉</button>` : ""}${canEdit ? `<button data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}`;
+      const done = String(item.status || "") === "Done";
+      const tick = canEdit ? `<button class="plan-tick${done ? " on" : ""}" data-toggle-plan-done="${esc(item.id)}" title="${done ? "Mark as not done" : "Mark as done"}" aria-pressed="${done}">${done ? "☑" : "☐"}</button>` : "";
+      const actions = `${tick}${canEdit ? `<button class="row-edit" data-row-edit-plan="${esc(item.id)}">Row edit</button>` : ""}${canAdd("plan") ? `<button data-duplicate-plan="${esc(item.id)}" title="Duplicate this row">⧉</button>` : ""}${canEdit ? `<button data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}`;
       const mapLink = item.place ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">⌖ ${esc(item.place)}</a>` : `<span class="plan-muted">Not set</span>`;
       const category = item.category && planCategories.includes(item.category) ? item.category : "";
       const chips = `${category ? `<em class="plan-chip" style="--chip:${planCategoryTint[category]}">${esc(category)}</em>` : ""}${item.status ? `<em class="plan-status status-${esc(String(item.status).toLowerCase().replace(/\s+/g, "-"))}">${esc(item.status)}</em>` : ""}`;
       const meta = `${item.bookingRef ? `<small class="plan-ref">REF ${esc(item.bookingRef)}</small>` : ""}${planCost(item) ? `<small class="plan-cost">${money.format(planCost(item))}</small>` : ""}`;
       const handle = canEdit ? `<i class="plan-drag" data-plan-drag="${esc(item.id)}" title="Drag to reorder inside this day">⠿</i>` : "";
-      return `${dayBreak}<div class="plan-row" draggable="false" data-plan-row="${esc(item.id)}" data-plan-date="${esc(item.date)}"><span class="plan-cell-day">${handle}<span><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit", month: "short" })}</b></span></span><span class="plan-cell-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="plan-cell-title"><b>${esc(item.title)}</b>${chips ? `<span class="plan-chips">${chips}</span>` : ""}</span><span class="plan-cell-place">${mapLink}${meta ? `<span class="plan-meta">${meta}</span>` : ""}</span><span class="plan-cell-remark">${esc(item.notes || "—")}</span><span class="plan-row-actions">${actions}</span></div>`;
+      return `<div class="plan-row${firstOfDay ? " day-start" : ""}" draggable="false" data-plan-row="${esc(item.id)}" data-plan-date="${esc(item.date)}"><span class="plan-cell-day">${handle}<span>${firstOfDay ? `<small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit", month: "short" })}</b>` : `<em class="plan-same-day">same day</em>`}</span></span><span class="plan-cell-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="plan-cell-title"><b>${esc(item.title)}</b>${chips ? `<span class="plan-chips">${chips}</span>` : ""}</span><span class="plan-cell-place">${mapLink}${meta ? `<span class="plan-meta">${meta}</span>` : ""}</span><span class="plan-cell-remark">${esc(item.notes || "—")}</span><span class="plan-row-actions">${actions}</span></div>`;
     }).join("");
 
     const newRow = canAdd("plan")
@@ -901,6 +899,7 @@
     if (button.hasAttribute("data-edit")) return showEditRecord(button.dataset.sheet, button.dataset.id);
     if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
     if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
+    if (button.dataset.togglePlanDone) return togglePlanDone(button.dataset.togglePlanDone);
     if (button.dataset.duplicatePlan) return duplicatePlanRow(button.dataset.duplicatePlan);
     if (button.dataset.planDay !== undefined) { state.planDayFilter = button.dataset.planDay; return render(); }
     if (button.dataset.printDay) return printReport("itinerary", button.dataset.printDay);
@@ -2440,11 +2439,11 @@
     const printedPlans = printDays.map((date) => {
       const dayRows = printPlans.filter((item) => item.date === date);
       const dayCost = dayRows.reduce((sum, item) => sum + planCost(item), 0);
-      const header = `<tr class="print-day-head"><td colspan="6"><b>${displayDate(date, { weekday: "long", day: "numeric", month: "long" })}</b><span>${dayRows.length} ${dayRows.length === 1 ? "plan" : "plans"}${dayCost ? " · " + money.format(dayCost) : ""}</span></td></tr>`;
-      const body = dayRows.map((item) => {
+      const header = "";
+      const body = dayRows.map((item, rowIndex) => {
         const tags = [item.category, item.status].filter(Boolean).join(" · ");
         const extra = [item.bookingRef ? `Ref ${item.bookingRef}` : "", planCost(item) ? money.format(planCost(item)) : ""].filter(Boolean).join(" · ");
-        return `<tr><td>${displayDate(item.date, { weekday: "short", day: "2-digit", month: "short" })}</td><td>${item.time ? displayTime(item.time) : "Any time"}</td><td><b>${esc(item.title)}</b>${tags ? `<span class="print-tag">${esc(tags)}</span>` : ""}</td><td>${esc(item.place || "—")}${extra ? `<span class="print-tag">${esc(extra)}</span>` : ""}</td><td>${esc(item.notes || "—")}</td><td class="print-tick"></td></tr>`;
+        return `<tr class="${rowIndex === 0 ? "print-day-start" : ""}"><td>${rowIndex === 0 ? `<b>${displayDate(item.date, { weekday: "short", day: "2-digit", month: "short" })}</b>${dayCost ? `<span class="print-tag">${money.format(dayCost)}</span>` : ""}` : ""}</td><td>${item.time ? displayTime(item.time) : "Any time"}</td><td><b>${esc(item.title)}</b>${tags ? `<span class="print-tag">${esc(tags)}</span>` : ""}</td><td>${esc(item.place || "—")}${extra ? `<span class="print-tag">${esc(extra)}</span>` : ""}</td><td>${esc(item.notes || "—")}</td><td class="print-tick">${String(item.status || "") === "Done" ? "☑" : ""}</td></tr>`;
       }).join("");
       const lines = printPlanLines() ? `<tr class="print-note-lines"><td colspan="6"><span>Notes</span><i></i><i></i><i></i></td></tr>` : "";
       return header + body + lines;
@@ -2624,6 +2623,18 @@
   function nextPlanSortOrder(date) {
     const dayRows = state.data.itinerary.filter((row) => row.date === date);
     return dayRows.length ? Math.max(...dayRows.map((row) => Number(row.sortOrder || 0))) + 10 : 10;
+  }
+
+  /** The tick in the ACTIONS column is the same "Done" status the printed box shows. */
+  async function togglePlanDone(id) {
+    const item = state.data.itinerary.find((row) => String(row.id) === String(id));
+    if (!item || !canEditRecords("Itinerary")) return toast("Itinerary editing is not allowed for this account", true);
+    const status = String(item.status || "") === "Done" ? "" : "Done";
+    const previous = item.status || "";
+    item.status = status;
+    render();
+    try { if (!state.demoMode) await api("updateRecord", authPayload({ sheet: "Itinerary", id, record: { status } })); updatePrintArea(); }
+    catch (error) { item.status = previous; render(); toast(error.message, true); }
   }
 
   async function duplicatePlanRow(id) {
