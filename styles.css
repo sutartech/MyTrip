@@ -966,3 +966,11 @@ img{max-width:100%}
   .print-plan-table td.print-tick::before{content:"";display:inline-block;width:10px;height:10px;border:1px solid #6b7a88}
   .print-plan-table td.print-tick:not(:empty)::before{display:none}
 }
+
+/* v4.15.2 slim inline editor; optional detail lives in the full dialog */
+.plan-row-editing{grid-template-columns:var(--plan-col-0) var(--plan-col-1) var(--plan-col-2) var(--plan-col-3) var(--plan-col-4) minmax(120px,1fr);align-items:end}
+.plan-row-editing .plan-row-actions{grid-column:auto;justify-content:flex-start}
+.plan-extra-fields{margin-top:4px;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fbfdfd}
+.plan-extra-fields summary{font-size:11px;font-weight:900;color:#5d6f80;cursor:pointer}
+.plan-extra-fields .form-row{margin-top:8px}
+@media(max-width:1180px){.plan-row-editing{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.plan-row-editing .plan-row-actions{grid-column:1/-1;justify-content:flex-end}}
