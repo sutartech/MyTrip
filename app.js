@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.15.0";
+  const frontendVersion = "4.15.1";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -2581,7 +2581,7 @@
   if (apiUrlReady()) scheduleBackgroundTask(() => ensureCurrentBackend().catch(() => {}));
   if ("serviceWorker" in navigator && location.protocol === "https:") scheduleBackgroundTask(() => navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }).catch(() => {}));
   const invitedTrip = inviteQuery.get("trip"); if (invitedTrip) $("#joinTripId").value = invitedTrip.toUpperCase();
-})();  function renderPlanRowEditor(item, isNew = false) {
+  function renderPlanRowEditor(item, isNew = false) {
     const category = planCategories.includes(item.category) ? item.category : "";
     const status = planStatuses.includes(item.status) ? item.status : (isNew ? "To book" : "");
     return `<form class="plan-row plan-row-editing${isNew ? " plan-row-new" : ""}" data-plan-row-form="${esc(item.id)}"${isNew ? ' data-plan-row-new="true"' : ""}>${isNew ? `<span class="plan-new-flag">NEW ROW</span>` : ""}<label><small>DAY</small><input name="date" type="date" value="${esc(item.date)}" required></label><label><small>TIME</small><input name="time" type="time" value="${esc(item.time || "")}"></label><label><small>ITINERARY</small><input name="title" maxlength="180" value="${esc(item.title)}" placeholder="What happens" required></label><label><small>PLACE</small><input name="place" maxlength="180" value="${esc(item.place || "")}" placeholder="Where"></label><label><small>REMARK</small><input name="notes" maxlength="500" value="${esc(item.notes || "")}" placeholder="Booking detail, who arranges, what to carry"></label><label><small>CATEGORY</small><select name="category"><option value=""${category ? "" : " selected"}>—</option>${planCategories.map((value) => `<option${category === value ? " selected" : ""}>${value}</option>`).join("")}</select></label><label><small>STATUS</small><select name="status"><option value=""${status ? "" : " selected"}>—</option>${planStatuses.map((value) => `<option${status === value ? " selected" : ""}>${value}</option>`).join("")}</select></label><label><small>BOOKING REF</small><input name="bookingRef" maxlength="80" value="${esc(item.bookingRef || "")}" placeholder="PNR / confirmation"></label><label><small>COST (₹)</small><input name="cost" type="number" min="0" step="1" value="${esc(item.cost || "")}" placeholder="0"></label><span class="plan-row-actions editing"><button class="save" type="submit">Save row</button><button type="button" data-cancel-plan-row>Cancel</button>${!isNew && isAdmin() ? `<button type="button" class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}</span></form>`;
@@ -2696,5 +2696,4 @@
       });
     });
   }
-
-
+})();
