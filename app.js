@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.11.0";
+  const frontendVersion = "4.11.2";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -389,7 +389,7 @@
     state.authenticated = true;
     state.permissions = data.permissions || {};
     $("#accessScreen").classList.add("hidden"); $("#accountHub").classList.add("hidden"); $("#dashboard").classList.remove("hidden");
-    loadStickyNotes(); setStickyControlsVisible(true); startIdleTimer();
+    loadStickyNotes(); setStickyControlsVisible(true); applyPrintPlanSettings(); startIdleTimer();
     setTab("overview"); hydrateShell(); updatePrintArea();
     migrateCompletedStickyNotes();
   }
@@ -621,15 +621,21 @@
     let lastDate = null;
     const rows = items.map((item) => {
       const dayBreak = item.date !== lastDate
-        ? `<div class="plan-day-row"><b>${displayDate(item.date, { weekday: "long", day: "numeric", month: "short" })}</b><small>Day ${days.indexOf(item.date) + 1} of ${days.length}</small></div>`
+        ? `<div class="plan-day-row"><b>${displayDate(item.date, { weekday: "long", day: "numeric", month: "short" })}</b><small>Day ${days.indexOf(item.date) + 1} of ${days.length}</small>${canAdd("plan") ? `<button type="button" data-add-plan-row="${esc(item.date)}">＋ Add row to this day</button>` : ""}</div>`
         : "";
       lastDate = item.date;
       if (String(state.planRowEditId) === String(item.id)) return dayBreak + renderPlanRowEditor(item);
-      const actions = `${canEdit ? `<button class="row-edit" data-row-edit-plan="${esc(item.id)}">Row edit</button><button data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete" data-delete data-sheet="Itinerary" data-id="${esc(item.id)}">Delete</button>` : ""}`;
+      if (String(state.planRowDeleteId) === String(item.id)) return dayBreak + `<div class="plan-row plan-row-deleting"><span class="plan-delete-message"><b>Delete “${esc(item.title)}”?</b><small>${displayDate(item.date, { weekday: "short", day: "numeric", month: "short" })}${item.time ? " · " + esc(displayTime(item.time)) : ""} · removed for everyone</small></span><span class="plan-row-actions"><button class="delete" data-confirm-plan-delete="${esc(item.id)}">Yes, delete row</button><button type="button" data-cancel-plan-delete>Keep row</button></span></div>`;
+      const actions = `${canEdit ? `<button class="row-edit" data-row-edit-plan="${esc(item.id)}">Row edit</button><button data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}`;
       const mapLink = item.place ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">⌖ ${esc(item.place)}</a>` : `<span class="plan-muted">Not set</span>`;
       return `${dayBreak}<div class="plan-row"><span class="plan-cell-day"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit", month: "short" })}</b></span><span class="plan-cell-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="plan-cell-title"><b>${esc(item.title)}</b></span><span class="plan-cell-place">${mapLink}</span><span class="plan-cell-remark">${esc(item.notes || "—")}</span><span class="plan-row-actions">${actions}</span></div>`;
     }).join("");
-    return `${heading("DAY BY DAY", "Trip itinerary", "Plan each day in one row. Use Row edit for a quick change, Edit for every field.", "plan")}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${items.length} ${items.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}.</p></div><span class="plan-table-tools"><span class="plan-width-control"><small>REMARK WIDTH</small><button type="button" data-plan-width="-1" aria-label="Narrower remark column">−</button><b id="planWidthValue">${planRemarkWidth().toFixed(1)}×</b><button type="button" data-plan-width="1" aria-label="Wider remark column">＋</button></span>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="--plan-remark:${planRemarkWidth()}fr"><div class="plan-table-header"><span>DAY</span><span>TIME</span><span>ITINERARY</span><span>PLACE</span><span>REMARK</span><span>ACTIONS</span></div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}</div></section>`;
+    const newRow = canAdd("plan")
+      ? (state.planAddDate
+        ? renderPlanRowEditor({ id: "", date: state.planAddDate, time: "", title: "", place: "", notes: "" }, true)
+        : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
+      : "";
+    return `${heading("DAY BY DAY", "Trip itinerary", "Plan each day in one row. Use Row edit for a quick change, Edit for every field.", "plan")}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${items.length} ${items.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}.</p></div><span class="plan-table-tools"><span class="plan-width-control print-width-control"><small>PRINT SIZE</small><button type="button" data-print-width="-1" aria-label="Smaller print rows">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger print rows">＋</button></span><button type="button" class="plan-wrap-toggle${printPlanWrap() ? " on" : ""}" data-print-wrap>${printPlanWrap() ? "↵ Wrap text: on" : "↵ Wrap text: off"}</button><span class="plan-width-control"><small>REMARK WIDTH</small><button type="button" data-plan-width="-1" aria-label="Narrower remark column">−</button><b id="planWidthValue">${planRemarkWidth().toFixed(1)}×</b><button type="button" data-plan-width="1" aria-label="Wider remark column">＋</button></span>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="--plan-remark:${planRemarkWidth()}fr"><div class="plan-table-header"><span>DAY</span><span>TIME</span><span>ITINERARY</span><span>PLACE</span><span>REMARK</span><span>ACTIONS</span></div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
   }
 
   const planWidthKey = "mytrip_plan_remark_width_v1";
@@ -643,8 +649,39 @@
     render();
   }
 
-  function renderPlanRowEditor(item) {
-    return `<form class="plan-row plan-row-editing" data-plan-row-form="${esc(item.id)}"><label><small>DAY</small><input name="date" type="date" value="${esc(item.date)}" required></label><label><small>TIME</small><input name="time" type="time" value="${esc(item.time || "")}"></label><label><small>ITINERARY</small><input name="title" maxlength="180" value="${esc(item.title)}" required></label><label><small>PLACE</small><input name="place" maxlength="180" value="${esc(item.place || "")}"></label><label><small>REMARK</small><input name="notes" maxlength="500" value="${esc(item.notes || "")}" placeholder="Booking reference, who arranges it, what to carry"></label><span class="plan-row-actions editing"><button class="save" type="submit">Save row</button><button type="button" data-cancel-plan-row>Cancel</button>${isAdmin() ? `<button type="button" class="delete" data-delete data-sheet="Itinerary" data-id="${esc(item.id)}">Delete</button>` : ""}</span></form>`;
+  async function deletePlanRow(id) {
+    if (!isAdmin()) return toast("Administrator access is required to delete an itinerary row", true);
+    try {
+      if (!state.demoMode) await api("deleteRecord", authPayload({ sheet: "Itinerary", id }));
+      state.data.itinerary = state.data.itinerary.filter((row) => String(row.id) !== String(id));
+      state.planRowDeleteId = ""; render(); hydrateShell(); updatePrintArea(); toast("Itinerary row deleted for everyone");
+    } catch (error) { toast(error.message, true); }
+  }
+
+  const printWidthKey = "mytrip_print_plan_scale_v1";
+  const printWrapKey = "mytrip_print_plan_wrap_v1";
+  function printPlanScale() {
+    const stored = Number(localStorage.getItem(printWidthKey));
+    return Number.isFinite(stored) && stored >= 7 && stored <= 13 ? stored : 9;
+  }
+  function printPlanWrap() { return localStorage.getItem(printWrapKey) !== "off"; }
+  function applyPrintPlanSettings() {
+    document.body.style.setProperty("--print-plan-font", `${printPlanScale()}px`);
+    document.body.classList.toggle("print-plan-nowrap", !printPlanWrap());
+  }
+  function stepPrintWidth(direction) {
+    const next = Math.min(13, Math.max(7, printPlanScale() + direction));
+    try { localStorage.setItem(printWidthKey, String(next)); } catch {}
+    applyPrintPlanSettings(); render();
+  }
+  function togglePrintWrap() {
+    try { localStorage.setItem(printWrapKey, printPlanWrap() ? "off" : "on"); } catch {}
+    applyPrintPlanSettings(); render();
+    toast(printPlanWrap() ? "Printed rows will wrap onto several lines" : "Printed rows kept to one line each");
+  }
+
+  function renderPlanRowEditor(item, isNew = false) {
+    return `<form class="plan-row plan-row-editing${isNew ? " plan-row-new" : ""}" data-plan-row-form="${esc(item.id)}"${isNew ? ' data-plan-row-new="true"' : ""}>${isNew ? `<span class="plan-new-flag">NEW ROW</span>` : ""}<label><small>DAY</small><input name="date" type="date" value="${esc(item.date)}" required></label><label><small>TIME</small><input name="time" type="time" value="${esc(item.time || "")}"></label><label><small>ITINERARY</small><input name="title" maxlength="180" value="${esc(item.title)}" required></label><label><small>PLACE</small><input name="place" maxlength="180" value="${esc(item.place || "")}"></label><label><small>REMARK</small><input name="notes" maxlength="500" value="${esc(item.notes || "")}" placeholder="Booking reference, who arranges it, what to carry"></label><span class="plan-row-actions editing"><button class="save" type="submit">Save row</button><button type="button" data-cancel-plan-row>Cancel</button>${!isNew && isAdmin() ? `<button type="button" class="delete" data-row-delete-plan="${esc(item.id)}">Delete</button>` : ""}</span></form>`;
   }
 
   async function savePlanRow(event) {
@@ -652,10 +689,25 @@
     const form = event.target.closest("[data-plan-row-form]");
     if (!form) return;
     const id = form.dataset.planRowForm;
-    const item = state.data.itinerary.find((row) => String(row.id) === String(id));
-    if (!item || !canEditRecords("Itinerary")) return toast("Itinerary editing is not allowed for this account", true);
     const update = Object.fromEntries(new FormData(form).entries());
     const submit = form.querySelector('button[type="submit"]');
+    const isNew = form.dataset.planRowNew === "true";
+
+    if (isNew) {
+      if (!canAdd("plan")) return toast("Adding itinerary rows is not allowed for this account", true);
+      const record = { id: uid(), ...update, createdBy: state.currentUser };
+      submit.disabled = true; submit.textContent = "Saving…";
+      try {
+        if (!state.demoMode) await api("addPlan", authPayload({ record }));
+        state.data.itinerary.push(record);
+        state.planAddDate = record.date;
+        render(); hydrateShell(); updatePrintArea(); toast("Itinerary row added for everyone");
+      } catch (error) { submit.disabled = false; submit.textContent = "Save row"; toast(error.message, true); }
+      return;
+    }
+
+    const item = state.data.itinerary.find((row) => String(row.id) === String(id));
+    if (!item || !canEditRecords("Itinerary")) return toast("Itinerary editing is not allowed for this account", true);
     submit.disabled = true; submit.textContent = "Saving…";
     try {
       if (!state.demoMode) await api("updateRecord", authPayload({ sheet: "Itinerary", id, record: update }));
@@ -804,9 +856,15 @@
     if (button.hasAttribute("data-edit")) return showEditRecord(button.dataset.sheet, button.dataset.id);
     if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
     if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
+    if (button.dataset.rowDeletePlan) { if (!isAdmin()) return toast("Administrator access is required to delete an itinerary row", true); state.planRowEditId = ""; state.planRowDeleteId = button.dataset.rowDeletePlan; return render(); }
+    if (button.hasAttribute("data-cancel-plan-delete")) { state.planRowDeleteId = ""; return render(); }
+    if (button.dataset.confirmPlanDelete) return deletePlanRow(button.dataset.confirmPlanDelete);
+    if (button.dataset.printWidth) return stepPrintWidth(Number(button.dataset.printWidth));
+    if (button.hasAttribute("data-print-wrap")) return togglePrintWrap();
     if (button.dataset.planWidth) return stepPlanWidth(Number(button.dataset.planWidth));
     if (button.dataset.rowEditPlan) { state.planRowEditId = button.dataset.rowEditPlan; return render(); }
-    if (button.hasAttribute("data-cancel-plan-row")) { state.planRowEditId = ""; return render(); }
+    if (button.hasAttribute("data-cancel-plan-row")) { state.planRowEditId = ""; state.planAddDate = ""; return render(); }
+    if (button.dataset.addPlanRow !== undefined) { if (!canAdd("plan")) return toast("Adding itinerary rows is not allowed for this account", true); state.planRowEditId = ""; state.planAddDate = button.dataset.addPlanRow || state.data.trip.startDate || localDateKey(); return render(); }
     if (button.hasAttribute("data-cancel-expense-row")) { state.expenseRowEditId = ""; return render(); }
     if (button.dataset.deleteExpense) return showDeleteExpenseConfirmation(button.dataset.deleteExpense);
     if (button.dataset.givePin) return showAddTravellersToCurrentTrip(state.data.members.find((member) => String(member.id) === String(button.dataset.givePin)));
