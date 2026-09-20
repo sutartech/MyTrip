@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.16.4";
+  const frontendVersion = "4.16.5";
   const requiredBackendVersion = "4.8.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -657,7 +657,6 @@
   /* ---- print options for the itinerary sheet ---- */
   const printWidthKey = "mytrip_print_plan_scale_v1";
   const printWrapKey = "mytrip_print_plan_wrap_v1";
-  const printLinesKey = "mytrip_print_plan_lines_v1";
   const printLayoutKey = "mytrip_print_plan_layout_v1";
   const printAlignKey = "mytrip_print_plan_align_v1";
   function printPlanScale() {
@@ -665,7 +664,6 @@
     return Number.isFinite(stored) && stored >= 7 && stored <= 13 ? stored : 9;
   }
   function printPlanWrap() { return localStorage.getItem(printWrapKey) !== "off"; }
-  function printPlanLines() { return localStorage.getItem(printLinesKey) === "on"; }
   function printPlanLayout() { return localStorage.getItem(printLayoutKey) === "landscape" ? "landscape" : "portrait"; }
   function printPlanAlign() {
     const value = localStorage.getItem(printAlignKey);
@@ -689,11 +687,6 @@
     try { localStorage.setItem(printWrapKey, printPlanWrap() ? "off" : "on"); } catch {}
     applyPrintPlanSettings(); render();
     toast(printPlanWrap() ? "Printed rows will wrap onto several lines" : "Printed rows kept to one line each");
-  }
-  function togglePrintLines() {
-    try { localStorage.setItem(printLinesKey, printPlanLines() ? "off" : "on"); } catch {}
-    updatePrintArea(); render();
-    toast(printPlanLines() ? "Blank note lines added under each day" : "Blank note lines removed");
   }
   function setPrintLayout(value) { try { localStorage.setItem(printLayoutKey, value); } catch {} applyPrintPlanSettings(); render(); }
   function setPrintAlign(value) { try { localStorage.setItem(printAlignKey, value); } catch {} applyPrintPlanSettings(); render(); }
@@ -832,7 +825,7 @@
         : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.planDayFilter || state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
       : "";
 
-    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><span class="plan-width-control print-width-control"><small>PRINT SIZE</small><button type="button" data-print-width="-1" aria-label="Smaller print rows">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger print rows">＋</button></span><button type="button" class="plan-wrap-toggle${printPlanWrap() ? " on" : ""}" data-print-wrap>${printPlanWrap() ? "↵ Wrap text: on" : "↵ Wrap text: off"}</button><span class="plan-seg" role="group" aria-label="Print layout">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span><span class="plan-seg" role="group" aria-label="Print alignment">${[["left", "⇤"], ["center", "⇔"], ["right", "⇥"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align printed text ${value}">${label}</button>`).join("")}</span><button type="button" class="plan-wrap-toggle${printPlanLines() ? " on" : ""}" data-print-lines>${printPlanLines() ? "▤ Note lines: on" : "▤ Note lines: off"}</button><button type="button" class="plan-wrap-toggle" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button><button type="button" class="plan-wrap-toggle" data-reset-plan-columns title="Restore the default column widths">⇔ Reset columns</button>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
+    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><span class="plan-width-control print-width-control"><small>PRINT SIZE</small><button type="button" data-print-width="-1" aria-label="Smaller print rows">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger print rows">＋</button></span><button type="button" class="plan-wrap-toggle${printPlanWrap() ? " on" : ""}" data-print-wrap>${printPlanWrap() ? "↵ Wrap text: on" : "↵ Wrap text: off"}</button><span class="plan-seg" role="group" aria-label="Print layout">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span><span class="plan-seg" role="group" aria-label="Print alignment">${[["left", "⇤"], ["center", "⇔"], ["right", "⇥"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align printed text ${value}">${label}</button>`).join("")}</span><button type="button" class="plan-wrap-toggle" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button><button type="button" class="plan-wrap-toggle" data-reset-plan-columns title="Restore the default column widths">⇔ Reset columns</button>${canPrintReports() ? `<button data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
   }
 
   function renderExperiences() {
@@ -984,7 +977,6 @@
     if (button.dataset.duplicatePlan) return duplicatePlanRow(button.dataset.duplicatePlan);
     if (button.dataset.planDay !== undefined) { state.planDayFilter = button.dataset.planDay; return render(); }
     if (button.dataset.printDay) return printReport("itinerary", button.dataset.printDay);
-    if (button.hasAttribute("data-print-lines")) return togglePrintLines();
     if (button.dataset.rowDeletePlan) { if (!isAdmin()) return toast("Administrator access is required to delete an itinerary row", true); state.planRowEditId = ""; state.planRowDeleteId = button.dataset.rowDeletePlan; return render(); }
     if (button.hasAttribute("data-cancel-plan-delete")) { state.planRowDeleteId = ""; return render(); }
     if (button.dataset.confirmPlanDelete) return deletePlanRow(button.dataset.confirmPlanDelete);
@@ -2528,7 +2520,7 @@
         const extra = [item.bookingRef ? `Ref ${item.bookingRef}` : "", paidExpense ? `${money.format(Number(paidExpense.amount || 0))} paid by ${paidExpense.paidBy || "—"}` : (planCost(item) ? `Est ${money.format(planCost(item))}` : "")].filter(Boolean).join(" · ");
         return `<tr class="${rowIndex === 0 ? "print-day-start" : ""}"><td>${rowIndex === 0 ? `<b>${displayDate(item.date, { weekday: "short", day: "2-digit", month: "short" })}</b>${dayCost ? `<span class="print-tag">${money.format(dayCost)}</span>` : ""}` : ""}</td><td>${item.time ? displayTime(item.time) : "Any time"}</td><td><b>${esc(item.title)}</b>${tags ? `<span class="print-tag">${esc(tags)}</span>` : ""}</td><td>${esc(item.place || "—")}${extra ? `<span class="print-tag">${esc(extra)}</span>` : ""}</td><td>${esc(item.notes || "—")}</td><td class="print-tick">${String(item.status || "") === "Done" ? "☑" : ""}</td></tr>`;
       }).join("");
-      const lines = printPlanLines() ? `<tr class="print-note-lines"><td colspan="6"><span>Notes</span><i></i><i></i><i></i></td></tr>` : "";
+      const lines = "";
       return header + body + lines;
     }).join("");
     const planTitle = state.printDay ? `Itinerary · ${displayDate(state.printDay, { weekday: "long", day: "numeric", month: "long" })}` : "Itinerary";

@@ -927,10 +927,7 @@ img{max-width:100%}
   .print-day-head b{font-size:calc(var(--print-plan-font,9px) + 1px)}
   .print-day-head span{margin-left:8px;color:#5a6774;font-size:var(--print-plan-font,9px)}
   .print-tag{display:block;margin-top:2px;color:#5a6774;font-size:calc(var(--print-plan-font,9px) - 1px)}
-  .print-note-lines td{padding:6px 7px;border:1px solid #c9d2da}
-  .print-note-lines span{font-size:calc(var(--print-plan-font,9px) - 1px);color:#8b97a6;letter-spacing:.06em}
-  .print-note-lines i{display:block;height:13px;border-bottom:1px dotted #aab6c0}
-  body.print-plan-nowrap .print-day-head td,body.print-plan-nowrap .print-note-lines td{white-space:normal}
+  body.print-plan-nowrap .print-day-head td{white-space:normal}
 }
 
 /* v4.14 personal trip order */
