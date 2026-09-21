@@ -1033,3 +1033,17 @@ body.plan-dragging{user-select:none;cursor:grabbing}
 .plan-row:hover{background:#fafcfc}
 .plan-row{transition:background .12s ease}
 @media(max-width:760px){.plan-print-panel{right:auto;left:0;width:min(290px,86vw)}}
+
+
+/* v4.17.3 trip order + hide controls: reliable on phones */
+.trip-card-tools{position:absolute;top:10px;right:10px;z-index:3;display:flex;align-items:center;gap:6px}
+.trip-card-tools .trip-order-controls,.trip-card-tools .trip-hide-button{position:static;top:auto;right:auto}
+.trip-card-tools button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+@media(max-width:760px){
+  .trip-library-card{position:relative;padding-top:14px}
+  .trip-card-tools{position:static;order:9;grid-column:1/-1;width:auto;justify-content:space-between;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .trip-card-tools .trip-order-controls{flex:1;gap:8px}
+  .trip-card-tools .trip-order-controls button{width:auto;flex:1;min-width:52px;min-height:44px;font-size:15px}
+  .trip-card-tools .trip-order-controls b{font-size:11px;padding:0 4px}
+  .trip-card-tools .trip-hide-button{width:56px;min-height:44px;height:44px;font-size:17px}
+}
