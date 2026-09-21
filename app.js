@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.19.0";
-  const requiredBackendVersion = "4.10.0";
+  const frontendVersion = "4.19.5";
+  const requiredBackendVersion = "4.10.3";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -332,7 +332,8 @@
     const level = String(state.permissions.stickyAccess || "").toLowerCase();
     if (level === "edit") return "edit";
     if (level === "view") return "view";
-    return state.permissions.writeStickyNotes === true ? "edit" : "view";
+    if (state.permissions.writeStickyNotes === false) return "view";
+    return "edit";
   }
   function canWriteStickyNotes() { return stickyAccessLevel() === "edit"; }
   function stickyAccessLabel(level) { return level === "edit" ? "Can edit this note" : "View only"; }
@@ -1102,6 +1103,10 @@
       seen.add(key); seen.add(twin); return true;
     });
   }
+
+  /* floatingStickyCard() clamps to the viewport at paint time, so a window
+     resize only needs a repaint — the authored position is never rewritten. */
+  function reflowStickyNotes() { renderStickyNotes(); }
 
   function loadStickyNotes() {
     if (state.data && !state.demoMode) {
@@ -2666,6 +2671,7 @@
   $("#stickyEdgeTab").addEventListener("click", openStickyPanel);
   $("#closeStickyPanel").addEventListener("click", closeStickyPanel);
   $("#stickyPanelBackdrop").addEventListener("click", closeStickyPanel);
+  addEventListener("resize", () => { if (state.data) reflowStickyNotes(); }, { passive: true });
   $("#addStickyNote").addEventListener("click", () => showStickyEditor());
   if ($("#stickyAccessButton")) $("#stickyAccessButton").addEventListener("click", showStickyBoardAccess);
   $("#clearAppCache").addEventListener("click", clearAppCacheAndReload);
