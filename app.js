@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.19.5";
-  const requiredBackendVersion = "4.10.3";
+  const frontendVersion = "4.19.6";
+  const requiredBackendVersion = "4.10.4";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -1071,7 +1071,7 @@
      every backend build, and are decoded back to \n for display and editing. */
   const stickyLineSeparator = "\u2028";
   const encodeStickyText = (text) => String(text == null ? "" : text).replace(/\r\n?/g, "\n").split("\n").join(stickyLineSeparator);
-  const decodeStickyText = (text) => String(text == null ? "" : text).replace(/\r\n?/g, "\n").split(stickyLineSeparator).join("\n");
+  const decodeStickyText = (text) => String(text == null ? "" : text).replace(/\r\n?/g, "\n").replace(/\u2029/g, stickyLineSeparator).split(stickyLineSeparator).join("\n");
 
   function normaliseSticky(note, index) {
     const value = note || {};
@@ -1156,7 +1156,13 @@
     if (state.demoMode) { saveStickyNotes(); mirrorStickyNotes(); return note; }
     try {
       const saved = await api("saveStickyNote", authPayload({ record: stickyRecord(note), author: state.currentUser }));
-      note.id = saved.id; note.createdAt = saved.createdAt || note.createdAt; note.saved = true;
+      note.id = saved.id; note.createdAt = saved.createdAt || note.createdAt;
+      /* Confirm the sheet kept every line, rather than trusting the request. */
+      const storedBody = decodeStickyText(saved.details);
+      if (storedBody !== note.body) {
+        note.body = storedBody;
+        if (!silent) toast("Saved, but the trip sheet returned different text — showing what was stored", true);
+      } note.saved = true;
       mirrorStickyNotes();
       return saved;
     } catch (error) {
