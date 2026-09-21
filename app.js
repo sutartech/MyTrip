@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.19.6";
-  const requiredBackendVersion = "4.10.4";
+  const frontendVersion = "4.19.7";
+  const requiredBackendVersion = "4.10.5";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -1159,9 +1159,13 @@
       note.id = saved.id; note.createdAt = saved.createdAt || note.createdAt;
       /* Confirm the sheet kept every line, rather than trusting the request. */
       const storedBody = decodeStickyText(saved.details);
-      if (storedBody !== note.body) {
+      const trim = (text) => String(text).replace(/\n+$/, "");
+      if (trim(storedBody) !== trim(note.body)) {
+        const lost = trim(note.body).length - trim(storedBody).length;
         note.body = storedBody;
-        if (!silent) toast("Saved, but the trip sheet returned different text — showing what was stored", true);
+        if (!silent && lost > 0) toast("Saved, but the trip sheet shortened the text — showing what was stored", true);
+      } else {
+        note.body = storedBody;
       } note.saved = true;
       mirrorStickyNotes();
       return saved;
