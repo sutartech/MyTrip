@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.18.7";
+  const frontendVersion = "4.19.0";
   const requiredBackendVersion = "4.10.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -1686,7 +1686,7 @@
       if (!state.demoMode) await api("setTripListHidden", { tripId, hidden, ...adminAuth(state.administratorSecret || state.pin) });
       toast(hidden ? `${tripId} hidden for everyone` : `${tripId} visible again`);
       return true;
-    } catch (error) { trip.listHidden = !hidden; toast(error.message, true); return false; }
+    } catch (error) { trip.listHidden = !hidden; toast(/listHidden|not found/i.test(error.message) ? "Deploy backend 4.10.0 first: replace Code.gs, run runAll(), then Deploy a New version." : error.message, true); return false; }
   }
   function visibleLibraryTrips(trips) {
     state.libraryTrips = trips || state.libraryTrips || [];
@@ -2717,7 +2717,22 @@
   restoreSavedAccountLogin();
   const scheduleBackgroundTask = (task) => "requestIdleCallback" in window ? requestIdleCallback(task, { timeout: 1500 }) : setTimeout(task, 40);
   if (apiUrlReady()) scheduleBackgroundTask(() => ensureCurrentBackend().catch(() => {}));
-  if ("serviceWorker" in navigator && location.protocol === "https:") scheduleBackgroundTask(() => navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }).catch(() => {}));
+  /* Self-healing update: registers the worker, forces an update check, and
+     reloads once when a newer build takes control — so a phone can never keep
+     running an old cached app.js. */
+  if ("serviceWorker" in navigator && location.protocol === "https:") scheduleBackgroundTask(async () => {
+    try {
+      const registration = await navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" });
+      registration.update().catch(() => {});
+      const reloadKey = "mytrip_sw_reloaded_" + frontendVersion;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (sessionStorage.getItem(reloadKey)) return;
+        try { sessionStorage.setItem(reloadKey, "1"); } catch {}
+        location.reload();
+      });
+      setInterval(() => registration.update().catch(() => {}), 15 * 60 * 1000);
+    } catch {}
+  });
   const invitedTrip = inviteQuery.get("trip"); if (invitedTrip) $("#joinTripId").value = invitedTrip.toUpperCase();
   function renderPlanRowEditor(item, isNew = false) {
     const category = planCategories.includes(item.category) ? item.category : "";
