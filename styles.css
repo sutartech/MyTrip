@@ -1047,3 +1047,15 @@ body.plan-dragging{user-select:none;cursor:grabbing}
   .trip-card-tools .trip-order-controls b{font-size:11px;padding:0 4px}
   .trip-card-tools .trip-hide-button{width:56px;min-height:44px;height:44px;font-size:17px}
 }
+
+
+/* v4.17.5 tools bar sits in the card flow at every width — no overlap */
+.trip-card-tools{position:static;grid-column:1/-1;order:9;width:auto;justify-content:flex-end;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.trip-card-tools .trip-order-controls{gap:6px}
+.trip-card-tools .trip-order-controls button{width:30px;height:30px;font-size:12px}
+.trip-card-tools .trip-hide-button{width:32px;height:30px;font-size:13px}
+.trip-card-tools::before{content:"Your list order";margin-right:auto;font-size:9px;font-weight:900;letter-spacing:.06em;color:#9aa6b3;text-transform:uppercase;align-self:center}
+@media(max-width:760px){
+  .trip-card-tools{justify-content:space-between;margin-top:12px;padding-top:12px}
+  .trip-card-tools::before{display:none}
+}
