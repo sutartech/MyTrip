@@ -1059,3 +1059,17 @@ body.plan-dragging{user-select:none;cursor:grabbing}
   .trip-card-tools{justify-content:space-between;margin-top:12px;padding-top:12px}
   .trip-card-tools::before{display:none}
 }
+
+
+/* v4.18.2 cards grow for the tools row instead of overflowing the grid track */
+/* flex, not grid: grid row tracks were pinned by the 55vh cap and could not
+   grow to the cards, so every card overflowed onto the next one */
+.trip-library{display:flex;flex-wrap:wrap;gap:10px}
+.trip-library.admin-library{flex-direction:column;flex-wrap:nowrap}
+.trip-library>.trip-library-card{flex:1 1 calc(50% - 5px);min-width:min(260px,100%)}
+.trip-library.admin-library>.trip-library-card{flex:0 0 auto;width:100%}
+@media(max-width:760px){.trip-library{flex-direction:column;flex-wrap:nowrap}.trip-library>.trip-library-card{flex:0 0 auto;width:100%}}
+/* size containment pinned these cards to 96px, so the tools row escaped the box */
+.trip-library-card,.account-card{content-visibility:visible;contain-intrinsic-size:auto none;height:auto;min-height:0;align-items:start;align-content:start;overflow:visible}
+.trip-library-card>button,.trip-library-card .trip-card-actions{align-self:center}
+.all-trips-summary .secondary-action,.all-trips-summary button{white-space:nowrap}

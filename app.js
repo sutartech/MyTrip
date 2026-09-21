@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.17.5";
-  const requiredBackendVersion = "4.8.1";
+  const frontendVersion = "4.18.6";
+  const requiredBackendVersion = "4.10.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -201,7 +201,7 @@
   async function verifyBackendVersion(url = apiUrl) {
     const info = await requestAt(url, "ping");
     backendVersion = String(info && info.version || "");
-    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true) throw backendUpgradeError(backendVersion);
+    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.sharedTripList !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true) throw backendUpgradeError(backendVersion);
     return info;
   }
 
@@ -1625,10 +1625,11 @@
   }
 
   /* ---- personal trip order: each login arranges its own trip library ---- */
-  function tripOrderKey() { return `mytrip_trip_order_${String(state.accountUsername || "account").toLowerCase()}`; }
   function savedTripOrder() {
-    try { const value = JSON.parse(localStorage.getItem(tripOrderKey()) || "[]"); return Array.isArray(value) ? value.map(String) : []; }
-    catch { return []; }
+    return (state.libraryTrips || [])
+      .filter((trip) => Number(trip.listOrder) > 0)
+      .sort((a, b) => Number(a.listOrder) - Number(b.listOrder))
+      .map((trip) => String(trip.tripId));
   }
   function orderedTrips(trips) {
     const order = savedTripOrder();
@@ -1641,15 +1642,24 @@
       return indexA - indexB;
     });
   }
-  function saveTripOrder(ids) { try { localStorage.setItem(tripOrderKey(), JSON.stringify(ids.map(String))); } catch {} }
-  function moveTripInOrder(tripId, direction, trips) {
+  /** Writes the shared order to the Trips sheet so every login sees it. */
+  async function saveTripOrder(ids) {
+    const order = ids.map(String);
+    (state.libraryTrips || []).forEach((trip) => {
+      const position = order.indexOf(String(trip.tripId));
+      trip.listOrder = position < 0 ? 0 : (position + 1) * 10;
+    });
+    if (state.demoMode) return true;
+    try { await api("setTripListOrder", { order, tripId: (state.libraryTrips[0] || {}).tripId || "", ...adminAuth(state.administratorSecret || state.pin) }); return true; }
+    catch (error) { toast(error.message, true); return false; }
+  }
+  async function moveTripInOrder(tripId, direction, trips) {
     const ids = orderedTrips(trips).map((trip) => String(trip.tripId));
     const index = ids.indexOf(String(tripId));
     const target = index + direction;
     if (index < 0 || target < 0 || target >= ids.length) return false;
     ids.splice(target, 0, ids.splice(index, 1)[0]);
-    saveTripOrder(ids);
-    return true;
+    return await saveTripOrder(ids);
   }
   /** Order + visibility controls as one bar: absolute on desktop, full-width row on mobile. */
   function tripCardTools(trip, position, total) {
@@ -1661,20 +1671,26 @@
   }
 
   /* ---- personal hidden trips: kept out of this login's library view ---- */
-  function hiddenTripsKey() { return `mytrip_hidden_trips_${String(state.accountUsername || "account").toLowerCase()}`; }
-  function hiddenTripIds() {
-    try { const value = JSON.parse(localStorage.getItem(hiddenTripsKey()) || "[]"); return Array.isArray(value) ? value.map(String) : []; }
-    catch { return []; }
+  /* Hidden state and list order live in the Trips sheet, so they apply to
+     every login on every device until the Administrator changes them. */
+  function isTripHidden(tripId) {
+    const trip = (state.libraryTrips || []).find((item) => String(item.tripId) === String(tripId));
+    return Boolean(trip && trip.listHidden === true);
   }
-  function isTripHidden(tripId) { return hiddenTripIds().includes(String(tripId)); }
-  function toggleTripHidden(tripId) {
-    const hidden = hiddenTripIds();
-    const next = hidden.includes(String(tripId)) ? hidden.filter((id) => id !== String(tripId)) : [...hidden, String(tripId)];
-    try { localStorage.setItem(hiddenTripsKey(), JSON.stringify(next)); } catch {}
-    toast(next.includes(String(tripId)) ? `${tripId} hidden from your list` : `${tripId} shown again`);
+  async function toggleTripHidden(tripId) {
+    const trip = (state.libraryTrips || []).find((item) => String(item.tripId) === String(tripId));
+    if (!trip) return false;
+    const hidden = !(trip.listHidden === true);
+    trip.listHidden = hidden;
+    try {
+      if (!state.demoMode) await api("setTripListHidden", { tripId, hidden, ...adminAuth(state.administratorSecret || state.pin) });
+      toast(hidden ? `${tripId} hidden for everyone` : `${tripId} visible again`);
+      return true;
+    } catch (error) { trip.listHidden = !hidden; toast(error.message, true); return false; }
   }
   function visibleLibraryTrips(trips) {
-    const all = orderedTrips(trips || []);
+    state.libraryTrips = trips || state.libraryTrips || [];
+    const all = orderedTrips(state.libraryTrips);
     return state.showHiddenTrips ? all : all.filter((trip) => !isTripHidden(trip.tripId));
   }
   function hiddenTripsBar(trips) {
@@ -1736,11 +1752,13 @@
   function renderAllTrips(trips, administratorSecret, demoMode) {
     const items = visibleLibraryTrips(trips);
     $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="all-trips-summary"><span><small>ADMINISTRATOR LIBRARY</small><b>${items.length} ${items.length === 1 ? "trip" : "trips"}</b></span><span class="summary-actions"><button id="changeAdministratorLogin" class="secondary-action" type="button">⚿ Change login</button><button id="manageTravellerAccounts" class="secondary-action" type="button">♙ Traveller profiles</button>${hiddenTripsBar(trips)}<button id="resetTripOrder" class="secondary-action" type="button">↕ Reset order</button><button id="createFromTrips" type="button">＋ Create trip</button></span></div><div class="trip-library admin-library">${items.map((trip, position) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}">${tripCardTools(trip, position, items.length)}<i>⌖</i><div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button data-open-admin-trip="${esc(trip.tripId)}" type="button">Open</button><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">Edit</button><button data-assign-trip="${esc(trip.tripId)}" type="button">Travellers</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "Disable" : "Enable"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete</button></div></article>`).join("") || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip with this Administrator account.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
-    $$('[data-move-trip]').forEach((button) => button.addEventListener("click", () => {
-      if (moveTripInOrder(button.dataset.moveTrip, Number(button.dataset.direction), items)) renderAllTrips(trips, administratorSecret, demoMode);
+    $$('[data-move-trip]').forEach((button) => button.addEventListener("click", async () => {
+      button.disabled = true;
+      if (await moveTripInOrder(button.dataset.moveTrip, Number(button.dataset.direction), items)) { renderAllTrips(state.libraryTrips, administratorSecret, demoMode); toast("Trip order saved for everyone"); }
+      else button.disabled = false;
     }));
-    if ($("#resetTripOrder")) $("#resetTripOrder").addEventListener("click", () => { saveTripOrder([]); renderAllTrips(trips, administratorSecret, demoMode); toast("Trip order reset to the default"); });
-    $$('[data-hide-trip]').forEach((button) => button.addEventListener("click", () => { toggleTripHidden(button.dataset.hideTrip); renderAllTrips(trips, administratorSecret, demoMode); }));
+    if ($("#resetTripOrder")) $("#resetTripOrder").addEventListener("click", async () => { await saveTripOrder([]); renderAllTrips(state.libraryTrips, administratorSecret, demoMode); toast("Trip order reset for everyone"); });
+    $$('[data-hide-trip]').forEach((button) => button.addEventListener("click", async () => { button.disabled = true; await toggleTripHidden(button.dataset.hideTrip); renderAllTrips(state.libraryTrips, administratorSecret, demoMode); }));
     if ($("#toggleHiddenTrips")) $("#toggleHiddenTrips").addEventListener("click", () => { state.showHiddenTrips = !state.showHiddenTrips; renderAllTrips(trips, administratorSecret, demoMode); });
     showAccountHub("administrator", `ADMINISTRATOR · ${state.accountUsername}`);
     $("#createFromTrips").addEventListener("click", () => { closeModal(); showCreateTrip(); });
@@ -1797,7 +1815,7 @@
   async function loadAllTrips(administratorSecret, demoMode, username = state.accountUsername || "administrator") {
     try {
       if (!demoMode) await ensureCurrentBackend();
-      state.accountUsername = String(username || "administrator").trim().toLowerCase(); state.pin = administratorSecret; state.demoMode = demoMode; state.authenticated = true; state.accessRole = "administrator";
+      state.accountUsername = String(username || "administrator").trim().toLowerCase(); state.pin = administratorSecret; state.administratorSecret = administratorSecret; state.demoMode = demoMode; state.authenticated = true; state.accessRole = "administrator";
       const trips = demoMode ? demoTrips : (await api("listTrips", { username: state.accountUsername, password: administratorSecret, pin: administratorSecret })).trips;
       renderAllTrips(trips, administratorSecret, demoMode);
     } catch (error) { toast(error.message, true); }
@@ -1843,14 +1861,10 @@
       if (permissions.viewExpenses !== false && typeof trip.spent !== "undefined") details.push(`${money.format(Number(trip.spent || 0))} spent`);
       const featureCount = ["viewItinerary", "viewExperiences", "viewPlaces", "viewExpenses", "viewTravellers", "printReports", "writeStickyNotes"].filter((key) => permissions[key] === true || (key !== "writeStickyNotes" && permissions[key] !== false)).length;
       details.push(`${featureCount}/7 access options available`);
-      return `<article class="trip-library-card">${tripCardTools(trip, position, orderedList.length)}<i>♙</i><div><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>${details.join(" · ")}</small></div><button data-open-my-trip="${esc(trip.tripId)}" type="button">Open →</button></article>`;
+      return `<article class="trip-library-card"><i>♙</i><div><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>${details.join(" · ")}</small></div><button data-open-my-trip="${esc(trip.tripId)}" type="button">Open →</button></article>`;
     }).join("");
-    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero traveller"><div><span>MY TRAVEL DASHBOARD</span><h1>Every permitted trip</h1><p>Signed in as <b>${esc(traveller.travellerId)}</b>. Open a trip to view and manage every feature allowed by the Administrator.</p></div><strong>${trips.length} ${trips.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="self-profile-card"><i>${esc(initials(traveller.name))}</i><div><span>USERNAME · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b class="${canCreateAnotherTrip ? "trip-creation-allowed" : ""}">${travellerTripQuotaLabel(quota)}</b></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this account</h3></div>${hiddenTripsBar(trips)}${canCreateAnotherTrip ? `<button id="createTravellerTrip" type="button">＋ Create trip (${quota.remaining} left)</button>` : ""}</div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>${canCreateAnotherTrip ? "Create a new trip using the button above." : `Ask the Administrator to assign trips or increase the creation limit for username ${esc(traveller.travellerId)}.`}</p></div>`}</div><p class="global-access-note">♙ ${canCreateTrips ? (canCreateAnotherTrip ? `The Global Administrator allows up to ${quota.limit} created ${quota.limit === 1 ? "trip" : "trips"}; ${quota.remaining} ${quota.remaining === 1 ? "slot remains" : "slots remain"}.` : `Your creation limit is ${quota.limit}; existing trips are preserved, but no new trip can be created until the Administrator increases the limit.`) : "Trip creation is disabled. This account still shows every active trip assigned now or in the future."}</p></div></section>`;
-    $$('[data-move-trip]').forEach((button) => button.addEventListener("click", () => {
-      if (moveTripInOrder(button.dataset.moveTrip, Number(button.dataset.direction), orderedList)) renderMyTrips(trips, pin, traveller, demoMode);
-    }));
-    $$('[data-hide-trip]').forEach((button) => button.addEventListener("click", () => { toggleTripHidden(button.dataset.hideTrip); renderMyTrips(trips, pin, traveller, demoMode); }));
-    if ($("#toggleHiddenTrips")) $("#toggleHiddenTrips").addEventListener("click", () => { state.showHiddenTrips = !state.showHiddenTrips; renderMyTrips(trips, pin, traveller, demoMode); });
+    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero traveller"><div><span>MY TRAVEL DASHBOARD</span><h1>Every permitted trip</h1><p>Signed in as <b>${esc(traveller.travellerId)}</b>. Open a trip to view and manage every feature allowed by the Administrator.</p></div><strong>${trips.length} ${trips.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="self-profile-card"><i>${esc(initials(traveller.name))}</i><div><span>USERNAME · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b class="${canCreateAnotherTrip ? "trip-creation-allowed" : ""}">${travellerTripQuotaLabel(quota)}</b></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this account</h3></div>${canCreateAnotherTrip ? `<button id="createTravellerTrip" type="button">＋ Create trip (${quota.remaining} left)</button>` : ""}</div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>${canCreateAnotherTrip ? "Create a new trip using the button above." : `Ask the Administrator to assign trips or increase the creation limit for username ${esc(traveller.travellerId)}.`}</p></div>`}</div><p class="global-access-note">♙ ${canCreateTrips ? (canCreateAnotherTrip ? `The Global Administrator allows up to ${quota.limit} created ${quota.limit === 1 ? "trip" : "trips"}; ${quota.remaining} ${quota.remaining === 1 ? "slot remains" : "slots remain"}.` : `Your creation limit is ${quota.limit}; existing trips are preserved, but no new trip can be created until the Administrator increases the limit.`) : "Trip creation is disabled. This account still shows every active trip assigned now or in the future."}</p></div></section>`;
+
     showAccountHub("traveller", `TRAVELLER · ${traveller.travellerId}`);
     $$('[data-open-my-trip]').forEach((button) => button.addEventListener("click", () => openListedTrip(button.dataset.openMyTrip, pin, demoMode, "traveller", traveller)));
     if ($("#createTravellerTrip")) $("#createTravellerTrip").addEventListener("click", () => showTravellerCreateTrip(trips, pin, traveller, demoMode));
