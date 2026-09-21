@@ -1073,3 +1073,8 @@ body.plan-dragging{user-select:none;cursor:grabbing}
 .trip-library-card,.account-card{content-visibility:visible;contain-intrinsic-size:auto none;height:auto;min-height:0;align-items:start;align-content:start;overflow:visible}
 .trip-library-card>button,.trip-library-card .trip-card-actions{align-self:center}
 .all-trips-summary .secondary-action,.all-trips-summary button{white-space:nowrap}
+
+/* v4.18.7 keep the sticky-note Save bar in view while editing */
+.sticky-inline-actions{position:sticky;bottom:0;z-index:5;margin-top:10px;padding:8px 2px 2px;background:linear-gradient(to top,var(--sticky-bg) 62%,transparent)}
+.sticky-card:has(.sticky-inline-actions),.floating-sticky:has(.sticky-inline-actions){outline:2px solid color-mix(in srgb,var(--sticky-line),#fff 35%);outline-offset:2px}
+.sticky-inline-actions button.primary{box-shadow:0 2px 8px -3px color-mix(in srgb,var(--sticky-line),transparent 40%)}
