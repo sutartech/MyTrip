@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.20.2";
-  const requiredBackendVersion = "4.10.6";
+  const frontendVersion = "4.21.4";
+  const requiredBackendVersion = "4.11.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -1148,7 +1148,7 @@
     stickyMigrationRunning = true;
     let moved = 0;
     for (const note of legacy) {
-      const saved = await persistSticky(note, true);
+      const saved = await persistStickyPosition(note);
       if (saved) { stickyNotes.push(normaliseSticky({ ...saved, body: saved.details }, stickyNotes.length)); moved++; }
     }
     stickyMigrationRunning = false;
@@ -1160,14 +1160,74 @@
   async function recallPinnedStickyNotes() {
     const pinned = stickyNotes.filter((note) => note.pinned && !note.completed);
     if (!pinned.length) return toast("No pinned notes to bring back");
+    /* Tile the notes into a real grid, shrinking them (down to a readable
+       minimum) so that every pinned note fits on screen at once. If even the
+       minimum size cannot fit them all, the remainder cascades — and
+       click-to-front then reaches any of them in one tap. */
+    const gap = 12;
+    const top = 96;
+    const left = innerWidth < 1100 ? gap : 220;
+    const areaWidth = innerWidth - left - gap;
+    const areaHeight = innerHeight - top - gap;
+    const minWidth = 260, minHeight = 190;
+
+    let columns = Math.max(1, Math.min(pinned.length, Math.floor((areaWidth + gap) / (minWidth + gap))));
+    let rows = Math.ceil(pinned.length / columns);
+    while (rows * (minHeight + gap) - gap > areaHeight && columns < pinned.length) {
+      columns += 1;
+      rows = Math.ceil(pinned.length / columns);
+    }
+    const cellWidth = Math.floor((areaWidth - gap * (columns - 1)) / columns);
+    const cellHeight = Math.floor((areaHeight - gap * (rows - 1)) / rows);
+    const fits = cellWidth >= minWidth && cellHeight >= minHeight;
+
+    let cascade = 0;
     pinned.forEach((note, index) => {
-      note.width = Math.min(note.width, Math.max(260, innerWidth - 24));
-      note.x = Math.max(12, Math.min(innerWidth - note.width - 12, 220 + index * 26));
-      note.y = Math.max(96, Math.min(innerHeight - 160, 120 + index * 30));
+      if (fits) {
+        note.width = Math.min(Math.max(note.width, minWidth), cellWidth);
+        note.height = Math.min(Math.max(note.height, minHeight), cellHeight);
+        note.x = left + (index % columns) * (cellWidth + gap);
+        note.y = top + Math.floor(index / columns) * (cellHeight + gap);
+        return;
+      }
+      note.width = Math.min(note.width, Math.max(minWidth, areaWidth));
+      note.height = Math.min(note.height, Math.max(minHeight, areaHeight));
+      note.x = Math.max(gap, Math.min(innerWidth - note.width - gap, left + cascade * 30));
+      note.y = Math.max(top, Math.min(innerHeight - note.height - gap, top + cascade * 30));
+      cascade++;
     });
     renderStickyNotes();
-    if (canWriteStickyNotes()) await Promise.all(pinned.map((note) => persistSticky(note, true)));
+    if (canWriteStickyNotes()) await Promise.all(pinned.map((note) => persistStickyPosition(note)));
     toast(`${pinned.length} pinned ${pinned.length === 1 ? "note" : "notes"} brought into view`);
+  }
+
+  let stickyRefreshAt = 0;
+  let stickyRefreshing = false;
+
+  /**
+   * Pulls the sticky board straight from the Google Sheet and repaints it.
+   * The shared board is the one thing two people edit at the same time, so it
+   * is never trusted from a cached bundle — a stale copy was showing an older
+   * version of a note (an earlier line count) on the second machine.
+   */
+  async function refreshStickyNotes(force = false) {
+    if (state.demoMode || !state.data || stickyRefreshing) return;
+    if (!force && Date.now() - stickyRefreshAt < 4000) return;
+    stickyRefreshing = true;
+    const badge = $("#stickyRefreshButton");
+    if (badge) badge.classList.add("busy");
+    try {
+      const fresh = await api("getTrip", authPayload());
+      if (fresh && fresh.trip && String(fresh.trip.tripId) === String(state.data.trip.tripId)) {
+        state.data.stickyNotes = fresh.stickyNotes || [];
+        state.data.stickyDiary = fresh.stickyDiary || [];
+        stickyRefreshAt = Date.now();
+        loadStickyNotes();
+      }
+    } catch {} finally {
+      stickyRefreshing = false;
+      if (badge) badge.classList.remove("busy");
+    }
   }
 
   function stickyRecord(note) {
@@ -1181,6 +1241,22 @@
   let lastStickyError = "";
 
   /** Saves one shared note to the trip's StickyNotes Google Sheet so everyone sees it. */
+  /**
+   * Saves a note. Moving or resizing passes geometryOnly, which sends just the
+   * position fields — a browser holding a stale copy of the text can no longer
+   * overwrite a newer version simply by dragging the note.
+   */
+  async function persistStickyPosition(note) {
+    if (!note || state.demoMode || !canWriteStickyNotes()) return null;
+    try {
+      return await api("saveStickyNote", authPayload({
+        record: { id: note.id, title: note.title, pinned: note.pinned, x: Math.round(note.x), y: Math.round(note.y), width: Math.round(note.width), height: Math.round(note.height) },
+        geometryOnly: true,
+        author: state.currentUser
+      }));
+    } catch { return null; }
+  }
+
   async function persistSticky(note, silent = false) {
     if (!note) return null;
     if (state.demoMode) { saveStickyNotes(); mirrorStickyNotes(); return note; }
@@ -1303,6 +1379,7 @@
     requestAnimationFrame(() => panel.classList.add("open"));
     panel.setAttribute("aria-hidden", "false");
     $("#stickyEdgeTab").setAttribute("aria-expanded", "true");
+    refreshStickyNotes();
   }
 
   function closeStickyPanel() {
@@ -1345,9 +1422,10 @@
   function floatingStickyCard(note) {
     const inline = (field) => canWriteStickyNotes() ? ` contenteditable="plaintext-only" spellcheck="false" class="sticky-inline" data-sticky-inline="${esc(note.id)}" data-sticky-field="${field}" title="Click to edit"` : "";
     const safeWidth = Math.min(note.width, Math.max(260, innerWidth - 8));
-    const safeX = Math.max(4, Math.min(innerWidth - safeWidth - 4, note.x));
-    const safeY = Math.max(76, Math.min(innerHeight - 120, note.y));
-    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(note.height)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>${canWriteStickyNotes() ? "↕ Move note" : "📌 Pinned for everyone"}</span>${canWriteStickyNotes() ? `<button data-sticky-pin="${esc(note.id)}" title="Unpin and return to panel">×</button>` : ""}</header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3${inline("title")}>${esc(note.title)}</h3><p${inline("body")}>${stickyBodyHtml(note)}</p></div>${canWriteStickyNotes() ? `<footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer>` : ""}</article>`;
+    const safeHeight = Math.min(note.height, Math.max(190, innerHeight - 92));
+    const safeX = Math.max(4, Math.min(Math.max(4, innerWidth - safeWidth - 4), note.x));
+    const safeY = Math.max(76, Math.min(Math.max(76, innerHeight - safeHeight - 8), note.y));
+    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(safeHeight)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>${canWriteStickyNotes() ? "↕ Move note" : "📌 Pinned for everyone"}</span>${canWriteStickyNotes() ? `<button data-sticky-pin="${esc(note.id)}" title="Unpin and return to panel">×</button>` : ""}</header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3${inline("title")}>${esc(note.title)}</h3><p${inline("body")}>${stickyBodyHtml(note)}</p></div>${canWriteStickyNotes() ? `<footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer>` : ""}</article>`;
   }
 
   function renderStickyNotes() {
@@ -1371,6 +1449,7 @@
     layer.classList.toggle("hidden", !state.data || !pinned.length);
     layer.innerHTML = pinned.map(floatingStickyCard).join("");
     bindStickyActions();
+    bindStickyFrontmost();
   }
 
   function updateSticky(id, changes) {
@@ -1528,7 +1607,7 @@
     note[field] = field === "title" ? clean.slice(0, 120) : clean.slice(0, 2000);
     element.dataset.saving = "true";
     lastStickyError = "";
-    const saved = await persistSticky(note, true);
+    const saved = await persistStickyPosition(note);
     delete element.dataset.saving;
     if (saved) { mirrorStickyNotes(); toast("Sticky note saved"); renderStickyNotes(); }
     else { note[field] = previous; element.textContent = previous; toast(lastStickyError || "The note could not be saved to the trip sheet", true); }
@@ -1565,6 +1644,17 @@
     if (bold) bold.addEventListener("click", () => wrapStickySelection(element));
     bar.querySelector("[data-inline-save]").addEventListener("click", () => { element.dataset.commit = "true"; element.blur(); });
     bar.querySelector("[data-inline-cancel]").addEventListener("click", () => { element.dataset.revert = "true"; element.blur(); renderStickyNotes(); });
+  }
+
+  /** Tapping a pinned note raises it above the others. */
+  function bindStickyFrontmost() {
+    const layer = $("#floatingStickyLayer");
+    if (!layer) return;
+    $$("[data-floating-sticky]", layer).forEach((article) => {
+      article.addEventListener("pointerdown", () => {
+        if (article !== layer.lastElementChild) layer.appendChild(article);
+      }, true);
+    });
   }
 
   function bindStickyActions() {
@@ -1605,11 +1695,11 @@
         event.preventDefault(); handle.setPointerCapture(event.pointerId);
         const rect = element.getBoundingClientRect(), offsetX = event.clientX - rect.left, offsetY = event.clientY - rect.top;
         const move = (moveEvent) => { const x = Math.max(4, Math.min(innerWidth - element.offsetWidth - 4, moveEvent.clientX - offsetX)); const y = Math.max(76, Math.min(innerHeight - 70, moveEvent.clientY - offsetY)); element.style.left = `${x}px`; element.style.top = `${y}px`; note.x = x; note.y = y; };
-        const finish = () => { handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", finish); handle.removeEventListener("pointercancel", finish); saveStickyNotes(); persistSticky(note, true); };
+        const finish = () => { handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", finish); handle.removeEventListener("pointercancel", finish); saveStickyNotes(); persistStickyPosition(note); };
         handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", finish); handle.addEventListener("pointercancel", finish);
       });
     });
-    $$('.floating-sticky').forEach((element) => element.addEventListener("pointerup", () => { const note = stickyNotes.find((item) => item.id === element.dataset.floatingSticky); if (!note) return; const box = element.getBoundingClientRect(); note.width = box.width; note.height = box.height; saveStickyNotes(); persistSticky(note, true); }));
+    $$('.floating-sticky').forEach((element) => element.addEventListener("pointerup", () => { const note = stickyNotes.find((item) => item.id === element.dataset.floatingSticky); if (!note) return; const box = element.getBoundingClientRect(); note.width = box.width; note.height = box.height; saveStickyNotes(); persistStickyPosition(note); }));
   }
 
   function ordinalDay(day) {
@@ -1779,7 +1869,7 @@
             if (!fresh || !fresh.trip || String(fresh.trip.tripId) !== String(tripId)) return;
             state.data = normalize(fresh); state.permissions = fresh.permissions || {};
             cacheTripBundle(fresh, cached.meta);
-            loadStickyNotes(); hydrateShell(); render(); updatePrintArea();
+            loadStickyNotes(); hydrateShell(); render(); updatePrintArea(); stickyRefreshAt = Date.now();
           }).catch(() => {});
           return;
         }
@@ -2713,9 +2803,12 @@
   $("#closeStickyPanel").addEventListener("click", closeStickyPanel);
   $("#stickyPanelBackdrop").addEventListener("click", closeStickyPanel);
   addEventListener("resize", () => { if (state.data) reflowStickyNotes(); }, { passive: true });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshStickyNotes(); });
+  addEventListener("focus", () => refreshStickyNotes());
   $("#addStickyNote").addEventListener("click", () => showStickyEditor());
   if ($("#stickyAccessButton")) $("#stickyAccessButton").addEventListener("click", showStickyBoardAccess);
   if ($("#stickyRecallButton")) $("#stickyRecallButton").addEventListener("click", recallPinnedStickyNotes);
+  if ($("#stickyRefreshButton")) $("#stickyRefreshButton").addEventListener("click", () => refreshStickyNotes(true));
   $("#clearAppCache").addEventListener("click", clearAppCacheAndReload);
   $("#closeQuickFind").addEventListener("click", closeQuickFind);
   $("#quickFindLayer").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeQuickFind(); });
