@@ -1078,3 +1078,10 @@ body.plan-dragging{user-select:none;cursor:grabbing}
 .sticky-inline-actions{position:sticky;bottom:0;z-index:5;margin-top:10px;padding:8px 2px 2px;background:linear-gradient(to top,var(--sticky-bg) 62%,transparent)}
 .sticky-card:has(.sticky-inline-actions),.floating-sticky:has(.sticky-inline-actions){outline:2px solid color-mix(in srgb,var(--sticky-line),#fff 35%);outline-offset:2px}
 .sticky-inline-actions button.primary{box-shadow:0 2px 8px -3px color-mix(in srgb,var(--sticky-line),transparent 40%)}
+
+
+/* v4.20 pinned notes must sit ABOVE the sticky panel (80), its backdrop (78)
+   and the edge tab (75) — at z-index 70 a note pinned while the panel was open
+   was painted behind it and looked lost. Modals (100) still win. */
+.floating-sticky-layer{z-index:90}
+.floating-sticky{pointer-events:auto}

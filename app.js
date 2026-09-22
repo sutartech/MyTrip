@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.19.7";
-  const requiredBackendVersion = "4.10.5";
+  const frontendVersion = "4.20.2";
+  const requiredBackendVersion = "4.10.6";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -1094,14 +1094,20 @@
     };
   }
 
+  /**
+   * Removes exact duplicates only. Where two notes share a title, the one with
+   * the most text wins: a truncated copy must never hide the full note.
+   */
   function dedupeStickyNotes(list) {
-    const seen = new Set();
-    return list.filter((note) => {
-      const key = `${String(note.id)}`;
-      const twin = `${note.title}|${note.body}|${note.dueDate}`;
-      if (seen.has(key) || seen.has(twin)) return false;
-      seen.add(key); seen.add(twin); return true;
+    const byId = new Map();
+    list.forEach((note) => { if (!byId.has(String(note.id))) byId.set(String(note.id), note); });
+    const byTitle = new Map();
+    [...byId.values()].forEach((note) => {
+      const key = `${note.title.trim().toLowerCase()}|${note.dueDate}`;
+      const rival = byTitle.get(key);
+      if (!rival || String(note.body).length > String(rival.body).length) byTitle.set(key, note);
     });
+    return [...byTitle.values()];
   }
 
   /* floatingStickyCard() clamps to the viewport at paint time, so a window
@@ -1121,13 +1127,23 @@
     renderStickyNotes();
   }
 
-  /** One-time lift: notes left in this browser move into the shared Google Sheet. */
+  /**
+   * One-time lift: notes left in this browser move into the shared Google Sheet.
+   * Runs ONCE per trip per browser and skips any note whose id or title already
+   * exists on the server — matching on title+body used to re-upload an older,
+   * shorter copy of a note as a duplicate.
+   */
   async function migrateDeviceStickyNotes() {
     if (stickyMigrationRunning || state.demoMode || !canWriteStickyNotes()) return;
+    const doneKey = `${stickyStorageKey()}:migrated`;
+    if (localStorage.getItem(doneKey)) { try { localStorage.removeItem(stickyStorageKey()); } catch {} return; }
     let parsed = [];
     try { parsed = JSON.parse(localStorage.getItem(stickyStorageKey()) || "[]"); } catch { parsed = []; }
+    const serverIds = new Set(stickyNotes.map((item) => String(item.id)));
+    const serverTitles = new Set(stickyNotes.map((item) => item.title.trim().toLowerCase()));
     const legacy = dedupeStickyNotes((Array.isArray(parsed) ? parsed : []).filter((note) => !note.completed).map(normaliseSticky))
-      .filter((note) => !stickyNotes.some((item) => `${item.title}|${item.body}` === `${note.title}|${note.body}`));
+      .filter((note) => !serverIds.has(String(note.id)) && !serverTitles.has(note.title.trim().toLowerCase()));
+    try { localStorage.setItem(doneKey, new Date().toISOString()); } catch {}
     if (!legacy.length) { try { localStorage.removeItem(stickyStorageKey()); } catch {} return; }
     stickyMigrationRunning = true;
     let moved = 0;
@@ -1138,6 +1154,20 @@
     stickyMigrationRunning = false;
     try { localStorage.removeItem(stickyStorageKey()); } catch {}
     if (moved) { renderStickyNotes(); toast(`${moved} sticky ${moved === 1 ? "note" : "notes"} moved into the shared trip sheet`); }
+  }
+
+  /** Re-seats every pinned note inside the current window and saves the position. */
+  async function recallPinnedStickyNotes() {
+    const pinned = stickyNotes.filter((note) => note.pinned && !note.completed);
+    if (!pinned.length) return toast("No pinned notes to bring back");
+    pinned.forEach((note, index) => {
+      note.width = Math.min(note.width, Math.max(260, innerWidth - 24));
+      note.x = Math.max(12, Math.min(innerWidth - note.width - 12, 220 + index * 26));
+      note.y = Math.max(96, Math.min(innerHeight - 160, 120 + index * 30));
+    });
+    renderStickyNotes();
+    if (canWriteStickyNotes()) await Promise.all(pinned.map((note) => persistSticky(note, true)));
+    toast(`${pinned.length} pinned ${pinned.length === 1 ? "note" : "notes"} brought into view`);
   }
 
   function stickyRecord(note) {
@@ -1332,6 +1362,7 @@
     $("#stickyCompletedCount").textContent = `${completed.length} completed`;
     $("#addStickyNote").classList.toggle("hidden", !canWriteStickyNotes());
     if ($("#stickyAccessButton")) $("#stickyAccessButton").classList.toggle("hidden", !isAdmin());
+    if ($("#stickyRecallButton")) $("#stickyRecallButton").classList.toggle("hidden", !active.some((note) => note.pinned));
     $(".sticky-device-note").innerHTML = { edit: `Pinned notes are shared with every traveller in this trip and saved in the <b>StickyNotes</b> Google Sheet. The Administrator allowed you to edit them.`, view: `Pinned notes are shared with every traveller. Your Traveller ID is <b>view only</b> — ask the Administrator for edit access.` }[stickyAccessLevel()];
     $("#stickyActiveList").innerHTML = active.map(stickyPanelCard).join("") || `<div class="sticky-empty"><b>No active sticky notes</b><p>${canWriteStickyNotes() ? "Add a target or reminder whenever something needs attention." : "The Administrator has not added an active note on this device."}</p></div>`;
     $("#stickyDiaryList").innerHTML = completed.map(stickyDiaryCard).join("") || `<div class="sticky-empty compact"><b>No completed notes yet</b></div>`;
@@ -2684,6 +2715,7 @@
   addEventListener("resize", () => { if (state.data) reflowStickyNotes(); }, { passive: true });
   $("#addStickyNote").addEventListener("click", () => showStickyEditor());
   if ($("#stickyAccessButton")) $("#stickyAccessButton").addEventListener("click", showStickyBoardAccess);
+  if ($("#stickyRecallButton")) $("#stickyRecallButton").addEventListener("click", recallPinnedStickyNotes);
   $("#clearAppCache").addEventListener("click", clearAppCacheAndReload);
   $("#closeQuickFind").addEventListener("click", closeQuickFind);
   $("#quickFindLayer").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeQuickFind(); });
