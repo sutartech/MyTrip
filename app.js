@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.21.4";
+  const frontendVersion = "4.22.1";
   const requiredBackendVersion = "4.11.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -403,7 +403,7 @@
     state.authenticated = true;
     state.permissions = data.permissions || {};
     $("#accessScreen").classList.add("hidden"); $("#accountHub").classList.add("hidden"); $("#dashboard").classList.remove("hidden");
-    loadStickyNotes(); setStickyControlsVisible(true); applyPrintPlanSettings(); startIdleTimer();
+    loadStickyNotes(); setStickyControlsVisible(true); applyPrintPlanSettings(); applyTextScale(); startIdleTimer();
     setTab("overview"); hydrateShell(); updatePrintArea();
     migrateCompletedStickyNotes();
   }
@@ -683,6 +683,34 @@
     const value = localStorage.getItem(printAlignKey);
     return ["left", "center", "right"].includes(value) ? value : "left";
   }
+  /* ---- readable text size, remembered per browser ----
+     Applies to the whole content area, so the itinerary table, expenses,
+     places and every other view scale together. */
+  const textSizeKey = "mytrip_text_scale_v1";
+  const textSizeSteps = [100, 110, 125, 140, 160];
+
+  function textScale() {
+    const stored = Number(localStorage.getItem(textSizeKey));
+    return textSizeSteps.includes(stored) ? stored : 100;
+  }
+
+  function applyTextScale() {
+    const scale = textScale();
+    const content = $(".content");
+    if (content) content.style.zoom = scale === 100 ? "" : String(scale / 100);
+    if ($("#textSizeValue")) $("#textSizeValue").textContent = `${scale}%`;
+    if ($("#textSizeDown")) $("#textSizeDown").disabled = scale === textSizeSteps[0];
+    if ($("#textSizeUp")) $("#textSizeUp").disabled = scale === textSizeSteps[textSizeSteps.length - 1];
+  }
+
+  function stepTextScale(direction) {
+    const index = textSizeSteps.indexOf(textScale());
+    const next = textSizeSteps[Math.min(textSizeSteps.length - 1, Math.max(0, index + direction))];
+    try { localStorage.setItem(textSizeKey, String(next)); } catch {}
+    applyTextScale();
+    toast(`Text size ${next}%`);
+  }
+
   function applyPrintPlanSettings() {
     document.body.style.setProperty("--print-plan-font", `${printPlanScale()}px`);
     document.body.style.setProperty("--print-plan-align", printPlanAlign());
@@ -2809,6 +2837,9 @@
   if ($("#stickyAccessButton")) $("#stickyAccessButton").addEventListener("click", showStickyBoardAccess);
   if ($("#stickyRecallButton")) $("#stickyRecallButton").addEventListener("click", recallPinnedStickyNotes);
   if ($("#stickyRefreshButton")) $("#stickyRefreshButton").addEventListener("click", () => refreshStickyNotes(true));
+  if ($("#textSizeDown")) $("#textSizeDown").addEventListener("click", () => stepTextScale(-1));
+  if ($("#textSizeUp")) $("#textSizeUp").addEventListener("click", () => stepTextScale(1));
+  applyTextScale();
   $("#clearAppCache").addEventListener("click", clearAppCacheAndReload);
   $("#closeQuickFind").addEventListener("click", closeQuickFind);
   $("#quickFindLayer").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeQuickFind(); });
