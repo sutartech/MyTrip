@@ -1118,4 +1118,37 @@ body.plan-dragging{user-select:none;cursor:grabbing}
    positioned with z-index:4 and was swallowing clicks meant for the controls
    beneath it (A+, All trips, Invite, avatars). */
 .header-date-time{pointer-events:none}
-.top-actions>*{position:relative;z-index:5}
+
+/* v4.22.2 the clock had been absolutely centred, so it reserved no space and
+   overlapped the action row at every width — slicing either the clock or the
+   buttons depending on stacking. It is now a normal flex item with its own
+   space, and hides where the row genuinely runs out of room. */
+@media(min-width:761px){
+  .topbar>.header-date-time,.account-hub-topbar>.header-date-time{
+    position:relative;z-index:auto;left:auto;transform:none;
+    margin-inline:auto;flex:0 1 auto;min-width:0;white-space:nowrap;
+  }
+  .topbar,.account-hub-topbar{gap:10px}
+  .top-actions{flex:0 0 auto}
+}
+
+
+/* v4.22.3 The clock was the only shrinkable item in the bar, so below ~1290px
+   it absorbed the whole deficit and was squeezed to an unreadable sliver while
+   the action row slid off-screen. It is now unshrinkable, the trip summary is
+   the flexible item, and where the row genuinely lacks width the bar wraps the
+   clock onto its own line instead of hiding or clipping anything. */
+@media(min-width:761px){
+  .topbar>.header-date-time,.account-hub-topbar>.header-date-time{
+    flex:0 0 auto;min-width:max-content;white-space:nowrap;
+  }
+  .topbar>.top-trip-summary{flex:1 1 auto;min-width:0}
+  .top-trip-copy{min-width:0}
+  .top-trip-copy>strong,.top-trip-copy>small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media(max-width:1290px) and (min-width:761px){
+  .topbar{flex-wrap:wrap;height:auto;min-height:60px;padding-block:8px;row-gap:8px}
+  .topbar>.top-trip-summary{order:1;flex:1 1 240px}
+  .topbar>.top-actions{order:2;flex:0 0 auto}
+  .topbar>.header-date-time{order:3;flex:1 1 100%;margin-inline:0}
+}
