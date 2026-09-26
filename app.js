@@ -6,12 +6,19 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.24.1";
-  const requiredBackendVersion = "4.12.0";
+  const frontendVersion = "4.25.0";
+  const requiredBackendVersion = "4.12.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
-  let apiUrl = validApiUrl(config.API_URL) ? String(config.API_URL).trim() : (validApiUrl(readStoredApiUrl()) ? readStoredApiUrl() : "");
+  /* The URL the Administrator last connected and verified in the app wins over
+     config.js; the other one stays as an automatic fallback. Before, config.js
+     always won, so after a "New deployment" (new URL) the app kept calling the
+     old, deleted URL and got HTTP 404. */
+  function backendCandidates() {
+    return [...new Set([readStoredApiUrl(), String(config.API_URL || "").trim()].filter(validApiUrl))];
+  }
+  let apiUrl = backendCandidates()[0] || "";
   let backendState = apiUrl ? "checking" : "missing";
   let backendVersion = "";
   let backendInfo = null;
@@ -177,7 +184,7 @@
     setRequestProgress(1);
     try {
       const response = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action, ...payload }), signal: controller.signal });
-      if (!response.ok) throw new Error(`Google backend returned HTTP ${response.status}.`);
+      if (!response.ok) throw new Error(`Google backend returned HTTP ${response.status}.${response.status === 404 ? " The saved Web App URL no longer exists — in Apps Script open Deploy → Manage deployments, copy the Web app URL, then paste it under Other setup tools → Connect backend (or into config.js)." : ""}`);
       const result = await response.json();
       if (!result.ok) throw new Error(result.error || "The request could not be completed.");
       if (result.idleMinutes) applyIdleMinutes(result.idleMinutes);
@@ -225,7 +232,13 @@
     backendState = "checking"; updateBackendStatus();
     backendVerificationPromise = (async () => {
       try {
-        const info = await verifyBackendVersion();
+        let info = null, lastError = null;
+        for (const candidate of [apiUrl, ...backendCandidates().filter((url) => url !== apiUrl)]) {
+          try { info = await verifyBackendVersion(candidate); apiUrl = candidate; break; }
+          catch (error) { lastError = error; if (error.code === "BACKEND_UPGRADE_REQUIRED") break; }
+        }
+        if (!info) throw lastError || new Error("The Google backend could not be reached.");
+        if (apiUrl !== readStoredApiUrl()) saveStoredApiUrl(apiUrl);
         backendInfo = info; backendVerifiedAt = Date.now(); backendVerifiedUrl = apiUrl;
         backendState = "ready"; updateBackendStatus();
         return info;
@@ -1146,23 +1159,26 @@
       width: Math.min(520, Math.max(260, Number(value.width) || 330)),
       height: Math.min(620, Math.max(190, Number(value.height) || 260)),
       createdAt: String(value.createdAt || new Date().toISOString()),
+      updatedAt: String(value.updatedAt || value.createdAt || ""),
       completedAt: String(value.completedAt || ""),
       completedBy: String(value.completedBy || "")
     };
   }
 
   /**
-   * Removes exact duplicates only. Where two notes share a title, the one with
-   * the most text wins: a truncated copy must never hide the full note.
+   * One note per id. If older builds left two copies of the same note (same
+   * title), show only the most recently SAVED copy — never the longest one.
+   * Showing the longest copy was why an edit looked lost after re-login and
+   * why an unpinned note kept popping back: the other, stale copy was shown.
    */
   function dedupeStickyNotes(list) {
     const byId = new Map();
     list.forEach((note) => { if (!byId.has(String(note.id))) byId.set(String(note.id), note); });
     const byTitle = new Map();
     [...byId.values()].forEach((note) => {
-      const key = `${note.title.trim().toLowerCase()}|${note.dueDate}`;
+      const key = note.title.trim().toLowerCase();
       const rival = byTitle.get(key);
-      if (!rival || String(note.body).length > String(rival.body).length) byTitle.set(key, note);
+      if (!rival || String(note.updatedAt || note.createdAt) > String(rival.updatedAt || rival.createdAt)) byTitle.set(key, note);
     });
     return [...byTitle.values()];
   }
@@ -1345,7 +1361,7 @@
   async function persistStickyNow(note, silent) {
     try {
       const saved = await api("saveStickyNote", authPayload({ record: stickyRecord(note), author: state.currentUser }));
-      note.id = saved.id; note.createdAt = saved.createdAt || note.createdAt;
+      note.id = saved.id; note.createdAt = saved.createdAt || note.createdAt; note.updatedAt = saved.updatedAt || new Date().toISOString();
       /* Confirm the sheet kept every line, rather than trusting the request. */
       const storedBody = decodeStickyText(saved.details);
       const trim = (text) => String(text).replace(/\n+$/, "");
@@ -1821,7 +1837,7 @@
   }
 
   function showBackendSetup(afterConnect) {
-    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v4.6.0 account build required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This enables common login, traveller trip-creation permission, the Drive photo gallery and the <code>StickyNoteDiary</code> Google Sheet.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. Account login, traveller credentials, photo gallery, version and Sticky Note Diary capabilities are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test v4.6.0 account build</button></div></form>`);
+    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v4.6.0 account build required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This enables common login, traveller trip-creation permission, the Drive photo gallery and the <code>StickyNoteDiary</code> Google Sheet.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. Account login, traveller credentials, photo gallery, version and Sticky Note Diary capabilities are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test and connect</button></div></form>`);
     const form = $("#backendForm");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
