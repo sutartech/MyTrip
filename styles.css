@@ -1193,3 +1193,44 @@ body.plan-dragging{user-select:none;cursor:grabbing}
 
 /* v4.25.1 on-screen toggle for pinned notes */
 #stickyScreenToggle.on{border-color:#2f7d72;background:#f2f9f7;color:#2f7d72}
+
+
+/* v4.25.2 phone fixes */
+@media(max-width:760px){
+  /* bottom nav was min-width:max-content inside an overflow:hidden bar, so
+     Travellers / Print & Export sat past the screen edge and could not be reached */
+  .sidebar #mainNav{min-width:0;width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .sidebar #mainNav::-webkit-scrollbar{display:none}
+  .sidebar #mainNav>*{flex:0 0 auto;scroll-snap-align:start}
+
+  /* expenses: 980px table → stacked cards, no sideways scrolling */
+  .expense-table{min-width:0!important;width:100%}
+  .expense-table>.expense-table-header{display:none}
+  .expense-table>.expense-row{grid-template-columns:1fr auto!important;grid-template-areas:"desc amount" "meta meta" "actions actions";gap:6px 10px;padding:12px}
+  .expense-row>.expense-description{grid-area:desc;min-width:0}
+  .expense-row>.expense-amount{grid-area:amount;text-align:right;font-weight:900}
+  .expense-row>span:nth-child(2),.expense-row>span:nth-child(3),.expense-row>span:nth-child(4){grid-area:auto;grid-column:1/-1;display:inline;font-size:11px;color:#6b7a88}
+  .expense-row>span:nth-child(2)::after,.expense-row>span:nth-child(3)::after{content:" · "}
+  .expense-row>.expense-row-actions{grid-area:actions;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start}
+  .expense-row-editing{grid-template-columns:1fr!important}
+  .expense-record-panel{overflow-x:visible}
+}
+@media(max-width:760px){
+  .expense-table>.expense-row{display:grid}
+  .expense-table>.expense-row>span:nth-child(2),.expense-table>.expense-row>span:nth-child(3),.expense-table>.expense-row>span:nth-child(4){display:block;grid-column:1/-1}
+}
+/* comfortable touch targets wherever the pointer is a finger */
+@media(pointer:coarse){
+  #allTripsButton,.plan-row-actions button,.expense-row-actions button,.plan-tool,.plan-seg button,.plan-switch,.plan-width-control button,.text-size-control button,.trip-order-controls button,.sticky-access-button{min-height:40px;min-width:40px}
+  a.map-link,[data-map],.view-all,.section-link{min-height:36px;display:inline-flex;align-items:center}
+  .plan-print-panel{width:min(320px,92vw)}
+}
+
+@media(max-width:760px){
+  .expense-table>.expense-row{grid-template-areas:none!important;grid-template-columns:minmax(0,1fr) max-content!important}
+  .expense-table>.expense-row>.expense-description{grid-column:1;grid-row:1}
+  .expense-table>.expense-row>.expense-amount{grid-column:2;grid-row:1;display:block;white-space:nowrap}
+  .expense-table>.expense-row>span:nth-child(2),.expense-table>.expense-row>span:nth-child(3),.expense-table>.expense-row>span:nth-child(4){grid-column:1/-1;grid-row:auto}
+  .expense-table>.expense-row>.expense-row-actions{grid-column:1/-1;grid-row:auto}
+}
+@media(max-width:760px){.expense-row-actions button,.plan-row-actions button,#allTripsButton{min-height:40px;min-width:40px}.expense-table>.expense-row>.expense-amount{font-size:14px}}
