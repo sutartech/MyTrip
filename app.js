@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.28.2";
+  const frontendVersion = "4.29.0";
   const requiredBackendVersion = "4.13.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -704,6 +704,12 @@
       })[0] || null;
   }
 
+  function journeyCountdown(mins) {
+    if (!(mins > 0)) return "NOW";
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return `IN ${h ? `${h}H ` : ""}${m}M`;
+  }
+
   function renderJourneyStage(today) {
     const trip = state.data.trip;
     const stage = tripOverviewStage(today);
@@ -736,7 +742,7 @@
     const todaySpent = todayExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const journeyList = visibleItems.map((item) => `<article class="journey-plan-item ${next && item.id === next.id ? "next" : ""}"><time>${item.time ? esc(displayTime(item.time)) : "Any time"}</time><div><b>${esc(item.title || "Trip plan")}</b><span>${item.place ? `⌖ ${esc(item.place)}` : "Place not added"}</span></div>${item.place ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">Navigate ↗</a>` : ""}</article>`).join("");
     const reminderCard = reminder ? `<article class="journey-reminder"><small>${esc(reminder.type)} · ${esc(stickyDueText(reminder))}</small><b>${esc(reminder.title)}</b><p>${esc(reminder.body || "No additional details")}</p><button data-open-sticky>Open sticky notes →</button></article>` : `<article class="journey-reminder clear"><small>REMINDERS</small><b>Nothing urgent</b><p>No active sticky note needs attention right now.</p>${canWriteStickyNotes() ? `<button data-open-sticky>Add a reminder →</button>` : ""}</article>`;
-    return `<section class="journey-stage active"><div class="journey-stage-hero"><div><span class="journey-stage-kicker">◆ DAY ${tripDay} OF ${totalDays}</span><h2>Today’s Journey</h2><p><b>${displayDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b> · ${destination}</p></div><span class="journey-stage-badge">LIVE TODAY</span></div><div class="journey-live-grid"><div class="journey-main"><header><div><small>${next ? "UP NEXT" : (todayItems.length ? "TODAY’S PLAN" : "OPEN DAY")}</small><h3>${next ? esc(next.title || "Next plan") : (todayItems.length ? "Today’s scheduled plans are complete" : "No itinerary planned for today")}</h3><p>${next ? `${next.time ? `${esc(displayTime(next.time))} · ` : ""}${next.place ? `⌖ ${esc(next.place)}` : "Location not added"}` : "Use this free time for a spontaneous discovery or add a plan."}</p></div>${next && next.place ? `<a class="journey-navigate" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(next.place)}" target="_blank" rel="noreferrer">⌖ Navigate</a>` : ""}</header><div class="journey-plan-list">${journeyList || `<div class="journey-empty"><i>☀</i><b>Make today memorable</b><span>Add a plan, visit a saved place, or record an experience.</span></div>`}</div></div><aside class="journey-side">${canViewExpenses() ? `<article class="journey-metric"><small>TODAY’S SPENDING</small><strong>${money.format(todaySpent)}</strong><span>${todayExpenses.length} ${todayExpenses.length === 1 ? "payment" : "payments"} recorded</span></article>` : ""}${reminderCard}</aside></div></section>`;
+    return `<section class="journey-stage active"><div class="journey-stage-hero"><div><span class="journey-stage-kicker">◆ DAY ${tripDay} OF ${totalDays}</span><h2>Today’s Journey</h2><p><b>${displayDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b> · ${destination}</p></div><span class="journey-stage-badge">LIVE TODAY</span></div><div class="journey-live-grid"><div class="journey-main"><header><div><small>${next ? `UP NEXT${next.time ? ` · ${journeyCountdown(itineraryTimeMinutes(next.time) - nowMinutes)}` : ""}` : (todayItems.length ? "TODAY’S PLAN" : "OPEN DAY")}</small><h3>${next ? esc(next.title || "Next plan") : (todayItems.length ? "Today’s scheduled plans are complete" : "No itinerary planned for today")}</h3><p>${next ? `${next.time ? `${esc(displayTime(next.time))} · ` : ""}${next.place ? `⌖ ${esc(next.place)}` : "Location not added"}` : "Use this free time for a spontaneous discovery or add a plan."}</p></div>${next && next.place ? `<a class="journey-navigate" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(next.place)}" target="_blank" rel="noreferrer">⌖ Navigate</a>` : ""}</header><div class="journey-plan-list">${journeyList || `<div class="journey-empty"><i>☀</i><b>Make today memorable</b><span>Add a plan, visit a saved place, or record an experience.</span></div>`}</div></div><aside class="journey-side">${canViewExpenses() ? `<article class="journey-metric"><small>TODAY’S SPENDING</small><strong>${money.format(todaySpent)}</strong><span>${todayExpenses.length} ${todayExpenses.length === 1 ? "payment" : "payments"} recorded</span></article>` : ""}${reminderCard}</aside></div></section>`;
   }
 
   function renderOverview() {
@@ -1067,6 +1073,42 @@
     return `${heading("DISCOVER & SAVE", "Places and map", "Travellers can save and edit places; the administrator can also remove them.", "place")}<div class="map-search"><input id="mapQuery" value="${esc(state.mapQuery)}" aria-label="Search Google Maps"><button id="mapSearchButton">⌖ Search Google Maps</button></div><div class="places-layout"><div class="map-frame"><iframe title="Trip map" src="https://www.google.com/maps?q=${encodeURIComponent(state.mapQuery)}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div><div class="places-list">${state.data.places.map((place) => `<article class="place"><i class="place-icon">⌖</i><div><h3>${esc(place.name)}</h3><p>${esc(place.area)} · ${esc(place.category)}</p><small>${esc(place.plannedDay || "Unplanned")}</small></div><span class="row-actions"><button data-map="${esc(`${place.name}, ${place.area}`)}">Map ↗</button>${canEditRecords("Places") ? `<button class="edit-control mini" data-edit data-sheet="Places" data-id="${esc(place.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control mini" data-delete data-sheet="Places" data-id="${esc(place.id)}">×</button>` : ""}</span></article>`).join("")}</div></div>`;
   }
 
+  function settleUpPlan() {
+    const members = visibleTripMembers().map((m) => String(m.name || "").trim()).filter(Boolean);
+    const paid = new Map();
+    members.forEach((name) => paid.set(name.toLowerCase(), { name, paid: 0 }));
+    state.data.expenses.forEach((e) => {
+      const name = String(e.paidBy || "").trim(); if (!name) return;
+      const key = name.toLowerCase();
+      if (!paid.has(key)) paid.set(key, { name, paid: 0 });
+      paid.get(key).paid += Number(e.amount || 0);
+    });
+    const people = [...paid.values()];
+    const total = people.reduce((s, p) => s + p.paid, 0);
+    if (!people.length || !total) return { people: [], transfers: [], share: 0, total };
+    const share = total / people.length;
+    people.forEach((p) => { p.net = Math.round((p.paid - share) * 100) / 100; });
+    const owe = people.filter((p) => p.net < -0.5).map((p) => ({ ...p, left: -p.net })).sort((a, b) => b.left - a.left);
+    const get = people.filter((p) => p.net > 0.5).map((p) => ({ ...p, left: p.net })).sort((a, b) => b.left - a.left);
+    const transfers = [];
+    let i = 0, j = 0;
+    while (i < owe.length && j < get.length) {
+      const amt = Math.min(owe[i].left, get[j].left);
+      if (amt >= 1) transfers.push({ from: owe[i].name, to: get[j].name, amount: Math.round(amt) });
+      owe[i].left -= amt; get[j].left -= amt;
+      if (owe[i].left < 0.5) i++; if (get[j].left < 0.5) j++;
+    }
+    return { people: people.sort((a, b) => b.net - a.net), transfers, share, total };
+  }
+
+  function renderSettleUp() {
+    const plan = settleUpPlan();
+    if (!plan.total) return "";
+    const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.name })}<b>${esc(p.name)}</b></span><small>Paid ${money.format(p.paid)}</small><strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong></div>`).join("");
+    const moves = plan.transfers.length ? plan.transfers.map((t) => `<li><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong></li>`).join("") : `<li class="settle-done"><b>All settled</b><span>Everyone has paid an equal share.</span></li>`;
+    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>Split equally across ${plan.people.length} travellers · ${money.format(Math.round(plan.share))} each</p></div></div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div></section>`;
+  }
+
   function renderExpenses() {
     if (!canViewExpenses()) return `<section class="feature-locked"><i>₹</i><h2>Expenses hidden</h2><p>The Administrator has not enabled this feature for your Traveller ID.</p></section>`;
     const budget = Number(state.data.trip.budget || 0), total = spent();
@@ -1081,7 +1123,7 @@
       const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
       return `<div class="expense-row"><span class="expense-description"><i>₹</i><b>${esc(expense.label)}</b></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${editActions}${deleteAction}</span></div>`;
     }).join("");
-    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section><section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section><section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>Detailed expense statement</h2><p>Use Row edit for a quick change or Edit for every field.</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu()}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div><div class="expense-table expense-action-table"><div class="expense-table-header"><span>DESCRIPTION</span><span>DATE</span><span>CATEGORY</span><span>PAID BY</span><span>AMOUNT</span><span>ACTIONS</span></div>${rows || `<div class="expense-empty-row"><b>No expenses recorded</b><p>Add the first trip payment.</p></div>`}</div></section>`;
+    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section><section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>Detailed expense statement</h2><p>Use Row edit for a quick change or Edit for every field.</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu()}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div><div class="expense-table expense-action-table"><div class="expense-table-header"><span>DESCRIPTION</span><span>DATE</span><span>CATEGORY</span><span>PAID BY</span><span>AMOUNT</span><span>ACTIONS</span></div>${rows || `<div class="expense-empty-row"><b>No expenses recorded</b><p>Add the first trip payment.</p></div>`}</div></section>`;
   }
 
   function renderExpenseRowEditor(expense) {
@@ -2092,7 +2134,7 @@
       } else {
         const payload = { tripId, username: state.accountUsername, password: pin, pin, ...(traveller ? { travellerId: traveller.travellerId } : {}) };
         const cached = readCachedTrip(tripId);
-        if (cached && !traveller) {
+        if (cached && !traveller && cached.meta && cached.meta.role === role && !cached.meta.travellerId && (cached.meta.loginMode || "admin") === "admin") {
           closeModal();
           await openTrip(cached.data, pin, false, cached.meta.name, cached.meta.role, cached.meta.travellerId || "", cached.meta.loginMode || "admin");
           toast("Showing your saved copy · refreshing…");

@@ -1,4 +1,4 @@
-/* MyTrip Calm theme v4.28.2 — visual skin only (no layout/logic changes).
+/* MyTrip Calm theme v4.29.0 — visual skin only (no layout/logic changes).
    Remove the <link> to this file in index.html to go back to the old look. */
 :root{--navy:#1C2430;--ink:#1C2430;--muted:#5B6574;--line:#ECEAE4;--soft:#F7F6F2;--teal:#0F6E6A;--coral:#E8674E;--gold:#E9A23B;--purple:#7A5AC8;
 --calm-primary:#0F6E6A;--calm-primary-dark:#0A4F4C;--calm-tint:#EAF4F2;--calm-bg:#F7F6F2;--calm-card:#fff;--calm-zebra:#FAF9F6;
@@ -114,3 +114,81 @@ html body .trip-code,html body #sideTripCode{color:var(--calm-primary)!important
 html body .journey-stage-badge,html body .preparation .journey-stage-badge,html body .completed .journey-stage-badge{background-image:none!important;background-color:var(--calm-tint)!important;color:var(--calm-primary)!important;border:0!important;box-shadow:none!important}
 html body .completed .journey-stage-badge{background-color:#EFEDE7!important;color:#5B6574!important}
 html body .access-badge,html body .version-badge,html body .feature-access-badge{background-image:none!important;box-shadow:none!important}
+
+/* v4.28.3 — cleaner mobile header + banner */
+@media(max-width:760px){
+ html body .topbar{display:grid!important;grid-template-columns:auto 1fr auto;align-items:center;gap:8px!important;padding:10px 12px 8px!important;position:sticky;top:0;z-index:30;backdrop-filter:blur(10px)}
+ html body .topbar .mobile-brand i{width:36px!important;height:36px!important;border-radius:11px!important;font-size:16px!important}
+ html body .topbar .top-trip-summary{min-width:0}
+ html body .topbar .trip-id-chip{padding:5px 10px!important;border-radius:99px!important;font-size:12px!important}
+ html body .topbar .top-actions{display:flex!important;gap:6px!important;align-items:center;flex-wrap:nowrap!important;grid-column:3}
+ html body .topbar .text-size-control{display:flex!important;align-items:center;gap:0!important;padding:2px!important;border:1px solid #E4E1D9!important;border-radius:99px!important;background:#fff!important;box-shadow:none!important}
+ html body .topbar .text-size-control button{width:34px!important;height:34px!important;min-height:0!important;padding:0!important;border:0!important;border-radius:99px!important;background:transparent!important;font-size:13px!important;font-weight:800;color:var(--calm-primary)!important;box-shadow:none!important}
+ html body .topbar .text-size-control b{font-size:11px!important;min-width:34px;text-align:center;color:var(--muted)!important}
+ html body .topbar .all-trips,html body .topbar .version-badge,html body .topbar .access-badge,html body .topbar .connection-status,html body .topbar .invite,html body .topbar .avatars{display:none!important}
+ html body .topbar .trip-tools>summary{width:38px!important;height:38px!important;padding:0!important;display:grid!important;place-items:center;border-radius:99px!important;border:1px solid #E4E1D9!important;background:#fff!important;font-size:13px!important;letter-spacing:1px}
+ html body .topbar .trip-tools>summary span{display:none!important}
+ html body .topbar .topbar-signout{width:38px!important;height:38px!important;min-height:0!important;padding:0!important;border-radius:99px!important;font-size:15px!important}
+ html body .topbar .topbar-signout b{display:none!important}
+ html body .topbar .header-date-time{grid-column:1/-1;order:9;justify-self:start;border:0!important;background:transparent!important;box-shadow:none!important;padding:0 2px!important;font-size:12px!important;font-weight:600!important;color:var(--muted)!important;min-height:0!important}
+ html body .permission-banner{display:grid!important;grid-template-columns:1fr auto;gap:10px!important;padding:14px 16px!important;border-radius:18px!important;margin-bottom:12px!important}
+ html body .permission-banner>i{display:none!important}
+ html body .permission-banner .permission-copy{grid-column:1/-1}
+ html body .permission-banner .permission-copy b{font-size:15px!important}
+ html body .permission-banner .permission-copy p{display:none!important}
+ html body .permission-banner .personal-traveller-id{grid-column:1/-1;display:flex!important;align-items:center;gap:8px;padding:0!important;border:0!important;box-shadow:none!important;background:transparent!important;justify-content:flex-start!important}
+ html body .permission-banner .personal-traveller-id small{font-size:11px!important;letter-spacing:.8px;color:var(--muted)!important}
+ html body .permission-banner .personal-traveller-id b{font-size:13px!important;padding:3px 10px;border-radius:99px;background:var(--calm-tint);color:var(--calm-primary)!important;letter-spacing:.5px}
+ html body .permission-banner-actions{grid-column:1/-1;display:grid!important;grid-template-columns:1fr auto auto;gap:8px!important}
+ html body .permission-banner-actions>*{min-height:44px!important;padding:0 14px!important;border-radius:12px!important;font-size:14px!important;width:auto!important}
+ html body .permission-banner .permission-search{border:1px solid #D5E6E3!important;justify-content:flex-start!important}
+ html body .permission-banner .permission-search kbd{display:none!important}
+ html body .dashboard-inline-version{grid-column:1/-1;justify-self:start;background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;font-size:10px!important;letter-spacing:.4px!important;color:#9AA1AB!important;font-weight:600!important}
+ html body .journey-stage h1,html body .journey-stage h2{font-size:30px!important;line-height:1.1!important;letter-spacing:-.8px!important}
+ html body .journey-stage{padding:18px!important;border-radius:20px!important}
+ html body .journey-stage p{font-size:15px!important}
+ html body .journey-stage-badge{font-size:11px!important;padding:6px 12px!important}
+ html body .sidebar nav button{font-size:12px!important}
+}
+
+/* v4.29.0 — Settle up, polish */
+html body .settle-panel{background:#fff;border:1px solid #EFEDE7;border-radius:var(--calm-radius);box-shadow:var(--calm-shadow);padding:22px;margin:18px 0}
+html body .settle-head h2{margin:4px 0 2px;font-size:20px}
+html body .settle-head p{margin:0;color:var(--muted);font-size:13px}
+html body .settle-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;margin-top:16px}
+html body .settle-people{display:grid;gap:2px}
+html body .settle-person{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid #F1EFEA}
+html body .settle-person:last-child{border-bottom:0}
+html body .settle-name{display:flex;align-items:center;gap:10px;min-width:0}
+html body .settle-name>b:not(.avatar-slot){white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+html body .settle-name .avatar-slot{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--calm-tint);color:var(--calm-primary);font-size:12px;font-weight:800;overflow:hidden;background-size:cover;background-position:center}
+html body .settle-person small{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+html body .settle-person strong{font-size:13px;font-variant-numeric:tabular-nums;padding:4px 10px;border-radius:99px;white-space:nowrap}
+html body .settle-get{background:#E3F4EC;color:#17744F}
+html body .settle-owe{background:#FDECE8;color:#B23A2A}
+html body .settle-moves{list-style:none;margin:0;padding:14px;background:var(--calm-bg);border-radius:14px;display:grid;gap:8px;align-content:start}
+html body .settle-moves li{display:grid;grid-template-columns:auto auto auto 1fr;align-items:center;gap:6px;background:#fff;border:1px solid #EFEDE7;border-radius:12px;padding:11px 14px;font-size:14px}
+html body .settle-moves li span{color:var(--muted);font-size:12px}
+html body .settle-moves li strong{justify-self:end;color:var(--calm-primary);font-variant-numeric:tabular-nums}
+html body .settle-moves .settle-done{grid-template-columns:1fr}
+html body .settle-moves .settle-done b{color:#17744F}
+/* shared polish */
+html body .content{scroll-behavior:smooth}
+html body .view-head h1,html body .view-head h2{letter-spacing:-.6px}
+html body .view-head p,html body .table-headline p,html body .traveller-expense-heading p{color:var(--muted)!important}
+html body .plan-row,html body .expense-row{transition:background-color .15s ease}
+html body button{transition:background-color .15s ease,transform .1s ease}
+html body button:active{transform:scale(.98)}
+html body :focus-visible{outline:0;box-shadow:var(--focus-ring)!important}
+html body .journey-stage-kicker{color:var(--calm-primary)!important;letter-spacing:1px}
+html body .journey-main header small{color:var(--calm-primary)!important;font-weight:800;letter-spacing:.8px}
+html body .journey-plan-item.next{border-color:#CFE5E1!important;background-color:var(--calm-tint)!important}
+html body .journey-navigate{border-radius:99px!important}
+@media(max-width:760px){
+ html body .settle-panel{padding:16px;border-radius:18px}
+ html body .settle-grid{grid-template-columns:1fr}
+ html body .settle-person{grid-template-columns:minmax(0,1fr) auto;row-gap:2px}
+ html body .settle-person small{grid-column:1;padding-left:42px;margin-top:-4px}
+ html body .settle-person strong{grid-row:1/3;grid-column:2}
+}
+@media print{html body .settle-panel{box-shadow:none;break-inside:avoid}}

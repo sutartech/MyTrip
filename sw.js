@@ -1,10 +1,10 @@
 "use strict";
 
-const STATIC_CACHE = "mytrip-static-v4.28.2";
+const STATIC_CACHE = "mytrip-static-v4.29.0";
 const VERSIONED_ASSETS = [
   "./index.html",
-  "./styles.css?v=4.28.2", "./theme-calm.css",
-  "./app.js?v=4.28.2",
+  "./styles.css?v=4.29.0", "./theme-calm.css",
+  "./app.js?v=4.29.0",
   "./favicon.svg",
   "./repair.html"
 ];
