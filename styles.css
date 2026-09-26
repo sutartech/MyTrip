@@ -1266,3 +1266,33 @@ body.plan-dragging{user-select:none;cursor:grabbing}
   .expense-row-editing .expense-row-actions{display:flex;flex-wrap:wrap;gap:8px}
   .expense-row-editing .expense-row-actions button{flex:1 1 30%;min-height:44px;font-size:13px}
 }
+
+
+/* v4.26 itinerary on phones */
+.plan-view-toggle{display:none}
+@media(max-width:1180px){
+  .plan-view-toggle{display:inline-flex}
+
+  /* 1) Card view (default): time rail on the left, the plan on the right */
+  .plan-table:not(.plan-table-wide)>.plan-row:not(.plan-row-editing):not(.plan-row-deleting){
+    display:grid;grid-template-columns:64px minmax(0,1fr);grid-template-areas:"day title" "time place" "time remark" "actions actions";
+    gap:3px 12px;padding:12px 12px 10px;border-radius:12px;margin:6px 0;border:1px solid #e4ecef}
+  .plan-table:not(.plan-table-wide)>.plan-row>.plan-cell-day{grid-area:day;align-self:start}
+  .plan-table:not(.plan-table-wide)>.plan-row>.plan-cell-time{grid-area:time;align-self:start;font-size:13px;font-weight:900;color:#2f7d72;border-right:2px solid #cfe3df;padding-right:8px;min-height:100%}
+  .plan-table:not(.plan-table-wide)>.plan-row>.plan-cell-title{grid-area:title;grid-column:2}
+  .plan-table:not(.plan-table-wide)>.plan-row>.plan-cell-title b{font-size:15px}
+  .plan-table:not(.plan-table-wide)>.plan-row>.plan-cell-place{grid-area:place;grid-column:2}
+  .plan-table:not(.plan-table-wide)>.plan-row>.plan-cell-remark{grid-area:remark;grid-column:2;font-size:12.5px}
+  .plan-table:not(.plan-table-wide)>.plan-row>.plan-cell-remark::before{content:none}
+  .plan-table:not(.plan-table-wide)>.plan-row>.plan-row-actions{grid-area:actions;grid-column:1/-1;margin-top:6px;padding-top:8px;border-top:1px dashed #e1e8eb}
+
+  /* 2) Table view: the desktop layout, swipe sideways, Day & Time stay pinned */
+  .plan-table.plan-table-wide{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  .plan-table.plan-table-wide>.plan-table-header{display:grid!important}
+  .plan-table.plan-table-wide>.plan-table-header,.plan-table.plan-table-wide>.plan-row:not(.plan-row-editing){
+    display:grid!important;grid-template-columns:70px 64px 190px 150px 200px 190px!important;grid-template-areas:none!important;width:max-content;min-width:100%}
+  .plan-table.plan-table-wide>.plan-row>*{grid-area:auto!important;grid-column:auto!important}
+  .plan-table.plan-table-wide>.plan-row>.plan-cell-day,.plan-table.plan-table-wide>.plan-table-header>span:first-child{position:sticky;left:0;z-index:2;background:inherit}
+  .plan-table.plan-table-wide>.plan-row>.plan-cell-remark::before{content:none}
+  .plan-table.plan-table-wide .plan-col-grip{display:none}
+}

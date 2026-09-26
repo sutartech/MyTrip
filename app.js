@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.25.5";
+  const frontendVersion = "4.26.0";
   const requiredBackendVersion = "4.12.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -914,7 +914,7 @@
         : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.planDayFilter || state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
       : "";
 
-    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button>${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label>`)}${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
+    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool plan-view-toggle" data-plan-view title="Switch between compact cards and the full table">${planWideView() ? "☰ Card view" : "▦ Table view"}</button><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button>${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label>`)}${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table${planWideView() ? " plan-table-wide" : ""}" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
   }
 
   function renderExperiences() {
@@ -1068,6 +1068,7 @@
     if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
     if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
     if (button.dataset.movePlan) return movePlanRow(button.dataset.movePlan, Number(button.dataset.direction));
+    if (button.hasAttribute("data-plan-view")) return togglePlanView();
     if (button.dataset.sortPlanTime !== undefined) return sortPlansByTime(button.dataset.sortPlanTime);
     if (button.dataset.planPay) return showPlanPayment(button.dataset.planPay);
     if (button.dataset.togglePlanDone) return togglePlanDone(button.dataset.togglePlanDone);
@@ -3019,6 +3020,15 @@
   /** Print size, wrap, page layout and alignment — shared by every printable view. */
   function printOptionsMenu(extra = "") {
     return `<details class="plan-print-menu"${state.printMenuOpen ? " open" : ""}><summary class="plan-tool">▤ Print options</summary><div class="plan-print-panel"><label class="plan-print-line"><span>Text size</span><span class="plan-width-control"><button type="button" data-print-width="-1" aria-label="Smaller">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger">＋</button></span></label><label class="plan-print-line"><span>Wrap long text</span><button type="button" class="plan-switch${printPlanWrap() ? " on" : ""}" data-print-wrap aria-pressed="${printPlanWrap()}">${printPlanWrap() ? "On" : "Off"}</button></label><label class="plan-print-line"><span>Page layout</span><span class="plan-seg">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span></label><label class="plan-print-line"><span>Alignment</span><span class="plan-seg">${[["left", "⇤ Left"], ["center", "⇔ Centre"], ["right", "⇥ Right"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align ${value}">${label}</button>`).join("")}</span></label>${extra}</div></details>`;
+  }
+
+  /* Phone only: compact timeline cards (default) or the full desktop table
+     scrolled sideways. Remembered per browser. */
+  const planViewKey = "mytrip_plan_view_v1";
+  function planWideView() { return localStorage.getItem(planViewKey) === "table"; }
+  function togglePlanView() {
+    try { localStorage.setItem(planViewKey, planWideView() ? "cards" : "table"); } catch {}
+    render();
   }
 
   function renderPlanRowEditor(item, isNew = false) {
