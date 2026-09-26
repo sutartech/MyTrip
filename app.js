@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.27.2";
+  const frontendVersion = "4.27.3";
   const requiredBackendVersion = "4.13.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -184,7 +184,16 @@
     const name = String(slot.dataset.avatarName || "").trim().toLowerCase();
     if (!name || !state.data) return "";
     const member = (state.data.members || []).find((item) => String(item.name || "").trim().toLowerCase() === name && item.travellerId);
-    return member ? (profilePhotos[String(member.travellerId).toUpperCase()] || "") : "";
+    if (member) return profilePhotos[String(member.travellerId).toUpperCase()] || "";
+    /* The organiser row is the Administrator: it has no Traveller ID, so match
+       it by name to the trip creator or the signed-in Administrator. */
+    if (profilePhotos.ADMIN) {
+      const creator = String((state.data.trip && state.data.trip.createdBy) || "").trim().toLowerCase();
+      const adminName = isAdmin() ? String(state.currentUser || "").trim().toLowerCase() : "";
+      const organiser = (state.data.members || []).find((item) => String(item.name || "").trim().toLowerCase() === name && !item.travellerId && /organi[sz]er|admin/i.test(String(item.role || "")));
+      if (name === creator || name === adminName || organiser) return profilePhotos.ADMIN;
+    }
+    return "";
   }
   function paintAvatars(root = document) {
     root.querySelectorAll(".avatar-slot").forEach((slot) => {
