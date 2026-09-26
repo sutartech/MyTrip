@@ -1240,3 +1240,29 @@ body.plan-dragging{user-select:none;cursor:grabbing}
 @media(max-width:760px){
   .plan-print-menu .plan-print-panel{position:fixed;left:12px;right:12px;width:auto;top:auto;bottom:calc(env(safe-area-inset-bottom) + 84px);max-height:70vh;overflow:auto;z-index:95}
 }
+
+/* v4.25.4 itinerary Row edit / Add row on phones matches the expense row
+   editor: one field per line, full-width inputs, highlighted card */
+@media(max-width:760px){
+  .plan-table>.plan-row.plan-row-editing{display:grid!important;grid-template-columns:1fr!important;gap:10px;padding:14px 12px;align-items:stretch;background:#fff9ed!important;box-shadow:inset 0 0 0 2px #f1c96b;border-radius:12px;margin:6px 0}
+  .plan-row-editing.plan-row-new{background:#f2f9f7!important;box-shadow:inset 0 0 0 2px #7fc4b8}
+  .plan-row-editing label{display:flex!important;flex-direction:column;gap:4px;min-width:0;grid-column:1/-1}
+  .plan-row-editing label small{color:#738392;font-size:10px;font-weight:900;letter-spacing:.06em}
+  .plan-row-editing input,.plan-row-editing select{width:100%;min-height:44px;border:1px solid #cad7de;border-radius:9px;background:#fff;padding:9px 11px;color:#213b4d;font-size:16px;font-weight:700}
+  .plan-row-editing .plan-new-flag{grid-column:1/-1}
+  .plan-row-editing .plan-row-actions,.plan-row-editing .plan-row-actions.editing{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;justify-content:stretch}
+  .plan-row-editing .plan-row-actions button{flex:1 1 30%;min-height:44px;font-size:13px}
+}
+
+/* v4.25.5 the v4.25.2 expense display-card grid out-ranked the editor, so the
+   expense Row edit was a cramped two-column form with 9px inputs. Both row
+   editors now share one phone layout. */
+@media(max-width:760px){
+  .expense-table>.expense-row.expense-row-editing{display:grid!important;grid-template-columns:1fr!important;grid-template-areas:none!important;gap:10px;padding:14px 12px;align-items:stretch;border-radius:12px;margin:6px 0}
+  .expense-table>.expense-row.expense-row-editing>*{grid-column:1/-1!important;grid-row:auto!important}
+  .expense-row-editing label{display:flex!important;flex-direction:column;gap:4px;min-width:0}
+  .expense-row-editing label small{color:#738392;font-size:10px;font-weight:900;letter-spacing:.06em}
+  .expense-row-editing input,.expense-row-editing select{width:100%;min-height:44px;border-radius:9px;padding:9px 11px;font-size:16px}
+  .expense-row-editing .expense-row-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .expense-row-editing .expense-row-actions button{flex:1 1 30%;min-height:44px;font-size:13px}
+}
