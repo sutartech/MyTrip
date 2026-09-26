@@ -1234,3 +1234,9 @@ body.plan-dragging{user-select:none;cursor:grabbing}
   .expense-table>.expense-row>.expense-row-actions{grid-column:1/-1;grid-row:auto}
 }
 @media(max-width:760px){.expense-row-actions button,.plan-row-actions button,#allTripsButton{min-height:40px;min-width:40px}.expense-table>.expense-row>.expense-amount{font-size:14px}}
+
+/* v4.25.3 on phones the Print options panel is a bottom sheet, detached from
+   its trigger, so it can never run off the right edge of the screen */
+@media(max-width:760px){
+  .plan-print-menu .plan-print-panel{position:fixed;left:12px;right:12px;width:auto;top:auto;bottom:calc(env(safe-area-inset-bottom) + 84px);max-height:70vh;overflow:auto;z-index:95}
+}
