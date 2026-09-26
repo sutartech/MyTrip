@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.26.0";
-  const requiredBackendVersion = "4.12.1";
+  const frontendVersion = "4.27.1";
+  const requiredBackendVersion = "4.13.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -164,6 +164,99 @@
   function toast(message, error = false) { const element = $("#toast"); element.textContent = `${error ? "!" : "✓"} ${message}`; element.style.background = error ? "#a34343" : "#17263c"; element.classList.remove("hidden"); clearTimeout(toast.timer); toast.timer = setTimeout(() => element.classList.add("hidden"), error ? 9000 : 2800); }
   function displayDate(date, options = { day: "2-digit", month: "short", year: "numeric" }) { if (!date) return "—"; return new Date(`${date}T12:00:00`).toLocaleDateString("en-IN", options); }
   function displayTime(value) { if (!value) return ""; const [hours, minutes] = String(value).split(":"); const date = new Date(2000, 0, 1, Number(hours), Number(minutes)); return date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }); }
+  /* ---- profile photos ----
+     avatarSlot() renders initials; paintAvatars() swaps in the photo wherever
+     one exists, so no view has to know whether a person has a photo. */
+  let profilePhotos = {};
+  function avatarKey(person) {
+    if (!person) return "";
+    if (person.travellerId) return String(person.travellerId).toUpperCase();
+    if (person.role === "administrator" || person.isAdmin) return "ADMIN";
+    return "";
+  }
+  function avatarSlot(person) {
+    const name = (person && person.name) || "";
+    return `<b class="avatar-slot" data-avatar-key="${esc(avatarKey(person))}" data-avatar-name="${esc(name)}">${esc(initials(name))}</b>`;
+  }
+  function photoForSlot(slot) {
+    const key = slot.dataset.avatarKey;
+    if (key && profilePhotos[key]) return profilePhotos[key];
+    const name = String(slot.dataset.avatarName || "").trim().toLowerCase();
+    if (!name || !state.data) return "";
+    const member = (state.data.members || []).find((item) => String(item.name || "").trim().toLowerCase() === name && item.travellerId);
+    return member ? (profilePhotos[String(member.travellerId).toUpperCase()] || "") : "";
+  }
+  function paintAvatars(root = document) {
+    root.querySelectorAll(".avatar-slot").forEach((slot) => {
+      const url = photoForSlot(slot);
+      const current = slot.querySelector("img");
+      if (url && (!current || current.getAttribute("src") !== url)) {
+        slot.innerHTML = `<img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
+        slot.querySelector("img").addEventListener("error", () => { slot.textContent = initials(slot.dataset.avatarName); slot.classList.remove("has-photo"); }, { once: true });
+        slot.classList.add("has-photo");
+        if (slot.parentElement) slot.parentElement.classList.add("avatar-photo-host");
+      } else if (!url && current) {
+        slot.textContent = initials(slot.dataset.avatarName); slot.classList.remove("has-photo");
+      }
+    });
+  }
+  function setProfilePhotos(map) { if (map && typeof map === "object") { profilePhotos = { ...map }; paintAvatars(); } }
+  async function loadProfilePhotos() {
+    if (state.demoMode || !apiUrlReady()) return;
+    try { setProfilePhotos(await api("getProfilePhotos", {})); } catch {}
+  }
+  let avatarFrame = 0;
+  new MutationObserver(() => { if (avatarFrame) return; avatarFrame = requestAnimationFrame(() => { avatarFrame = 0; paintAvatars(); }); })
+    .observe(document.documentElement, { childList: true, subtree: true });
+
+  /** Crops to a centred square, resizes to 256px and uploads as JPEG. */
+  function squareJpeg(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("The photo could not be read."));
+      reader.onload = () => {
+        const image = new Image();
+        image.onerror = () => reject(new Error("That file is not a supported image."));
+        image.onload = () => {
+          const side = Math.min(image.naturalWidth, image.naturalHeight);
+          const canvas = document.createElement("canvas");
+          canvas.width = canvas.height = 256;
+          canvas.getContext("2d").drawImage(image, (image.naturalWidth - side) / 2, (image.naturalHeight - side) / 2, side, side, 0, 0, 256, 256);
+          resolve(canvas.toDataURL("image/jpeg", 0.86));
+        };
+        image.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /** target "admin" or a Traveller ID. The Administrator can set anyone; a traveller only themself. */
+  function pickProfilePhoto(target) {
+    const picker = document.createElement("input");
+    picker.type = "file"; picker.accept = "image/jpeg,image/png,image/webp";
+    picker.addEventListener("change", async () => {
+      const file = picker.files && picker.files[0];
+      if (!file) return;
+      try {
+        const data = await squareJpeg(file);
+        const key = target === "admin" ? "ADMIN" : String(target).toUpperCase();
+        if (state.demoMode) { setProfilePhotos({ ...profilePhotos, [key]: data }); return toast("Photo updated (demo only)"); }
+        toast("Uploading photo…");
+        const auth = isAdmin() || state.administratorSecret ? adminAuth(state.administratorSecret || state.pin) : { username: state.accountUsername || state.travellerId, password: state.pin };
+        const saved = await api("uploadProfilePhoto", { ...auth, target: target === "admin" ? "admin" : "traveller", travellerId: target === "admin" ? "" : key, file: { type: "image/jpeg", name: `${key}.jpg`, data } });
+        setProfilePhotos({ ...profilePhotos, [key]: saved.photoUrl });
+        toast("Photo saved for everyone");
+      } catch (error) { toast(error.message, true); }
+    });
+    picker.click();
+  }
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-photo-upload]");
+    if (!button) return;
+    event.preventDefault(); event.stopPropagation();
+    pickProfilePhoto(button.dataset.photoUpload);
+  }, true);
+
   function initials(name) { return String(name || "T").split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(); }
   function nights() { return Math.max(0, Math.round((new Date(state.data.trip.endDate) - new Date(state.data.trip.startDate)) / 86400000)); }
   function spent() { return state.data.expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0); }
@@ -343,6 +436,7 @@
   }
 
   function normalize(data) {
+    if (data && data.profilePhotos) setProfilePhotos(data.profilePhotos);
     return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: data.itinerary || [], experiences: data.experiences || [], photos: data.photos || [], stickyDiary: data.stickyDiary || [], stickyNotes: data.stickyNotes || [], expenses: (data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
   }
 
@@ -445,6 +539,8 @@
     $("#tripStatusButton").textContent = enabled ? "Disable trip" : "Enable trip";
     $("#sideTripName").textContent = trip.name; $("#sideTripDates").textContent = `${displayDate(trip.startDate, { day: "numeric", month: "short" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}`; $("#sideTripCode").textContent = `TRIP ID · ${trip.tripId}`;
     $("#currentUser").textContent = state.currentUser;
+    const sideAvatar = $(".sidebar .user > span");
+    if (sideAvatar) sideAvatar.innerHTML = avatarSlot({ name: state.currentUser, travellerId: state.travellerId, isAdmin: isAdmin() });
     $("#currentRoleLabel").textContent = isAdmin() ? "Global Administrator" : (state.travellerId ? `Traveller ID: ${state.travellerId}` : "Shared trip access");
     $("#accessBadge").textContent = isAdmin() ? "ADMINISTRATOR" : (state.travellerId ? `TRAVELLER · ${state.travellerId}` : "TRAVELLER");
     $("#accessBadge").classList.toggle("traveller", !isAdmin());
@@ -470,7 +566,7 @@
     });
     if (tabAccess[state.tab] === false) state.tab = "overview";
     updateVersionLabels();
-    $("#topAvatars").innerHTML = canViewTravellers() ? members.slice(0, 3).map((member) => `<span title="${esc(member.name)}">${esc(initials(member.name))}</span>`).join("") + (members.length > 3 ? `<span>+${members.length - 3}</span>` : "") : "";
+    $("#topAvatars").innerHTML = canViewTravellers() ? members.slice(0, 3).map((member) => `<span title="${esc(member.name)}">${avatarSlot(member)}</span>`).join("") + (members.length > 3 ? `<span>+${members.length - 3}</span>` : "") : "";
   }
 
   function setTab(tab) {
@@ -961,7 +1057,7 @@
     const travellerTotals = expenseTotalsByTraveller();
     const travellerCards = travellerTotals.map((row) => {
       const percent = total ? Math.round(row.total / total * 100) : 0;
-      return `<article class="traveller-expense-card"><i>${esc(initials(row.name))}</i><div><b>${esc(row.name)}</b><small>${row.count} ${row.count === 1 ? "payment" : "payments"} · ${percent}% of total</small><span><em style="width:${percent}%"></em></span></div><strong>${money.format(row.total)}</strong></article>`;
+      return `<article class="traveller-expense-card"><i>${avatarSlot(row)}</i><div><b>${esc(row.name)}</b><small>${row.count} ${row.count === 1 ? "payment" : "payments"} · ${percent}% of total</small><span><em style="width:${percent}%"></em></span></div><strong>${money.format(row.total)}</strong></article>`;
     }).join("");
     const rows = [...state.data.expenses].sort((a, b) => `${b.date || ""}${b.id || ""}`.localeCompare(`${a.date || ""}${a.id || ""}`)).map((expense) => {
       if (String(state.expenseRowEditId) === String(expense.id)) return renderExpenseRowEditor(expense);
@@ -1023,7 +1119,7 @@
       const enabledFeatures = accessFields.filter((field) => assignmentAllows(assignment, field)).length;
       const accessBadge = isAdmin() && member.travellerId ? `<div class="feature-access-badge"><b>${enabledFeatures}/7 ACCESS OPTIONS</b><button data-feature-access="${esc(member.id)}">Control access</button></div>` : "";
       const paidTotal = canViewExpenses() ? `<span><small>PAID FOR TRIP</small><b>${money.format(totals[member.name] || 0)}</b></span>` : `<span><small>TRIP ACCESS</small><b>${esc(member.role)}</b></span>`;
-      return `<article class="person ${member.travellerId ? "personal-access" : "shared-only"}"><i>${esc(initials(member.name))}</i><div><h3>${esc(member.name)}</h3><p>${member.travellerId ? `Username · ${esc(member.travellerId)}` : (member.role === "Organiser" ? "Trip organiser" : "Trip member without an account")}</p></div><span>${esc(member.role)}</span><div class="person-access-badge ${member.travellerId ? "enabled" : "pending"}">${isAdmin() ? (member.travellerId ? "ENABLED FOR THIS TRIP" : (member.role === "Organiser" ? "ADMIN" : "ACCOUNT REQUIRED")) : (member.travellerId ? "TRAVELLER ACCOUNT" : (member.role === "Organiser" ? "ORGANISER" : "TRIP MEMBER"))}</div>${accessBadge}<footer>${paidTotal}<span class="person-footer-actions">${isAdmin() && member.travellerId ? `<button class="pin-reset-control" data-reset-member-pin="${esc(member.id)}" aria-label="Edit password for ${esc(member.name)}">✎ Edit password</button>` : ""}${isAdmin() && !member.travellerId && member.role !== "Organiser" ? `<button class="pin-reset-control" data-give-pin="${esc(member.id)}" aria-label="Create account for ${esc(member.name)}">＋ Create account</button>` : ""}${isAdmin() && member.role !== "Organiser" ? `<button class="delete-control trip-disable-control" data-remove-trip-member="${esc(member.id)}">Remove from trip</button>` : ""}</span></footer></article>`;
+      return `<article class="person ${member.travellerId ? "personal-access" : "shared-only"}"><i${isAdmin() && member.travellerId ? ` class="avatar-edit" data-photo-upload="${esc(member.travellerId)}" title="Change ${esc(member.name)}'s photo"` : ""}>${avatarSlot(member)}${isAdmin() && member.travellerId ? "<em>📷</em>" : ""}</i><div><h3>${esc(member.name)}</h3><p>${member.travellerId ? `Username · ${esc(member.travellerId)}` : (member.role === "Organiser" ? "Trip organiser" : "Trip member without an account")}</p></div><span>${esc(member.role)}</span><div class="person-access-badge ${member.travellerId ? "enabled" : "pending"}">${isAdmin() ? (member.travellerId ? "ENABLED FOR THIS TRIP" : (member.role === "Organiser" ? "ADMIN" : "ACCOUNT REQUIRED")) : (member.travellerId ? "TRAVELLER ACCOUNT" : (member.role === "Organiser" ? "ORGANISER" : "TRIP MEMBER"))}</div>${accessBadge}<footer>${paidTotal}<span class="person-footer-actions">${isAdmin() && member.travellerId ? `<button class="pin-reset-control" data-reset-member-pin="${esc(member.id)}" aria-label="Edit password for ${esc(member.name)}">✎ Edit password</button>` : ""}${isAdmin() && !member.travellerId && member.role !== "Organiser" ? `<button class="pin-reset-control" data-give-pin="${esc(member.id)}" aria-label="Create account for ${esc(member.name)}">＋ Create account</button>` : ""}${isAdmin() && member.role !== "Organiser" ? `<button class="delete-control trip-disable-control" data-remove-trip-member="${esc(member.id)}">Remove from trip</button>` : ""}</span></footer></article>`;
     }).join("");
     return `${heading("YOUR TRAVEL GROUP", isAdmin() ? "Traveller accounts and feature access" : "Travellers and trip members", isAdmin() ? "Open Control access on a traveller to show or hide each dashboard feature." : "The complete trip member list is shown here.", "travellers")}<div class="share-banner"><div><h3>${isAdmin() ? "Trip-specific traveller access" : `${members.length} trip ${members.length === 1 ? "member" : "members"}`}</h3><p>Trip ID <b>${esc(state.data.trip.tripId)}</b> · ${isAdmin() ? "Feature controls apply to each personal username; shared trip access remains separate" : "Full traveller and member list"}</p></div>${isAdmin() ? `<span class="banner-actions"><button data-add-existing-travellers>＋ Existing traveller</button><button data-add="travellers">＋ New traveller</button><button data-manage-current-trip>Manage access</button><button data-all-trips>All trips</button></span>` : `<span class="readonly-label">TRIP GROUP</span>`}</div><div class="people-grid">${cards || `<div class="empty-trip-members"><b>No trip members yet</b><p>No traveller or member has been added to this trip.</p></div>`}</div>`;
   }
@@ -2024,8 +2120,9 @@
   }
 
   function renderAllTrips(trips, administratorSecret, demoMode) {
+    loadProfilePhotos();
     const items = visibleLibraryTrips(trips);
-    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="all-trips-summary"><span><small>ADMINISTRATOR LIBRARY</small><b>${items.length} ${items.length === 1 ? "trip" : "trips"}</b></span><span class="summary-actions"><button id="changeAdministratorLogin" class="secondary-action" type="button">⚿ Change login</button><button id="idleSignoutSetting" class="secondary-action" type="button">⏻ Auto sign-out: ${idleLabel(idleMinutes)}</button><button id="manageTravellerAccounts" class="secondary-action" type="button">♙ Traveller profiles</button>${hiddenTripsBar(trips)}<button id="resetTripOrder" class="secondary-action" type="button">↕ Reset order</button><button id="createFromTrips" type="button">＋ Create trip</button></span></div><div class="trip-library admin-library">${items.map((trip, position) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}">${tripCardTools(trip, position, items.length)}<i>⌖</i><div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button data-open-admin-trip="${esc(trip.tripId)}" type="button">Open</button><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">Edit</button><button data-assign-trip="${esc(trip.tripId)}" type="button">Travellers</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "Disable" : "Enable"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete</button></div></article>`).join("") || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip with this Administrator account.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
+    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="all-trips-summary"><i class="avatar-edit admin-avatar" data-photo-upload="admin" title="Change the Administrator photo">${avatarSlot({ name: state.currentUser || "Administrator", isAdmin: true })}<em>📷</em></i><span><small>ADMINISTRATOR LIBRARY</small><b>${items.length} ${items.length === 1 ? "trip" : "trips"}</b></span><span class="summary-actions"><button id="changeAdministratorLogin" class="secondary-action" type="button">⚿ Change login</button><button id="idleSignoutSetting" class="secondary-action" type="button">⏻ Auto sign-out: ${idleLabel(idleMinutes)}</button><button id="manageTravellerAccounts" class="secondary-action" type="button">♙ Traveller profiles</button>${hiddenTripsBar(trips)}<button id="resetTripOrder" class="secondary-action" type="button">↕ Reset order</button><button id="createFromTrips" type="button">＋ Create trip</button></span></div><div class="trip-library admin-library">${items.map((trip, position) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}">${tripCardTools(trip, position, items.length)}<i>⌖</i><div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button data-open-admin-trip="${esc(trip.tripId)}" type="button">Open</button><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">Edit</button><button data-assign-trip="${esc(trip.tripId)}" type="button">Travellers</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "Disable" : "Enable"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete</button></div></article>`).join("") || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip with this Administrator account.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
     $$('[data-move-trip]').forEach((button) => button.addEventListener("click", async () => {
       button.disabled = true;
       if (await moveTripInOrder(button.dataset.moveTrip, Number(button.dataset.direction), items)) { renderAllTrips(state.libraryTrips, administratorSecret, demoMode); toast("Trip order saved for everyone"); }
@@ -2125,6 +2222,7 @@
   }
 
   function renderMyTrips(trips, pin, traveller, demoMode) {
+    loadProfilePhotos();
     const quota = travellerTripQuotaInfo(traveller);
     const canCreateTrips = quota.enabled;
     const canCreateAnotherTrip = quota.canCreateAnother;
@@ -2138,7 +2236,7 @@
       details.push(`${featureCount}/7 access options available`);
       return `<article class="trip-library-card"><i>♙</i><div><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>${details.join(" · ")}</small></div><button data-open-my-trip="${esc(trip.tripId)}" type="button">Open →</button></article>`;
     }).join("");
-    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero traveller"><div><span>MY TRAVEL DASHBOARD</span><h1>Every permitted trip</h1><p>Signed in as <b>${esc(traveller.travellerId)}</b>. Open a trip to view and manage every feature allowed by the Administrator.</p></div><strong>${trips.length} ${trips.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="self-profile-card"><i>${esc(initials(traveller.name))}</i><div><span>USERNAME · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b class="${canCreateAnotherTrip ? "trip-creation-allowed" : ""}">${travellerTripQuotaLabel(quota)}</b></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this account</h3></div>${canCreateAnotherTrip ? `<button id="createTravellerTrip" type="button">＋ Create trip (${quota.remaining} left)</button>` : ""}</div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>${canCreateAnotherTrip ? "Create a new trip using the button above." : `Ask the Administrator to assign trips or increase the creation limit for username ${esc(traveller.travellerId)}.`}</p></div>`}</div><p class="global-access-note">♙ ${canCreateTrips ? (canCreateAnotherTrip ? `The Global Administrator allows up to ${quota.limit} created ${quota.limit === 1 ? "trip" : "trips"}; ${quota.remaining} ${quota.remaining === 1 ? "slot remains" : "slots remain"}.` : `Your creation limit is ${quota.limit}; existing trips are preserved, but no new trip can be created until the Administrator increases the limit.`) : "Trip creation is disabled. This account still shows every active trip assigned now or in the future."}</p></div></section>`;
+    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero traveller"><div><span>MY TRAVEL DASHBOARD</span><h1>Every permitted trip</h1><p>Signed in as <b>${esc(traveller.travellerId)}</b>. Open a trip to view and manage every feature allowed by the Administrator.</p></div><strong>${trips.length} ${trips.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="self-profile-card"><i class="avatar-edit" data-photo-upload="${esc(traveller.travellerId)}" title="Change my photo">${avatarSlot(traveller)}<em>📷</em></i><div><span>USERNAME · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b class="${canCreateAnotherTrip ? "trip-creation-allowed" : ""}">${travellerTripQuotaLabel(quota)}</b></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this account</h3></div>${canCreateAnotherTrip ? `<button id="createTravellerTrip" type="button">＋ Create trip (${quota.remaining} left)</button>` : ""}</div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>${canCreateAnotherTrip ? "Create a new trip using the button above." : `Ask the Administrator to assign trips or increase the creation limit for username ${esc(traveller.travellerId)}.`}</p></div>`}</div><p class="global-access-note">♙ ${canCreateTrips ? (canCreateAnotherTrip ? `The Global Administrator allows up to ${quota.limit} created ${quota.limit === 1 ? "trip" : "trips"}; ${quota.remaining} ${quota.remaining === 1 ? "slot remains" : "slots remain"}.` : `Your creation limit is ${quota.limit}; existing trips are preserved, but no new trip can be created until the Administrator increases the limit.`) : "Trip creation is disabled. This account still shows every active trip assigned now or in the future."}</p></div></section>`;
 
     showAccountHub("traveller", `TRAVELLER · ${traveller.travellerId}`);
     $$('[data-open-my-trip]').forEach((button) => button.addEventListener("click", () => openListedTrip(button.dataset.openMyTrip, pin, demoMode, "traveller", traveller)));
@@ -2191,7 +2289,7 @@
   }
 
   function renderTravellerAccounts(travellers, trips, administratorSecret, demoMode) {
-    showModal("Traveller profiles", `<div class="traveller-manager"><div class="all-trips-summary"><span><small>PERMANENT TRAVELLER DIRECTORY</small><b>${travellers.length} profiles</b></span><span class="summary-actions"><button id="backToAllTrips" class="secondary-action" type="button">← All trips</button><button id="createTravellerAccount" type="button">＋ Add traveller</button></span></div><p class="directory-note">Use <b>Trip limit</b> to cap, increase, reduce or disable how many trips a traveller may create. Assigned trips do not consume this limit.</p><div class="account-list">${travellers.map((traveller) => `<article class="account-card ${traveller.active ? "" : "inactive"}"><span class="account-avatar">${esc(initials(traveller.name))}</span><div class="account-profile"><span>${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email].filter(Boolean).map(esc).join(" · ") || "Contact details not added"}</p><small>${[traveller.city, traveller.emergencyContact ? `Emergency: ${traveller.emergencyContact}` : ""].filter(Boolean).map(esc).join(" · ") || "City and emergency contact not added"}</small><div class="account-trip-status ${Number(traveller.tripCount || 0) ? "assigned" : "unassigned"}">${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned ${Number(traveller.tripCount) === 1 ? "trip" : "trips"}: ${(traveller.tripIds || []).map(esc).join(", ")}` : "NO TRIP ASSIGNED"}</div></div><div class="account-actions"><button data-view-account="${esc(traveller.travellerId)}">View profile</button><button data-account-trips="${esc(traveller.travellerId)}">Assign trips</button><button class="pin-account-control" data-edit-account-login="${esc(traveller.travellerId)}">✎ Edit login</button><button class="global-profile-control" data-toggle-account="${esc(traveller.travellerId)}" data-active="${Boolean(traveller.active)}">${traveller.active ? "Disable everywhere" : "Enable profile"}</button><button class="delete-profile-control" data-delete-account="${esc(traveller.travellerId)}">Delete profile</button></div></article>`).join("") || `<div class="empty-trips"><b>No traveller profiles</b><p>Add a traveller profile now. A trip does not need to be assigned.</p></div>`}</div></div>`);
+    showModal("Traveller profiles", `<div class="traveller-manager"><div class="all-trips-summary"><span><small>PERMANENT TRAVELLER DIRECTORY</small><b>${travellers.length} profiles</b></span><span class="summary-actions"><button id="backToAllTrips" class="secondary-action" type="button">← All trips</button><button id="createTravellerAccount" type="button">＋ Add traveller</button></span></div><p class="directory-note">Use <b>Trip limit</b> to cap, increase, reduce or disable how many trips a traveller may create. Assigned trips do not consume this limit.</p><div class="account-list">${travellers.map((traveller) => `<article class="account-card ${traveller.active ? "" : "inactive"}"><span class="account-avatar${isAdmin() || state.administratorSecret ? " avatar-edit" : ""}"${isAdmin() || state.administratorSecret ? ` data-photo-upload="${esc(traveller.travellerId)}" title="Change ${esc(traveller.name)}'s photo"` : ""}>${avatarSlot(traveller)}${isAdmin() || state.administratorSecret ? "<em>📷</em>" : ""}</span><div class="account-profile"><span>${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email].filter(Boolean).map(esc).join(" · ") || "Contact details not added"}</p><small>${[traveller.city, traveller.emergencyContact ? `Emergency: ${traveller.emergencyContact}` : ""].filter(Boolean).map(esc).join(" · ") || "City and emergency contact not added"}</small><div class="account-trip-status ${Number(traveller.tripCount || 0) ? "assigned" : "unassigned"}">${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned ${Number(traveller.tripCount) === 1 ? "trip" : "trips"}: ${(traveller.tripIds || []).map(esc).join(", ")}` : "NO TRIP ASSIGNED"}</div></div><div class="account-actions"><button data-view-account="${esc(traveller.travellerId)}">View profile</button><button data-account-trips="${esc(traveller.travellerId)}">Assign trips</button><button class="pin-account-control" data-edit-account-login="${esc(traveller.travellerId)}">✎ Edit login</button><button class="global-profile-control" data-toggle-account="${esc(traveller.travellerId)}" data-active="${Boolean(traveller.active)}">${traveller.active ? "Disable everywhere" : "Enable profile"}</button><button class="delete-profile-control" data-delete-account="${esc(traveller.travellerId)}">Delete profile</button></div></article>`).join("") || `<div class="empty-trips"><b>No traveller profiles</b><p>Add a traveller profile now. A trip does not need to be assigned.</p></div>`}</div></div>`);
     travellers.forEach((traveller) => {
       const viewButton = $$('[data-view-account]').find((button) => button.dataset.viewAccount === traveller.travellerId);
       const card = viewButton?.closest(".account-card");
@@ -2387,7 +2485,7 @@
   function showTravellerProfile(traveller, trips, administratorSecret, demoMode) {
     if (!traveller) return toast("Traveller profile not found", true);
     const allowed = (traveller.tripIds || []).map((tripId) => trips.find((trip) => trip.tripId === tripId)).filter(Boolean);
-    showModal("Traveller profile", `<div class="traveller-profile-view"><div class="profile-hero"><i>${esc(initials(traveller.name))}</i><div><span>${esc(traveller.travellerId)}</span><h2>${esc(traveller.name)}</h2><p>${traveller.active ? "Active personal access" : "Inactive personal access"}</p></div></div><div class="profile-detail-grid"><span><small>PHONE</small><b>${esc(traveller.phone || "Not added")}</b></span><span><small>EMAIL</small><b>${esc(traveller.email || "Not added")}</b></span><span><small>CITY</small><b>${esc(traveller.city || "Not added")}</b></span><span><small>EMERGENCY CONTACT</small><b>${esc(traveller.emergencyContact || "Not added")}</b></span></div>${traveller.notes ? `<div class="profile-notes"><small>NOTES</small><p>${esc(traveller.notes)}</p></div>` : ""}<div class="profile-trip-heading"><div><span class="kicker">ALLOWED TRIPS</span><h3>${allowed.length} ${allowed.length === 1 ? "trip" : "trips"} in this profile</h3></div><button id="profileAssignTrips" type="button">Manage trips</button></div><div class="profile-trip-list">${allowed.map((trip) => `<article><div><span>TRIP ID · ${esc(trip.tripId)}</span><h4>${esc(trip.name)}</h4><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p></div><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></article>`).join("") || `<div class="empty-profile-trips"><b>No trip assigned</b><p>This permanent profile is ready. Trips can be added later.</p></div>`}</div><div class="form-actions profile-actions"><button id="profileBack" type="button">← Back</button><button id="profileTripLimit" type="button">Trip limit</button><button id="profileEdit" type="button">Edit details</button><button id="profileEditLogin" class="pin-primary-action" type="button">✎ Edit login</button></div></div>`);
+    showModal("Traveller profile", `<div class="traveller-profile-view"><div class="profile-hero"><i class="avatar-edit" data-photo-upload="${esc(traveller.travellerId)}" title="Change this traveller's photo">${avatarSlot(traveller)}<em>📷</em></i><div><span>${esc(traveller.travellerId)}</span><h2>${esc(traveller.name)}</h2><p>${traveller.active ? "Active personal access" : "Inactive personal access"}</p></div></div><div class="profile-detail-grid"><span><small>PHONE</small><b>${esc(traveller.phone || "Not added")}</b></span><span><small>EMAIL</small><b>${esc(traveller.email || "Not added")}</b></span><span><small>CITY</small><b>${esc(traveller.city || "Not added")}</b></span><span><small>EMERGENCY CONTACT</small><b>${esc(traveller.emergencyContact || "Not added")}</b></span></div>${traveller.notes ? `<div class="profile-notes"><small>NOTES</small><p>${esc(traveller.notes)}</p></div>` : ""}<div class="profile-trip-heading"><div><span class="kicker">ALLOWED TRIPS</span><h3>${allowed.length} ${allowed.length === 1 ? "trip" : "trips"} in this profile</h3></div><button id="profileAssignTrips" type="button">Manage trips</button></div><div class="profile-trip-list">${allowed.map((trip) => `<article><div><span>TRIP ID · ${esc(trip.tripId)}</span><h4>${esc(trip.name)}</h4><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p></div><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></article>`).join("") || `<div class="empty-profile-trips"><b>No trip assigned</b><p>This permanent profile is ready. Trips can be added later.</p></div>`}</div><div class="form-actions profile-actions"><button id="profileBack" type="button">← Back</button><button id="profileTripLimit" type="button">Trip limit</button><button id="profileEdit" type="button">Edit details</button><button id="profileEditLogin" class="pin-primary-action" type="button">✎ Edit login</button></div></div>`);
     const quota = travellerTripQuotaInfo(traveller);
     $(".profile-detail-grid")?.insertAdjacentHTML("beforeend", `<span class="trip-creation-detail ${quota.canCreateAnother ? "allowed" : ""}"><small>TRIP CREATION</small><b>${esc(travellerTripQuotaLabel(quota))}</b></span>`);
     $("#profileAssignTrips").addEventListener("click", () => showTravellerTripAssignments(traveller, trips, administratorSecret, demoMode));
@@ -2535,7 +2633,7 @@
   function showCreatedTravellerAccess(travellers, assigned) {
     const accessRows = travellers.map((traveller, index) => ({ ...traveller, travellerId: assigned[index] && assigned[index].traveller ? assigned[index].traveller.travellerId : "Created" }));
     const copyText = accessRows.map((item) => `${item.name}\nUsername: ${item.travellerId}\nPassword: ${item.pin}\nAssigned trip: ${state.data.trip.tripId}`).join("\n\n");
-    showModal("Traveller accounts created", `<div class="created-access"><div class="success-note"><b>✓ ${accessRows.length} traveller ${accessRows.length === 1 ? "account" : "accounts"} created</b><p>Give each traveller only their own username and password. Passwords are shown once on this screen.</p></div><div class="created-access-list">${accessRows.map((item) => `<article><i>${esc(initials(item.name))}</i><div><h3>${esc(item.name)}</h3><span>USERNAME <b>${esc(item.travellerId)}</b></span><span>PASSWORD <b>${esc(item.pin)}</b></span><span>ASSIGNED TRIP <b>${esc(state.data.trip.tripId)}</b></span></div></article>`).join("")}</div><div class="form-actions"><button id="copyTravellerAccess" type="button">Copy all account details</button><button id="finishTravellerAccess" type="button">Done</button></div></div>`);
+    showModal("Traveller accounts created", `<div class="created-access"><div class="success-note"><b>✓ ${accessRows.length} traveller ${accessRows.length === 1 ? "account" : "accounts"} created</b><p>Give each traveller only their own username and password. Passwords are shown once on this screen.</p></div><div class="created-access-list">${accessRows.map((item) => `<article><i>${avatarSlot(item)}</i><div><h3>${esc(item.name)}</h3><span>USERNAME <b>${esc(item.travellerId)}</b></span><span>PASSWORD <b>${esc(item.pin)}</b></span><span>ASSIGNED TRIP <b>${esc(state.data.trip.tripId)}</b></span></div></article>`).join("")}</div><div class="form-actions"><button id="copyTravellerAccess" type="button">Copy all account details</button><button id="finishTravellerAccess" type="button">Done</button></div></div>`);
     $("#copyTravellerAccess").addEventListener("click", async () => { try { await navigator.clipboard.writeText(copyText); toast("Traveller access details copied"); } catch { toast("Could not copy automatically", true); } });
     $("#finishTravellerAccess").addEventListener("click", closeModal);
   }
