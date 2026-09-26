@@ -1310,3 +1310,11 @@ body.plan-dragging{user-select:none;cursor:grabbing}
 .avatar-edit.avatar-photo-host>.avatar-slot.has-photo{border-radius:inherit;overflow:hidden}
 .admin-avatar{display:grid;place-items:center;flex:0 0 auto;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#2f7d72,#3b8ccc);color:#fff;font-size:14px;font-style:normal;font-weight:900}
 .all-trips-summary{align-items:center}
+
+/* v4.27.2 traveller directory: a max-height grid squeezed its rows so cards
+   overlapped (same defect the trip library had). Flex column instead, cards
+   keep their natural height and the list scrolls. */
+.account-list,.traveller-manager .account-list{display:flex;flex-direction:column;align-content:start}
+.account-list>.account-card{flex:0 0 auto}
+.account-card{content-visibility:visible;contain-intrinsic-size:auto none}
+.account-avatar{position:relative;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;flex:0 0 auto}
