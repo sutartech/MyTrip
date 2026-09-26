@@ -1,0 +1,116 @@
+/* MyTrip Calm theme v4.28.2 — visual skin only (no layout/logic changes).
+   Remove the <link> to this file in index.html to go back to the old look. */
+:root{--navy:#1C2430;--ink:#1C2430;--muted:#5B6574;--line:#ECEAE4;--soft:#F7F6F2;--teal:#0F6E6A;--coral:#E8674E;--gold:#E9A23B;--purple:#7A5AC8;
+--calm-primary:#0F6E6A;--calm-primary-dark:#0A4F4C;--calm-tint:#EAF4F2;--calm-bg:#F7F6F2;--calm-card:#fff;--calm-zebra:#FAF9F6;
+--calm-shadow:0 1px 2px rgba(28,36,48,.06),0 8px 24px -14px rgba(28,36,48,.16);--calm-radius:16px;--focus-ring:0 0 0 3px rgba(15,110,106,.28)}
+html body{background:var(--calm-bg);color:var(--ink);font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+html body button,html body input,html body select,html body textarea{font-family:inherit}
+html body a{color:var(--calm-primary)}html body a:hover{color:var(--calm-primary-dark)}
+/* headings: one family, no serif */
+html body h1,html body h2,html body h3,html body .panel-head h2,html body .table-headline h2,html body .access-copy h1,html body .access-card h2{font-family:inherit!important;letter-spacing:-.3px;color:var(--ink);font-weight:800}
+html body .access-copy h1{letter-spacing:-1.5px}
+html body .kicker{color:var(--muted);font-size:11px;letter-spacing:1px;font-weight:700}
+/* amounts line up */
+html body .stat,html body .expense-amount,html body .plan-cost,html body .spending-total,html body .expense-row,html body .journey-metric,html body .summary-card{font-variant-numeric:tabular-nums}
+/* buttons: solid teal, no gradients */
+html body .primary,html body .invite,html body .primary-tool,html body .login-submit,html body button.save{background:var(--calm-primary)!important;background-image:none!important;color:#fff!important;border:0;border-radius:12px;font-weight:700;box-shadow:0 6px 16px -8px rgba(15,110,106,.55)!important}
+html body .primary:hover,html body .invite:hover,html body .primary-tool:hover{background:var(--calm-primary-dark)!important}
+html body .secondary,html body .secondary-action{background:#fff;border:1px solid #E4E1D9;border-radius:12px;color:var(--ink);font-weight:700}
+html body .danger-button,html body .danger-submit,html body .sidebar-signout{background:#C2413A!important;background-image:none!important;box-shadow:none!important;border-radius:12px}
+/* cards */
+html body .stat,html body .panel,html body .summary-card,html body .person,html body .print-card,html body .table-panel,html body .trip-library-card,html body .experience-card,html body .trip-photo-card,html body .budget-card,html body .spent-card,html body .balance-card,html body .traveller-expense-card,html body .account-card,html body .check-card{background:var(--calm-card);border:1px solid #EFEDE7;border-radius:var(--calm-radius);box-shadow:var(--calm-shadow)}
+html body .stat{padding:18px 20px}
+/* shell */
+html body .sidebar{background:#fff;border-right:1px solid var(--line)}
+html body .sidebar nav button{color:#3D4654;border-radius:12px;font-weight:700}
+html body .sidebar nav button:hover{background:#F4F3EF}
+html body .sidebar nav button.active{background:var(--calm-tint)!important;color:var(--calm-primary)!important;box-shadow:none!important}
+html body .brand i,html body .mobile-brand i{background:var(--calm-primary);box-shadow:none}
+html body .topbar{background:rgba(247,246,242,.9);border-bottom:1px solid var(--line)}
+html body .access-art{background:linear-gradient(160deg,#EAF4F2,#F7F6F2 60%)}
+html body .access-art:after{border-color:rgba(255,255,255,.55)}
+html body .access-copy>span{color:var(--calm-primary)}
+/* inputs */
+html body input:not([type=checkbox]):not([type=radio]):not([type=range]),html body select,html body textarea{border-radius:12px;border:1px solid #E4E1D9;background:#fff}
+html body input:focus,html body select:focus,html body textarea:focus{outline:0;border-color:var(--calm-primary);box-shadow:var(--focus-ring)}
+/* tables: soft header, gentle zebra */
+html body .plan-table-header,html body .expense-table-header{background:#F4F3EF;color:#6B7482;font-size:11px;letter-spacing:.6px;border-color:var(--line)}
+html body .plan-row:nth-child(odd):not(.plan-row-editing):not(.plan-row-deleting),html body .expense-row:nth-child(odd):not(.expense-row-editing){background:#fff}
+html body .plan-row:nth-child(even):not(.plan-row-editing):not(.plan-row-deleting),html body .expense-row:nth-child(even):not(.expense-row-editing){background:var(--calm-zebra)}
+html body .plan-row,html body .expense-row{border-color:#F1EFEA}
+html body .plan-row:hover:not(.plan-row-editing),html body .expense-row:hover:not(.expense-row-editing){background:var(--calm-tint)}
+html body .plan-row-editing,html body .expense-row-editing{background:#FFFBEF!important;box-shadow:inset 3px 0 0 var(--gold)}
+html body .plan-tick,html body .print-tick{accent-color:var(--calm-primary)}
+/* pills */
+html body .status-pill,html body .plan-chip,html body .plan-status{border-radius:99px;font-weight:700}
+html body .status-pill.active{background:#D8F0E4;color:#17744F}
+/* progress */
+html body .progress{background:#ECEAE4;border-radius:99px;overflow:hidden}
+/* modal = sheet */
+html body .modal{background:rgba(28,36,48,.42);backdrop-filter:blur(3px)}
+html body .modal>section{border-radius:22px;box-shadow:0 30px 60px -20px rgba(28,36,48,.4)}
+html body .toast{background:#1C2430;border-radius:99px;padding:11px 18px;font-size:13px;font-weight:700}
+/* pinned note */
+html body .sticky-card,html body .sticky-panel{--sticky-bg:#FFF6E3;--sticky-ink:#3B3322;--sticky-line:#F1E2BC}
+/* skeleton */
+html body .skeleton-row,html body .skeleton-head{background:linear-gradient(90deg,#EFEDE7 0%,#F7F6F2 50%,#EFEDE7 100%);background-size:200% 100%;animation:calmShimmer 1.3s linear infinite}
+@keyframes calmShimmer{to{background-position:-200% 0}}
+/* mobile */
+@media(max-width:760px){
+ html body .sidebar{background:rgba(255,255,255,.96)!important;backdrop-filter:blur(12px);border-top:1px solid var(--line);border-right:0;box-shadow:0 -6px 20px -10px rgba(28,36,48,.18)!important}
+ html body .sidebar nav button{color:#6B7482;background:transparent;font-weight:700}
+ html body .sidebar nav button.active{background:var(--calm-tint)!important;color:var(--calm-primary)!important}
+ html body .modal{place-items:end center;padding:0}
+ html body .modal>section{width:100%;max-height:92vh;border-radius:24px 24px 0 0;padding:14px 18px calc(20px + env(safe-area-inset-bottom))}
+ html body .modal>section:before{content:"";display:block;width:40px;height:5px;border-radius:99px;background:#D8D5CD;margin:0 auto 12px}
+ html body .toast{left:50%;right:auto;transform:translateX(-50%);top:auto;bottom:calc(92px + env(safe-area-inset-bottom))}
+ html body .stat,html body .panel{border-radius:18px}
+}
+@media(prefers-reduced-motion:reduce){html body .skeleton-row,html body .skeleton-head{animation:none}}
+@media print{html body{background:#fff}html body .stat,html body .panel,html body .print-card{box-shadow:none}}
+
+/* v4.28.1 — neutralise every older gradient layer (they used !important) */
+html body .access-screen,html body .access-shell,html body .access-panel,html body .access-shell>.access-panel,html body .access-shell .account-login-form,html body .access-shell .visible-shared-form,html body .visible-shared-access>header,html body .account-hub,html body .account-hub-hero.admin,html body .account-hub-hero.traveller,html body .sidebar,html body .topbar,html body .trip-heading,html body .view-head,html body .permission-banner,html body .share-banner,html body .all-trips-summary,html body .traveller-summary,html body .stat,html body .main-grid>.panel,html body .summary-card,html body .spending-panel,html body .recent-expenses-panel,html body .expense-summary .budget-card,html body .expense-summary .spent-card,html body .expense-summary .balance-card,html body .trip-photos-hero,html body .empty-photo-gallery,html body .photo-limit-control,html body .personal-traveller-id,html body .profile-id-banner,html body .experience-section,html body .experience-hero,html body .traveller-expense-panel,html body .profile-hero,html body .self-profile-card,html body .journey-stage,html body .journey-stage.active,html body .journey-stage.preparation,html body .journey-stage.completed,html body .journey-metric,html body .journey-reminder,html body .journey-reminder.clear,html body .journey-plan-item.next,html body .quick-find-layer>section,html body .quota-summary>span,html body .plan-day-row,html body .sticky-inline-actions,html body .trip-cover-empty,html body .header-date-time,html body .trip-id-chip,html body .quick-actions button,html body .map-search button,html body .pin-account-control{background-image:none!important;background-color:#fff!important;box-shadow:var(--calm-shadow)!important;border-color:#EFEDE7!important}
+html body .topbar,html body .sidebar{box-shadow:none!important}
+html body .access-screen,html body .access-shell,html body .account-hub,html body .access-panel,html body .access-shell>.access-panel{background-color:var(--calm-bg)!important;box-shadow:none!important}
+html body .access-art,html body .access-shell>.access-art{background:linear-gradient(160deg,#EAF4F2 0%,#F7F6F2 65%)!important;color:var(--ink)!important}
+html body .access-art:before,html body .access-art:after,html body .access-shell>.access-art:before,html body .main-grid>.panel:before,html body .trip-cover-empty:after,html body .sticky-card::after,html body .floating-sticky::after{background:none!important;border:0!important;box-shadow:none!important;content:none!important}
+html body .access-copy h1,html body .access-art h1,html body .access-art .brand{color:var(--ink)!important;-webkit-text-fill-color:currentColor!important;background:none!important;text-shadow:none!important}
+html body .access-copy p,html body .access-art p{color:var(--muted)!important;text-shadow:none!important}
+html body .access-copy>span,html body .access-art .kicker{color:var(--calm-primary)!important}
+html body .feature-chips b{background:#fff!important;border:1px solid #E4E1D9!important;color:#3D4654!important}
+html body .brand i,html body .mobile-brand i,html body .mobile-logo i,html body .access-art>.brand i,html body .account-hub-topbar>.brand i,html body .primary,html body .invite,html body .login-submit,html body .access-shell .login-submit,html body .access-shell .visible-shared-form>button,html body .admin-all-button,html body .pin-primary-action,html body .pin-reset-control,html body .pin-reset-control:hover,html body .journey-navigate,html body .back-to-top,html body .app-progress i,html body .progress i,html body .visible-shared-access>header>i,html body .quick-find-results>button>i,html body .admin-avatar,html body .sidebar .user>span{background-image:none!important;background-color:var(--calm-primary)!important;color:#fff!important;box-shadow:none!important}
+html body .primary,html body .invite,html body .login-submit,html body .access-shell .login-submit,html body .access-shell .visible-shared-form>button{border-radius:12px!important;box-shadow:0 6px 16px -8px rgba(15,110,106,.55)!important}
+html body .primary:hover,html body .invite:hover,html body .login-submit:hover,html body .access-shell .visible-shared-form>button:hover{background-color:var(--calm-primary-dark)!important}
+html body .progress{background-image:none!important;background-color:#ECEAE4!important}
+html body .person>i,html body .person:nth-child(3n+1)>i,html body .person:nth-child(3n+2)>i,html body .person:nth-child(3n)>i,html body .created-access-list article>i,html body .profile-hero>i,html body .self-profile-card>i,html body .traveller-expense-card>i,html body .traveller-expense-card:nth-child(3n+2)>i,html body .traveller-expense-card:nth-child(3n)>i,html body .expense-description i,html body .expense-view-icon,html body .journey-prep-grid i,html body .quick-find-trigger,html body .permission-banner-actions>button:not(.quick-find-trigger),html body .permission-banner .permission-search,html body .access-shell .password-input-wrap>button,html body .access-shell .cache-clear-button,html body .sticky-edge-tab{background-image:none!important;background-color:var(--calm-tint)!important;color:var(--calm-primary)!important;box-shadow:none!important}
+html body .quick-find-results>button:hover,html body .quick-find-results>button:focus-visible{background-image:none!important;background-color:var(--calm-tint)!important}
+html body .account-signout,html body .sidebar-signout,html body .mobile-top-signout,html body .topbar-signout,html body .topbar-signout:hover,html body .account-signout:hover{background-image:none!important;background-color:#C2413A!important;color:#fff!important;box-shadow:none!important}
+html body .sidebar nav button.active{background-image:none!important}
+html body .sidebar .user,html body .sidebar .user *{color:var(--ink)}
+html body .header-date-time{color:var(--ink)!important;border:1px solid #E4E1D9!important;box-shadow:none!important}
+html body .trip-id-chip{color:var(--calm-primary)!important;background-color:var(--calm-tint)!important;box-shadow:none!important}
+html body .stat,html body .stat *,html body .summary-card,html body .summary-card *,html body .journey-stage,html body .journey-stage *,html body .quick-actions button,html body .quick-actions button *,html body .permission-banner,html body .permission-banner *,html body .share-banner,html body .share-banner *,html body .view-head,html body .view-head *,html body .trip-heading,html body .trip-heading *,html body .experience-hero,html body .experience-hero *,html body .trip-photos-hero,html body .trip-photos-hero *,html body .profile-hero,html body .profile-hero *,html body .account-hub-hero,html body .account-hub-hero *,html body .expense-summary>*,html body .expense-summary>* *,html body .journey-metric,html body .journey-metric *,html body .all-trips-summary,html body .all-trips-summary *{text-shadow:none!important}
+html body .stat,html body .summary-card,html body .journey-stage,html body .quick-actions button,html body .permission-banner,html body .share-banner,html body .view-head,html body .trip-heading,html body .experience-hero,html body .trip-photos-hero,html body .profile-hero,html body .account-hub-hero,html body .expense-summary>*,html body .journey-metric,html body .all-trips-summary,html body .personal-traveller-id,html body .profile-id-banner{color:var(--ink)!important}
+html body :is(.stat,.summary-card,.journey-stage,.quick-actions button,.permission-banner,.share-banner,.view-head,.trip-heading,.experience-hero,.trip-photos-hero,.profile-hero,.account-hub-hero,.expense-summary>*,.journey-metric,.all-trips-summary,.personal-traveller-id,.profile-id-banner) :is(h1,h2,h3,b,strong,span,p,small,em,label,div){color:inherit!important;-webkit-text-fill-color:currentColor!important}
+html body :is(.stat,.summary-card,.journey-metric,.expense-summary>*) :is(small,p,em){color:var(--muted)!important}
+html body :is(.stat,.summary-card,.journey-stage,.quick-actions button,.expense-summary>*,.journey-metric) :is(button.primary,.primary){color:#fff!important}
+html body .quick-actions button{border:1px solid #EFEDE7!important;border-radius:14px!important}
+html body .quick-actions button:hover{background-color:var(--calm-tint)!important}
+html body .quick-actions button i,html body .stat>i,html body .summary-card>i,html body .journey-metric>i{background-image:none!important;background-color:var(--calm-tint)!important;color:var(--calm-primary)!important}
+html body .experience-page .experience-card[class*=colour-]{background-image:none!important;background-color:#fff!important}
+html body .sticky-card,html body .sticky-diary-card,html body .floating-sticky,html body .sticky-editor-preview{background-image:none!important;background-color:#FFF6E3!important;color:#3B3322!important;border:1px solid #F1E2BC!important;box-shadow:var(--calm-shadow)!important}
+html body .sticky-edge-tab{border:1px solid #D5E6E3!important}
+@media(max-width:760px){html body .sidebar{background-image:none!important;background-color:rgba(255,255,255,.97)!important}html body .sidebar nav button,html body .sidebar nav button *{color:#6B7482!important}html body .sidebar nav button.active,html body .sidebar nav button.active *{color:var(--calm-primary)!important}html body .sidebar nav i{background-image:none!important}}
+
+/* v4.28.2 — last leftovers */
+html body .topbar,html body .sidebar,html body .account-hub-topbar,html body .stat,html body .panel,html body .view-head{border-image:none!important}
+html body .topbar{border-bottom:1px solid var(--line)!important}
+html body .journey-stage::before,html body .journey-stage::after,html body .journey-stage-hero::before,html body .journey-stage-hero::after,html body .stat::before,html body .stat::after,html body .summary-card::before,html body .summary-card::after,html body .view-head::before,html body .view-head::after,html body .trip-heading::before,html body .trip-heading::after,html body .account-hub-hero::before,html body .account-hub-hero::after,html body .profile-hero::before,html body .profile-hero::after{content:none!important;display:none!important}
+html body :is(h1,h2,h3,h4,b,strong,.date b,.timeline-row .date b,.plan-item>.date b,.all-trips-summary b,.top-trip-copy>strong,.plan-day-row b,.plan-empty-row b,.experience-date b){font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important}
+html body :is(#createFromTrips,#createTravellerTrip,#createTravellerAccount,[data-open-admin-trip],[data-open-trip],.account-hub button[id^=create]){background-image:none!important;background-color:var(--calm-primary)!important;color:#fff!important;border:0!important;border-radius:12px!important;box-shadow:0 6px 16px -8px rgba(15,110,106,.55)!important}
+html body :is(#createFromTrips,#createTravellerTrip,#createTravellerAccount,[data-open-admin-trip],[data-open-trip]):hover{background-color:var(--calm-primary-dark)!important}
+html body .trip-code,html body #sideTripCode{color:var(--calm-primary)!important;background:none!important}
+html body .journey-stage-badge,html body .preparation .journey-stage-badge,html body .completed .journey-stage-badge{background-image:none!important;background-color:var(--calm-tint)!important;color:var(--calm-primary)!important;border:0!important;box-shadow:none!important}
+html body .completed .journey-stage-badge{background-color:#EFEDE7!important;color:#5B6574!important}
+html body .access-badge,html body .version-badge,html body .feature-access-badge{background-image:none!important;box-shadow:none!important}

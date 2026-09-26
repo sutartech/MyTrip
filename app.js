@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.27.3";
+  const frontendVersion = "4.28.2";
   const requiredBackendVersion = "4.13.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -192,6 +192,13 @@
       const adminName = isAdmin() ? String(state.currentUser || "").trim().toLowerCase() : "";
       const organiser = (state.data.members || []).find((item) => String(item.name || "").trim().toLowerCase() === name && !item.travellerId && /organi[sz]er|admin/i.test(String(item.role || "")));
       if (name === creator || name === adminName || organiser) return profilePhotos.ADMIN;
+      /* v4.27.3: the organiser row is often named differently from the admin
+         login (e.g. "Pradeep" vs "admin"). If this is the only member without
+         a Traveller ID, it can only be the Administrator. */
+      const nonTravellers = (state.data.members || []).filter((item) => !item.travellerId);
+      if (nonTravellers.length === 1 && String(nonTravellers[0].name || "").trim().toLowerCase() === name) return profilePhotos.ADMIN;
+      const adminLabel = String((state.data.trip && state.data.trip.adminName) || "").trim().toLowerCase();
+      if (adminLabel && name === adminLabel) return profilePhotos.ADMIN;
     }
     return "";
   }
