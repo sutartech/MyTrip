@@ -1158,3 +1158,35 @@ body.plan-dragging{user-select:none;cursor:grabbing}
 .idle-choice{display:flex;align-items:center;gap:9px;padding:12px 13px;border:1px solid var(--line);border-radius:11px;background:#fff;cursor:pointer;font-size:12px;font-weight:850;color:var(--navy)}
 .idle-choice:has(input:checked){border-color:#2f7d72;background:#f2f9f7;color:#2f7d72}
 .idle-choice input{accent-color:#2f7d72}
+
+/* v4.23.1 generic .modal-form label/input rules were turning each choice into
+   a grid with a full-width text-field radio — scope and reset them here. */
+.modal-form .idle-choice{display:flex;flex-direction:row;align-items:center;gap:9px;min-height:44px;padding:10px 13px}
+.modal-form .idle-choice input{width:auto;height:auto;min-height:0;line-height:normal;flex:0 0 auto;margin:0;padding:0;border:0;box-shadow:none;background:none}
+
+
+/* v4.24 alternating row tint — itinerary, expenses and people tables */
+.plan-table>.plan-row:nth-child(odd):not(.plan-row-editing):not(.plan-row-deleting){background:#f6faf9}
+.plan-table>.plan-row:nth-child(even):not(.plan-row-editing):not(.plan-row-deleting){background:#fff}
+.plan-table>.plan-row:not(.plan-row-editing):not(.plan-row-deleting):hover{background:#eaf4f2}
+.expense-table>.expense-row:nth-child(odd){background:#f7f9fc}
+.expense-table>.expense-row:nth-child(even){background:#fff}
+.expense-table>.expense-row:hover{background:#eef3f9}
+.plan-row,.expense-row{transition:background .12s ease}
+@media print{.plan-table>.plan-row,.expense-table>.expense-row{background:none!important}}
+.print-plan-table tbody tr:nth-child(even) td{background:#f5f8fa}
+
+/* text size control inside entry dialogs */
+#modal > section > header{gap:10px}
+.modal-text-size{margin-left:auto}
+.modal-text-size b{min-width:30px}
+
+/* v4.24.1 print settings also drive the expense statement */
+@media print{
+  .print-expense-table{width:100%;border-collapse:collapse;table-layout:fixed}
+  .print-expense-table th,.print-expense-table td{font-size:var(--print-plan-font,9px);text-align:var(--print-plan-align,left);border:1px solid #c9d2da;padding:5px 7px;vertical-align:top;overflow-wrap:anywhere}
+  .print-expense-table th{background:#eef3f6;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
+  .print-expense-table tbody tr:nth-child(even) td{background:#f5f8fa}
+  body.print-plan-nowrap .print-expense-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+.expense-record-panel .table-headline{flex-wrap:wrap;gap:10px}

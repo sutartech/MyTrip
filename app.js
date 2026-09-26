@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.23.0";
+  const frontendVersion = "4.24.1";
   const requiredBackendVersion = "4.12.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -709,11 +709,28 @@
 
   function applyTextScale() {
     const scale = textScale();
-    const content = $(".content");
-    if (content) content.style.zoom = scale === 100 ? "" : String(scale / 100);
+    const zoom = scale === 100 ? "" : String(scale / 100);
+    [".content", "#modal > section", "#stickyPanel", "#floatingStickyLayer"].forEach((selector) => {
+      const element = $(selector);
+      if (element) element.style.zoom = zoom;
+    });
     if ($("#textSizeValue")) $("#textSizeValue").textContent = `${scale}%`;
+    $$(".modal-text-size b").forEach((label) => { label.textContent = `${scale}%`; });
+    $$(".modal-text-size [data-modal-text=\"-1\"]").forEach((button) => { button.disabled = scale === textSizeSteps[0]; });
+    $$(".modal-text-size [data-modal-text=\"1\"]").forEach((button) => { button.disabled = scale === textSizeSteps[textSizeSteps.length - 1]; });
     if ($("#textSizeDown")) $("#textSizeDown").disabled = scale === textSizeSteps[0];
     if ($("#textSizeUp")) $("#textSizeUp").disabled = scale === textSizeSteps[textSizeSteps.length - 1];
+  }
+
+  function addModalTextSizeControl() {
+    const header = $("#modal > section > header");
+    if (!header || header.querySelector(".modal-text-size")) { applyTextScale(); return; }
+    const control = document.createElement("span");
+    control.className = "text-size-control modal-text-size";
+    control.innerHTML = '<button type="button" data-modal-text="-1" aria-label="Smaller text">A−</button><b></b><button type="button" data-modal-text="1" aria-label="Larger text">A+</button>';
+    header.insertBefore(control, $("#closeModal"));
+    control.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => stepTextScale(Number(button.dataset.modalText))));
+    applyTextScale();
   }
 
   function stepTextScale(direction) {
@@ -884,7 +901,7 @@
         : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.planDayFilter || state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
       : "";
 
-    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button><details class="plan-print-menu"${state.printMenuOpen ? " open" : ""}><summary class="plan-tool">▤ Print options</summary><div class="plan-print-panel"><label class="plan-print-line"><span>Text size</span><span class="plan-width-control"><button type="button" data-print-width="-1" aria-label="Smaller">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger">＋</button></span></label><label class="plan-print-line"><span>Wrap long text</span><button type="button" class="plan-switch${printPlanWrap() ? " on" : ""}" data-print-wrap aria-pressed="${printPlanWrap()}">${printPlanWrap() ? "On" : "Off"}</button></label><label class="plan-print-line"><span>Page layout</span><span class="plan-seg">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span></label><label class="plan-print-line"><span>Alignment</span><span class="plan-seg">${[["left", "⇤"], ["center", "⇔"], ["right", "⇥"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align ${value}">${label}</button>`).join("")}</span></label><label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label></div></details>${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
+    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button>${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label>`)}${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
   }
 
   function renderExperiences() {
@@ -939,7 +956,7 @@
       const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
       return `<div class="expense-row"><span class="expense-description"><i>₹</i><b>${esc(expense.label)}</b></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${editActions}${deleteAction}</span></div>`;
     }).join("");
-    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section><section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section><section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>Detailed expense statement</h2><p>Use Row edit for a quick change or Edit for every field.</p></div>${canPrintReports() ? `<button data-print="expenses">▤ Print expenses</button>` : ""}</div><div class="expense-table expense-action-table"><div class="expense-table-header"><span>DESCRIPTION</span><span>DATE</span><span>CATEGORY</span><span>PAID BY</span><span>AMOUNT</span><span>ACTIONS</span></div>${rows || `<div class="expense-empty-row"><b>No expenses recorded</b><p>Add the first trip payment.</p></div>`}</div></section>`;
+    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section><section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section><section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>Detailed expense statement</h2><p>Use Row edit for a quick change or Edit for every field.</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu()}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div><div class="expense-table expense-action-table"><div class="expense-table-header"><span>DESCRIPTION</span><span>DATE</span><span>CATEGORY</span><span>PAID BY</span><span>AMOUNT</span><span>ACTIONS</span></div>${rows || `<div class="expense-empty-row"><b>No expenses recorded</b><p>Add the first trip payment.</p></div>`}</div></section>`;
   }
 
   function renderExpenseRowEditor(expense) {
@@ -1016,11 +1033,9 @@
     if (!state.data) return;
     const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint };
     $("#view").innerHTML = accessNotice() + renderers[state.tab]();
-    if (state.tab === "itinerary") {
-      bindPlanColumnResizers(); bindPlanRowDragging();
-      const menu = $(".plan-print-menu");
-      if (menu) menu.addEventListener("toggle", () => { state.printMenuOpen = menu.open; });
-    }
+    if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
+    const printMenu = $(".plan-print-menu");
+    if (printMenu) printMenu.addEventListener("toggle", () => { state.printMenuOpen = printMenu.open; });
   }
 
   function handleViewClick(event) {
@@ -1095,6 +1110,7 @@
       .replaceAll("shared trip-PIN users", "shared one-trip users")
       .replaceAll("password/PIN", "password");
     closeQuickFind();
+    requestAnimationFrame(addModalTextSizeControl);
     $("#modalTitle").textContent = title; $("#modalBody").innerHTML = accountWording; $("#modal").classList.remove("hidden");
     document.body.classList.add("overlay-open");
     requestAnimationFrame(() => $("#closeModal").focus());
@@ -1123,8 +1139,8 @@
       body: decodeStickyText(value.body || value.details).slice(0, 2000),
       dueDate: /^\d{4}-\d{2}-\d{2}$/.test(String(value.dueDate || "")) ? String(value.dueDate) : "",
       colour: stickyColours.includes(value.colour) ? value.colour : stickyColours[index % stickyColours.length],
-      pinned: Boolean(value.pinned),
-      completed: Boolean(value.completed),
+      pinned: value.pinned === true || /^(true|1|yes)$/i.test(String(value.pinned || "")),
+      completed: value.completed === true || /^(true|1|yes)$/i.test(String(value.completed || "")),
       x: Number.isFinite(Number(value.x)) ? Number(value.x) : Math.max(270, innerWidth - 390 - index * 22),
       y: Number.isFinite(Number(value.y)) ? Number(value.y) : 118 + index * 28,
       width: Math.min(520, Math.max(260, Number(value.width) || 330)),
@@ -1244,6 +1260,16 @@
 
   let stickyRefreshAt = 0;
   let stickyRefreshing = false;
+  const stickyPendingSaves = new Set();
+  let stickyLocalChangeAt = 0;
+  function markStickyChanged() { stickyLocalChangeAt = Date.now(); }
+  function stickySignature(list) {
+    return JSON.stringify(list.map((note) => [note.id, note.title, note.body, note.pinned, note.colour, note.dueDate, Math.round(note.x), Math.round(note.y), Math.round(note.width), Math.round(note.height)]));
+  }
+  function stickyEditingNow() {
+    const active = document.activeElement;
+    return Boolean((active && active.closest && active.closest("[data-sticky-inline], #stickyEditorForm, .floating-sticky")) || $("#stickyEditorForm"));
+  }
 
   /**
    * Pulls the sticky board straight from the Google Sheet and repaints it.
@@ -1254,16 +1280,20 @@
   async function refreshStickyNotes(force = false) {
     if (state.demoMode || !state.data || stickyRefreshing) return;
     if (!force && Date.now() - stickyRefreshAt < 4000) return;
+    if (stickyPendingSaves.size || stickyEditingNow() || Date.now() - stickyLocalChangeAt < 10000) return;
     stickyRefreshing = true;
     const badge = $("#stickyRefreshButton");
     if (badge) badge.classList.add("busy");
     try {
       const fresh = await api("getTrip", authPayload());
       if (fresh && fresh.trip && String(fresh.trip.tripId) === String(state.data.trip.tripId)) {
+        stickyRefreshAt = Date.now();
+        if (stickyPendingSaves.size || stickyEditingNow() || Date.now() - stickyLocalChangeAt < 10000) return;
+        const before = stickySignature(stickyNotes);
         state.data.stickyNotes = fresh.stickyNotes || [];
         state.data.stickyDiary = fresh.stickyDiary || [];
-        stickyRefreshAt = Date.now();
-        loadStickyNotes();
+        const next = dedupeStickyNotes(state.data.stickyNotes.map((note, index) => normaliseSticky({ ...note, body: note.details || note.body }, index)));
+        if (stickySignature(next) !== before) { stickyNotes = next; renderStickyNotes(); }
       }
     } catch {} finally {
       stickyRefreshing = false;
@@ -1289,6 +1319,9 @@
    */
   async function persistStickyPosition(note) {
     if (!note || state.demoMode || !canWriteStickyNotes()) return null;
+    markStickyChanged();
+    const pendingKey = `pos:${note.id}:${Date.now()}`;
+    stickyPendingSaves.add(pendingKey);
     try {
       return await api("saveStickyNote", authPayload({
         record: { id: note.id, title: note.title, pinned: note.pinned, x: Math.round(note.x), y: Math.round(note.y), width: Math.round(note.width), height: Math.round(note.height) },
@@ -1296,11 +1329,20 @@
         author: state.currentUser
       }));
     } catch { return null; }
+    finally { stickyPendingSaves.delete(pendingKey); markStickyChanged(); }
   }
 
   async function persistSticky(note, silent = false) {
     if (!note) return null;
     if (state.demoMode) { saveStickyNotes(); mirrorStickyNotes(); return note; }
+    markStickyChanged();
+    const pendingKey = `${note.id}:${Date.now()}:${Math.random()}`;
+    stickyPendingSaves.add(pendingKey);
+    try { return await persistStickyNow(note, silent); }
+    finally { stickyPendingSaves.delete(pendingKey); markStickyChanged(); }
+  }
+
+  async function persistStickyNow(note, silent) {
     try {
       const saved = await api("saveStickyNote", authPayload({ record: stickyRecord(note), author: state.currentUser }));
       note.id = saved.id; note.createdAt = saved.createdAt || note.createdAt;
@@ -1497,7 +1539,7 @@
     if (!canWriteStickyNotes()) return toast("Sticky-note writing is disabled by the Administrator", true);
     const note = stickyNotes.find((item) => item.id === id);
     if (!note) return;
-    Object.assign(note, changes); saveStickyNotes(); renderStickyNotes(); persistSticky(note);
+    Object.assign(note, changes); markStickyChanged(); saveStickyNotes(); renderStickyNotes(); persistSticky(note);
   }
 
   function showStickyEditor(note) {
@@ -2786,7 +2828,7 @@
     const planTitle = state.printDay ? `Itinerary · ${displayDate(state.printDay, { weekday: "long", day: "numeric", month: "long" })}` : "Itinerary";
     const planSection = canViewItinerary() ? `<section class="print-plan"><h2>${esc(planTitle)}</h2><table class="print-plan-table"><colgroup>${printCols}</colgroup><thead><tr><th>Day</th><th>Time</th><th>Itinerary</th><th>Place</th><th>Remark</th><th class="print-tick">✓</th></tr></thead><tbody>${printedPlans || `<tr><td colspan="6">No itinerary items were added.</td></tr>`}</tbody></table></section>` : "";
     const experienceSection = canViewExperiences() ? `<section class="print-experiences"><h2>Trip experience notes</h2>${printedExperiences || `<p>No experience notes were added.</p>`}</section>` : "";
-    const expenseSection = canViewExpenses() ? `<section class="print-expenses"><h2>Expense statement</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div><div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div><h3>Detailed expense statement</h3><table><thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${state.data.expenses.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label)}</td><td>${esc(expense.category)}</td><td>${esc(expense.paidBy)}</td><td>${money.format(expense.amount)}</td></tr>`).join("")}</tbody></table></section>` : "";
+    const expenseSection = canViewExpenses() ? `<section class="print-expenses"><h2>Expense statement</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div><div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table class="print-expense-table"><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div><h3>Detailed expense statement</h3><table class="print-expense-table"><thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${state.data.expenses.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label)}</td><td>${esc(expense.category)}</td><td>${esc(expense.paidBy)}</td><td>${money.format(expense.amount)}</td></tr>`).join("")}</tbody></table></section>` : "";
     $("#printArea").innerHTML = `${photo ? `<img class="print-cover-photo" src="${esc(photo)}" alt="Trip cover photo">` : ""}<header><div><span class="kicker">MYTRIP · TRIP BOOK · FRONTEND v${frontendVersion}</span><h1>${esc(state.data.trip.name)}</h1><p>${displayDate(state.data.trip.startDate)}–${displayDate(state.data.trip.endDate)}${memberText}</p></div><b>${esc(state.data.trip.tripId)}</b></header>${planSection}${experienceSection}${expenseSection}`;
     printAreaDirty = false;
   }
@@ -2865,7 +2907,6 @@
   $("#stickyPanelBackdrop").addEventListener("click", closeStickyPanel);
   addEventListener("resize", () => { if (state.data) reflowStickyNotes(); }, { passive: true });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshStickyNotes(); });
-  addEventListener("focus", () => refreshStickyNotes());
   $("#addStickyNote").addEventListener("click", () => showStickyEditor());
   if ($("#stickyAccessButton")) $("#stickyAccessButton").addEventListener("click", showStickyBoardAccess);
   if ($("#stickyRecallButton")) $("#stickyRecallButton").addEventListener("click", recallPinnedStickyNotes);
@@ -2939,6 +2980,11 @@
     } catch {}
   });
   const invitedTrip = inviteQuery.get("trip"); if (invitedTrip) $("#joinTripId").value = invitedTrip.toUpperCase();
+  /** Print size, wrap, page layout and alignment — shared by every printable view. */
+  function printOptionsMenu(extra = "") {
+    return `<details class="plan-print-menu"${state.printMenuOpen ? " open" : ""}><summary class="plan-tool">▤ Print options</summary><div class="plan-print-panel"><label class="plan-print-line"><span>Text size</span><span class="plan-width-control"><button type="button" data-print-width="-1" aria-label="Smaller">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger">＋</button></span></label><label class="plan-print-line"><span>Wrap long text</span><button type="button" class="plan-switch${printPlanWrap() ? " on" : ""}" data-print-wrap aria-pressed="${printPlanWrap()}">${printPlanWrap() ? "On" : "Off"}</button></label><label class="plan-print-line"><span>Page layout</span><span class="plan-seg">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span></label><label class="plan-print-line"><span>Alignment</span><span class="plan-seg">${[["left", "⇤ Left"], ["center", "⇔ Centre"], ["right", "⇥ Right"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align ${value}">${label}</button>`).join("")}</span></label>${extra}</div></details>`;
+  }
+
   function renderPlanRowEditor(item, isNew = false) {
     const category = planCategories.includes(item.category) ? item.category : "";
     const status = planStatuses.includes(item.status) ? item.status : (isNew ? "To book" : "");
