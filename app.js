@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.25.0";
+  const frontendVersion = "4.25.1";
   const requiredBackendVersion = "4.12.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -1233,6 +1233,7 @@
   async function recallPinnedStickyNotes() {
     const pinned = stickyNotes.filter((note) => note.pinned && !note.completed);
     if (!pinned.length) return toast("No pinned notes to bring back");
+    try { localStorage.setItem(pinnedScreenKey, "on"); } catch {}
     /* Tile the notes into a real grid, shrinking them (down to a readable
        minimum) so that every pinned note fits on screen at once. If even the
        minimum size cannot fit them all, the remainder cascades — and
@@ -1524,7 +1525,7 @@
     const safeHeight = Math.min(note.height, Math.max(190, innerHeight - 92));
     const safeX = Math.max(4, Math.min(Math.max(4, innerWidth - safeWidth - 4), note.x));
     const safeY = Math.max(76, Math.min(Math.max(76, innerHeight - safeHeight - 8), note.y));
-    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(safeHeight)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>${canWriteStickyNotes() ? "↕ Move note" : "📌 Pinned for everyone"}</span>${canWriteStickyNotes() ? `<button data-sticky-pin="${esc(note.id)}" title="Unpin and return to panel">×</button>` : ""}</header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3${inline("title")}>${esc(note.title)}</h3><p${inline("body")}>${stickyBodyHtml(note)}</p></div>${canWriteStickyNotes() ? `<footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer>` : ""}</article>`;
+    return `<article class="floating-sticky colour-${esc(note.colour)}" data-floating-sticky="${esc(note.id)}" style="left:${Math.round(safeX)}px;top:${Math.round(safeY)}px;width:${Math.round(safeWidth)}px;height:${Math.round(safeHeight)}px"><header class="sticky-drag-handle" data-sticky-drag="${esc(note.id)}"><span>${canWriteStickyNotes() ? "↕ Move note" : "📌 Pinned for everyone"}</span><button data-sticky-hide-screen title="Hide pinned notes from my screen">×</button></header><div class="floating-sticky-content"><small>${esc(note.type)} · ${esc(stickyDueText(note))}</small><h3${inline("title")}>${esc(note.title)}</h3><p${inline("body")}>${stickyBodyHtml(note)}</p></div>${canWriteStickyNotes() ? `<footer><button data-sticky-complete="${esc(note.id)}">✓ Complete</button><button data-sticky-edit="${esc(note.id)}">Edit</button><button data-sticky-autofit="${esc(note.id)}">Auto-fit</button></footer>` : ""}</article>`;
   }
 
   function renderStickyNotes() {
@@ -1544,11 +1545,28 @@
     $("#stickyActiveList").innerHTML = active.map(stickyPanelCard).join("") || `<div class="sticky-empty"><b>No active sticky notes</b><p>${canWriteStickyNotes() ? "Add a target or reminder whenever something needs attention." : "The Administrator has not added an active note on this device."}</p></div>`;
     $("#stickyDiaryList").innerHTML = completed.map(stickyDiaryCard).join("") || `<div class="sticky-empty compact"><b>No completed notes yet</b></div>`;
     const pinned = active.filter((note) => note.pinned);
+    const onScreen = pinnedOnScreen() ? pinned : [];
     const layer = $("#floatingStickyLayer");
-    layer.classList.toggle("hidden", !state.data || !pinned.length);
-    layer.innerHTML = pinned.map(floatingStickyCard).join("");
+    layer.classList.toggle("hidden", !state.data || !onScreen.length);
+    layer.innerHTML = onScreen.map(floatingStickyCard).join("");
+    const toggle = $("#stickyScreenToggle");
+    if (toggle) {
+      toggle.classList.toggle("hidden", !pinned.length);
+      toggle.classList.toggle("on", pinnedOnScreen());
+      toggle.textContent = pinnedOnScreen() ? "📌 Hide from screen" : `📌 Show ${pinned.length} on screen`;
+    }
     bindStickyActions();
     bindStickyFrontmost();
+  }
+
+  /* Per browser, default OFF: pinned notes never pop over the dashboard by
+     themselves. Pinning still shares the note with everyone; each person
+     decides whether it floats on their own screen. */
+  const pinnedScreenKey = "mytrip_pinned_on_screen_v1";
+  function pinnedOnScreen() { return localStorage.getItem(pinnedScreenKey) === "on"; }
+  function setPinnedOnScreen(on) {
+    try { localStorage.setItem(pinnedScreenKey, on ? "on" : "off"); } catch {}
+    renderStickyNotes();
   }
 
   function updateSticky(id, changes) {
@@ -1779,6 +1797,7 @@
         saveInlineSticky(element);
       });
     });
+    $$('[data-sticky-hide-screen]').forEach((button) => button.addEventListener("click", (event) => { event.stopPropagation(); setPinnedOnScreen(false); toast("Pinned notes hidden from your screen · still in the sticky panel"); }));
     $$('[data-sticky-pin]').forEach((button) => button.addEventListener("click", (event) => { event.stopPropagation(); const note = stickyNotes.find((item) => item.id === button.dataset.stickyPin); if (note) updateSticky(note.id, { pinned: !note.pinned }); }));
     $$('[data-sticky-complete]').forEach((button) => button.addEventListener("click", () => completeStickyNote(button.dataset.stickyComplete)));
     $$('[data-sticky-diary-reopen]').forEach((button) => button.addEventListener("click", () => reopenStickyDiary(button.dataset.stickyDiaryReopen)));
@@ -2926,6 +2945,7 @@
   $("#addStickyNote").addEventListener("click", () => showStickyEditor());
   if ($("#stickyAccessButton")) $("#stickyAccessButton").addEventListener("click", showStickyBoardAccess);
   if ($("#stickyRecallButton")) $("#stickyRecallButton").addEventListener("click", recallPinnedStickyNotes);
+  if ($("#stickyScreenToggle")) $("#stickyScreenToggle").addEventListener("click", () => setPinnedOnScreen(!pinnedOnScreen()));
   if ($("#stickyRefreshButton")) $("#stickyRefreshButton").addEventListener("click", () => refreshStickyNotes(true));
   if ($("#textSizeDown")) $("#textSizeDown").addEventListener("click", () => stepTextScale(-1));
   if ($("#textSizeUp")) $("#textSizeUp").addEventListener("click", () => stepTextScale(1));

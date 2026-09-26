@@ -1190,3 +1190,6 @@ body.plan-dragging{user-select:none;cursor:grabbing}
   body.print-plan-nowrap .print-expense-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
 .expense-record-panel .table-headline{flex-wrap:wrap;gap:10px}
+
+/* v4.25.1 on-screen toggle for pinned notes */
+#stickyScreenToggle.on{border-color:#2f7d72;background:#f2f9f7;color:#2f7d72}
