@@ -1152,3 +1152,9 @@ body.plan-dragging{user-select:none;cursor:grabbing}
   .topbar>.top-actions{order:2;flex:0 0 auto}
   .topbar>.header-date-time{order:3;flex:1 1 100%;margin-inline:0}
 }
+
+/* v4.23 auto sign-out setting */
+.idle-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.idle-choice{display:flex;align-items:center;gap:9px;padding:12px 13px;border:1px solid var(--line);border-radius:11px;background:#fff;cursor:pointer;font-size:12px;font-weight:850;color:var(--navy)}
+.idle-choice:has(input:checked){border-color:#2f7d72;background:#f2f9f7;color:#2f7d72}
+.idle-choice input{accent-color:#2f7d72}

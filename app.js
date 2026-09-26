@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.22.4";
-  const requiredBackendVersion = "4.11.1";
+  const frontendVersion = "4.23.0";
+  const requiredBackendVersion = "4.12.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -119,7 +119,19 @@
   const state = { data: null, tab: "overview", pin: "", accountUsername: "", authenticated: false, travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "Goa, India", currentUser: "Traveller", accessRole: "traveller", permissions: {}, expenseRowEditId: "" };
   const stickyStoragePrefix = "mytrip_trip_stickies_v1";
   const stickyColours = ["yellow", "rose", "blue", "green", "violet"];
-  const idleLogoutMs = 5 * 60 * 1000;
+  const idleChoices = [5, 30, 60, 120];
+  const idleMinutesKey = "mytrip_idle_minutes_v1";
+  let idleMinutes = (() => { const stored = Number(localStorage.getItem(idleMinutesKey)); return idleChoices.includes(stored) ? stored : 5; })();
+  let idleLogoutMs = idleMinutes * 60 * 1000;
+  function idleLabel(minutes) { return minutes < 60 ? `${minutes} minutes` : `${minutes / 60} ${minutes === 60 ? "hour" : "hours"}`; }
+  /** Adopts the Administrator's shared setting whenever the backend reports it. */
+  function applyIdleMinutes(minutes) {
+    const value = Number(minutes);
+    if (!idleChoices.includes(value) || value === idleMinutes) return;
+    idleMinutes = value; idleLogoutMs = value * 60 * 1000;
+    try { localStorage.setItem(idleMinutesKey, String(value)); } catch {}
+    if (state.authenticated && idleDeadline) { idleDeadline = Date.now() + idleLogoutMs; checkIdleTimeout(); }
+  }
   let stickyNotes = [];
   let idleTimer = 0;
   let idleDeadline = 0;
@@ -168,6 +180,7 @@
       if (!response.ok) throw new Error(`Google backend returned HTTP ${response.status}.`);
       const result = await response.json();
       if (!result.ok) throw new Error(result.error || "The request could not be completed.");
+      if (result.idleMinutes) applyIdleMinutes(result.idleMinutes);
       return result.data;
     } catch (error) {
       if (error.name === "AbortError") throw new Error("The backend took too long to respond. Check the connection and try again.");
@@ -256,7 +269,7 @@
   function checkIdleTimeout() {
     if (!state.authenticated || !idleDeadline) return;
     const remaining = idleDeadline - Date.now();
-    if (remaining <= 0) return performLogout("Closed after 5 minutes of inactivity. Please log in again.");
+    if (remaining <= 0) return performLogout(`Signed out after ${idleLabel(idleMinutes)} of inactivity. Please log in again.`);
     clearTimeout(idleTimer);
     idleTimer = setTimeout(checkIdleTimeout, Math.min(remaining, 30000));
   }
@@ -1913,9 +1926,28 @@
     } catch (error) { toast(error.message, true); }
   }
 
+  /** Administrator: how long any login may stay idle before it is signed out. */
+  function showIdleSignoutSetting(administratorSecret, trips, demoMode) {
+    showModal("Auto sign-out", `<form class="modal-form" id="idleSignoutForm"><div class="security-note"><i>⏻</i><p>Every Administrator and traveller login is signed out after this much inactivity, on every device. The change applies from each person's next action.</p></div><div class="idle-choice-grid">${idleChoices.map((minutes) => `<label class="idle-choice"><input type="radio" name="minutes" value="${minutes}"${minutes === idleMinutes ? " checked" : ""}><span>${idleLabel(minutes)}</span></label>`).join("")}</div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save for everyone</button></div></form>`);
+    const form = $("#idleSignoutForm");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const minutes = Number(new FormData(form).get("minutes"));
+      const submit = form.querySelector("button[type=submit]");
+      submit.disabled = true; submit.textContent = "Saving…";
+      try {
+        if (!demoMode) await api("setIdleTimeout", { minutes, ...adminAuth(administratorSecret) });
+        applyIdleMinutes(minutes);
+        closeModal(); renderAllTrips(state.libraryTrips || trips, administratorSecret, demoMode);
+        toast(`Auto sign-out set to ${idleLabel(minutes)} for everyone`);
+      } catch (error) { submit.disabled = false; submit.textContent = "Save for everyone"; toast(error.message, true); }
+    });
+    $("[data-cancel]").addEventListener("click", closeModal);
+  }
+
   function renderAllTrips(trips, administratorSecret, demoMode) {
     const items = visibleLibraryTrips(trips);
-    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="all-trips-summary"><span><small>ADMINISTRATOR LIBRARY</small><b>${items.length} ${items.length === 1 ? "trip" : "trips"}</b></span><span class="summary-actions"><button id="changeAdministratorLogin" class="secondary-action" type="button">⚿ Change login</button><button id="manageTravellerAccounts" class="secondary-action" type="button">♙ Traveller profiles</button>${hiddenTripsBar(trips)}<button id="resetTripOrder" class="secondary-action" type="button">↕ Reset order</button><button id="createFromTrips" type="button">＋ Create trip</button></span></div><div class="trip-library admin-library">${items.map((trip, position) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}">${tripCardTools(trip, position, items.length)}<i>⌖</i><div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button data-open-admin-trip="${esc(trip.tripId)}" type="button">Open</button><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">Edit</button><button data-assign-trip="${esc(trip.tripId)}" type="button">Travellers</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "Disable" : "Enable"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete</button></div></article>`).join("") || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip with this Administrator account.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
+    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="all-trips-summary"><span><small>ADMINISTRATOR LIBRARY</small><b>${items.length} ${items.length === 1 ? "trip" : "trips"}</b></span><span class="summary-actions"><button id="changeAdministratorLogin" class="secondary-action" type="button">⚿ Change login</button><button id="idleSignoutSetting" class="secondary-action" type="button">⏻ Auto sign-out: ${idleLabel(idleMinutes)}</button><button id="manageTravellerAccounts" class="secondary-action" type="button">♙ Traveller profiles</button>${hiddenTripsBar(trips)}<button id="resetTripOrder" class="secondary-action" type="button">↕ Reset order</button><button id="createFromTrips" type="button">＋ Create trip</button></span></div><div class="trip-library admin-library">${items.map((trip, position) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}">${tripCardTools(trip, position, items.length)}<i>⌖</i><div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button data-open-admin-trip="${esc(trip.tripId)}" type="button">Open</button><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">Edit</button><button data-assign-trip="${esc(trip.tripId)}" type="button">Travellers</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "Disable" : "Enable"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete</button></div></article>`).join("") || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip with this Administrator account.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
     $$('[data-move-trip]').forEach((button) => button.addEventListener("click", async () => {
       button.disabled = true;
       if (await moveTripInOrder(button.dataset.moveTrip, Number(button.dataset.direction), items)) { renderAllTrips(state.libraryTrips, administratorSecret, demoMode); toast("Trip order saved for everyone"); }
@@ -1927,6 +1959,7 @@
     showAccountHub("administrator", `ADMINISTRATOR · ${state.accountUsername}`);
     $("#createFromTrips").addEventListener("click", () => { closeModal(); showCreateTrip(); });
     $("#changeAdministratorLogin").addEventListener("click", () => showAdministratorLoginChange(administratorSecret, items, demoMode));
+    $("#idleSignoutSetting").addEventListener("click", () => showIdleSignoutSetting(administratorSecret, trips, demoMode));
     $("#manageTravellerAccounts").addEventListener("click", () => loadTravellerAccounts(administratorSecret, items, demoMode));
     $$('[data-open-admin-trip]').forEach((button) => button.addEventListener("click", () => openListedTrip(button.dataset.openAdminTrip, administratorSecret, demoMode, "administrator")));
     $$('[data-edit-listed-trip]').forEach((button) => button.addEventListener("click", async () => { await openListedTrip(button.dataset.editListedTrip, administratorSecret, demoMode, "administrator"); showEditTrip(); }));
