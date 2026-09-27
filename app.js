@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.29.0";
+  const frontendVersion = "4.31.2";
   const requiredBackendVersion = "4.13.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -375,6 +375,7 @@
   }
 
   function performLogout(message = "Signed out. Login is required again.") {
+    try { hideTabbar(); } catch (error) {}
     stopIdleTimer();
     state.data = null; state.pin = ""; state.accountUsername = ""; state.authenticated = false; state.travellerId = ""; state.loginMode = "trip"; state.expenseRowEditId = "";
     state.demoMode = false; state.currentUser = "Traveller"; state.accessRole = "traveller"; state.permissions = {};
@@ -1073,6 +1074,36 @@
     return `${heading("DISCOVER & SAVE", "Places and map", "Travellers can save and edit places; the administrator can also remove them.", "place")}<div class="map-search"><input id="mapQuery" value="${esc(state.mapQuery)}" aria-label="Search Google Maps"><button id="mapSearchButton">⌖ Search Google Maps</button></div><div class="places-layout"><div class="map-frame"><iframe title="Trip map" src="https://www.google.com/maps?q=${encodeURIComponent(state.mapQuery)}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div><div class="places-list">${state.data.places.map((place) => `<article class="place"><i class="place-icon">⌖</i><div><h3>${esc(place.name)}</h3><p>${esc(place.area)} · ${esc(place.category)}</p><small>${esc(place.plannedDay || "Unplanned")}</small></div><span class="row-actions"><button data-map="${esc(`${place.name}, ${place.area}`)}">Map ↗</button>${canEditRecords("Places") ? `<button class="edit-control mini" data-edit data-sheet="Places" data-id="${esc(place.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control mini" data-delete data-sheet="Places" data-id="${esc(place.id)}">×</button>` : ""}</span></article>`).join("")}</div></div>`;
   }
 
+  function splitMemberNames() {
+    const raw = state.data && state.data.trip ? String(state.data.trip.splitMembers || "") : "";
+    return raw.split("|").map((n) => n.trim()).filter(Boolean);
+  }
+
+  function openSplitMembers() {
+    const names = visibleTripMembers().map((m) => String(m.name || "").trim()).filter(Boolean);
+    const chosen = splitMemberNames().map((n) => n.toLowerCase());
+    const all = !chosen.length;
+    const rows = names.map((n) => `<label class="split-check"><input type="checkbox" name="split" value="${esc(n)}" ${all || chosen.includes(n.toLowerCase()) ? "checked" : ""}><span>${avatarSlot({ name: n })}<b>${esc(n)}</b></span></label>`).join("");
+    showModal("Who shares the expenses", `<form id="splitForm" class="split-form"><p class="split-hint">Only ticked travellers split the cost equally. Unticked travellers still get money back for anything they paid.</p><div class="split-list">${rows || "<p>No travellers on this trip yet.</p>"}</div>${actions}</form>`);
+    const form = $("#splitForm");
+    form.querySelector("[data-cancel]").addEventListener("click", closeModal);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const picked = [...form.querySelectorAll("input[name=split]:checked")].map((i) => i.value);
+      if (!picked.length) { toast("Tick at least one traveller", true); return; }
+      const value = picked.length === names.length ? "" : picked.join("|");
+      try {
+        if (!state.demoMode) await api("updateTrip", authPayload({ trip: { splitMembers: value } }));
+        state.data.trip.splitMembers = value; closeModal(); render(); toast("Expense sharing saved");
+      } catch (error) { toast(error.message, true); }
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("[data-split-members]")) return;
+    event.preventDefault(); openSplitMembers();
+  });
+
   function settleUpPlan() {
     const members = visibleTripMembers().map((m) => String(m.name || "").trim()).filter(Boolean);
     const paid = new Map();
@@ -1083,11 +1114,15 @@
       if (!paid.has(key)) paid.set(key, { name, paid: 0 });
       paid.get(key).paid += Number(e.amount || 0);
     });
-    const people = [...paid.values()];
+    const chosen = splitMemberNames();
+    const sharers = new Set((chosen.length ? chosen : members).map((n) => n.toLowerCase()));
+    chosen.forEach((name) => { if (!paid.has(name.toLowerCase())) paid.set(name.toLowerCase(), { name, paid: 0 }); });
+    const people = [...paid.values()].filter((p) => p.paid > 0 || sharers.has(p.name.toLowerCase()));
     const total = people.reduce((s, p) => s + p.paid, 0);
-    if (!people.length || !total) return { people: [], transfers: [], share: 0, total };
-    const share = total / people.length;
-    people.forEach((p) => { p.net = Math.round((p.paid - share) * 100) / 100; });
+    const shareCount = people.filter((p) => sharers.has(p.name.toLowerCase())).length;
+    if (!people.length || !total || !shareCount) return { people: [], transfers: [], share: 0, total, shareCount: 0 };
+    const share = total / shareCount;
+    people.forEach((p) => { p.shares = sharers.has(p.name.toLowerCase()); p.net = Math.round((p.paid - (p.shares ? share : 0)) * 100) / 100; });
     const owe = people.filter((p) => p.net < -0.5).map((p) => ({ ...p, left: -p.net })).sort((a, b) => b.left - a.left);
     const get = people.filter((p) => p.net > 0.5).map((p) => ({ ...p, left: p.net })).sort((a, b) => b.left - a.left);
     const transfers = [];
@@ -1098,15 +1133,38 @@
       owe[i].left -= amt; get[j].left -= amt;
       if (owe[i].left < 0.5) i++; if (get[j].left < 0.5) j++;
     }
-    return { people: people.sort((a, b) => b.net - a.net), transfers, share, total };
+    return { people: people.sort((a, b) => b.net - a.net), transfers, share, total, shareCount };
   }
+
+  function settleShown() {
+    const trip = (state.data && state.data.trip) || {};
+    if (String(trip.settleVisible).toUpperCase() === "TRUE") return true;
+    const end = trip.endDate ? new Date(`${String(trip.endDate).slice(0, 10)}T23:59:59`) : null;
+    return Boolean(end && !Number.isNaN(end.getTime()) && Date.now() > end.getTime());
+  }
+
+  async function setSettleVisible(on) {
+    const value = on ? "TRUE" : "FALSE";
+    try {
+      if (!state.demoMode) await api("updateTrip", authPayload({ trip: { settleVisible: value } }));
+      state.data.trip.settleVisible = value; render(); toast(on ? "Settle up shown to everyone" : "Settle up hidden until the trip ends");
+    } catch (error) { toast(error.message, true); }
+  }
+
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-settle-toggle]");
+    if (!button) return;
+    event.preventDefault(); setSettleVisible(button.dataset.settleToggle === "show");
+  });
 
   function renderSettleUp() {
     const plan = settleUpPlan();
     if (!plan.total) return "";
-    const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.name })}<b>${esc(p.name)}</b></span><small>Paid ${money.format(p.paid)}</small><strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong></div>`).join("");
+    const forced = String((state.data.trip || {}).settleVisible).toUpperCase() === "TRUE";
+    if (!settleShown()) return isAdmin() ? `<section class="settle-collapsed"><div><b>Settle up is hidden</b><small>Travellers will see who owes whom after the trip ends.</small></div><div class="settle-collapsed-actions"><button type="button" data-split-members>Choose who shares</button><button type="button" class="settle-show" data-settle-toggle="show">Show now</button></div></section>` : "";
+    const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.name })}<b>${esc(p.name)}</b></span><small>Paid ${money.format(p.paid)}${p.shares ? "" : " · not sharing"}</small><strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong></div>`).join("");
     const moves = plan.transfers.length ? plan.transfers.map((t) => `<li><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong></li>`).join("") : `<li class="settle-done"><b>All settled</b><span>Everyone has paid an equal share.</span></li>`;
-    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>Split equally across ${plan.people.length} travellers · ${money.format(Math.round(plan.share))} each</p></div></div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div></section>`;
+    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>Split equally across ${plan.shareCount} travellers · ${money.format(Math.round(plan.share))} each</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div></section>`;
   }
 
   function renderExpenses() {
@@ -1197,9 +1255,10 @@
   function showSkeleton() { if ($("#view")) $("#view").innerHTML = skeletonView(); }
 
   function render() {
-    if (!state.data) return;
+    if (!state.data) { try { hideTabbar(); } catch (error) {} return; }
     const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint };
     $("#view").innerHTML = accessNotice() + renderers[state.tab]();
+    try { applyLineIcons(); updateTabbar(); } catch (error) {}
     if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
     const printMenu = $(".plan-print-menu");
     if (printMenu) printMenu.addEventListener("toggle", () => { state.printMenuOpen = printMenu.open; });
@@ -3091,6 +3150,65 @@
     catch (error) { toast(error.message, true); showBackendSetup(() => $("#showCreateButton").click()); }
   });
   $("#closeModal").addEventListener("click", closeModal); $("#modal").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeModal(); });
+
+  const mtIcons = {
+    overview: '<path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/>',
+    itinerary: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+    experiences: '<path d="M4 20h4l10-10-4-4L4 16z"/><path d="M13 7l4 4"/>',
+    photos: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/>',
+    places: '<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+    expenses: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
+    people: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 5a3 3 0 0 1 0 6M21 20c0-2.6-1.6-4.8-4-5.6"/>',
+    print: '<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/>',
+    more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+    logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/>',
+    trips: '<path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>'
+  };
+  function mtIcon(name) { return `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${mtIcons[name] || ""}</svg>`; }
+  function applyLineIcons() {
+    $("#mainNav [data-tab]").forEach((button) => { const i = button.querySelector("i"); if (i && !i.dataset.lined) { i.innerHTML = mtIcon(button.dataset.tab); i.dataset.lined = "1"; i.classList.add("mt-line-icon"); } });
+    $("#mtTabbar [data-icon]").forEach((i) => { if (!i.dataset.lined) { i.innerHTML = mtIcon(i.dataset.icon); i.dataset.lined = "1"; } });
+  }
+  const mtAllowed = () => ({ itinerary: canViewItinerary(), experiences: canViewExperiences(), photos: true, places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() });
+  function hideTabbar() { const bar = $("#mtTabbar"), fab = $("#mtFab"); if (bar) bar.hidden = true; if (fab) fab.hidden = true; document.body.classList.remove("mt-has-tabbar"); }
+  function updateTabbar() {
+    const bar = $("#mtTabbar"), fab = $("#mtFab"); if (!bar) return;
+    if (!state.data) { hideTabbar(); return; }
+    const allowed = mtAllowed();
+    bar.querySelector('[data-tab="itinerary"]').hidden = !allowed.itinerary;
+    bar.querySelector('[data-tab="expenses"]').hidden = !allowed.expenses;
+    const sidePhotos = $('#mainNav [data-tab="photos"]'); if (sidePhotos) allowed.photos = !sidePhotos.hidden && getComputedStyle(sidePhotos).display !== "none";
+    const addType = state.tab === "expenses" ? (allowed.expenses ? "expense" : "") : state.tab === "places" ? (allowed.places ? "place" : "") : state.tab === "experiences" ? (allowed.experiences ? "experience" : "") : (state.tab === "overview" || state.tab === "itinerary") && allowed.itinerary ? "plan" : "";
+    fab.dataset.add = addType; fab.hidden = !addType || !state.data;
+    bar.hidden = !state.data;
+    document.body.classList.toggle("mt-has-tabbar", Boolean(state.data));
+    const inMore = ["experiences", "photos", "places", "people", "print"].includes(state.tab);
+    bar.querySelector("[data-mt-more]").classList.toggle("active", inMore);
+  }
+  function openMoreSheet() {
+    const allowed = mtAllowed();
+    const items = [["experiences", "Experiences"], ["photos", "Trip photos"], ["places", "Places & map"], ["people", "Travellers"], ["print", "Print & export"]]
+      .filter(([tab]) => allowed[tab] !== false).map(([tab, label]) => `<button type="button" class="mt-more-row" data-mt-go="${tab}">${mtIcon(tab)}<span>${label}</span><em>›</em></button>`).join("");
+    const trips = state.travellerId && !isAdmin() ? `<button type="button" class="mt-more-row" data-mt-action="mytrips">${mtIcon("trips")}<span>My trips</span><em>›</em></button>` : (isAdmin() ? `<button type="button" class="mt-more-row" data-mt-action="alltrips">${mtIcon("trips")}<span>All trips</span><em>›</em></button>` : "");
+    const size = $("#textSizeValue") ? $("#textSizeValue").textContent : "100%";
+    showModal("More", `<div class="mt-more"><div class="mt-more-group">${items}</div><div class="mt-more-label">SETTINGS</div><div class="mt-more-group">${trips}<div class="mt-more-row mt-more-size"><span>Text size</span><div><button type="button" data-mt-action="size-down">A−</button><b>${esc(size)}</b><button type="button" data-mt-action="size-up">A+</button></div></div><button type="button" class="mt-more-row mt-more-danger" data-mt-action="logout">${mtIcon("logout")}<span>Sign out</span></button></div><p class="mt-more-meta">Trip ID ${esc((state.data && state.data.trip && state.data.trip.tripId) || "")} · FE v${frontendVersion}${typeof backendVersion !== "undefined" && backendVersion ? ` · BE v${esc(backendVersion)}` : ""}</p></div>`);
+    $("#modalBody").querySelectorAll("[data-mt-go]").forEach((b) => b.addEventListener("click", () => { closeModal(); setTab(b.dataset.mtGo); }));
+    $("#modalBody").querySelectorAll("[data-mt-action]").forEach((b) => b.addEventListener("click", () => {
+      const a = b.dataset.mtAction;
+      if (a === "size-down" || a === "size-up") { const t = $(a === "size-down" ? "#textSizeDown" : "#textSizeUp"); if (t) t.click(); const v = b.parentElement.querySelector("b"); if (v && $("#textSizeValue")) v.textContent = $("#textSizeValue").textContent; return; }
+      closeModal();
+      if (a === "logout") performLogout();
+      if (a === "mytrips") showMyTrips();
+      if (a === "alltrips") showAllTrips();
+    }));
+  }
+  if ($("#mtTabbar")) {
+    $("#mtTabbar").addEventListener("click", (event) => {
+      const tab = event.target.closest("[data-tab]"); if (tab) { setTab(tab.dataset.tab); return; }
+      if (event.target.closest("[data-mt-more]")) openMoreSheet();
+    });
+    $("#mtFab").addEventListener("click", () => { if ($("#mtFab").dataset.add) showAddModal($("#mtFab").dataset.add); });
+  }
   $("#mainNav").addEventListener("click", (event) => { const button = event.target.closest("[data-tab]"); if (button) setTab(button.dataset.tab); });
   $("#view").addEventListener("click", handleViewClick);
   $("#view").addEventListener("submit", handleViewSubmit);
