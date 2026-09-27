@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.31.2";
+  const frontendVersion = "4.32.0";
   const requiredBackendVersion = "4.13.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -1075,23 +1075,57 @@
   }
 
   function splitMemberNames() {
+    return splitGroups().flat();
+  }
+
+  function splitGroups() {
     const raw = state.data && state.data.trip ? String(state.data.trip.splitMembers || "") : "";
-    return raw.split("|").map((n) => n.trim()).filter(Boolean);
+    return raw.split("|").map((g) => g.split("+").map((n) => n.trim()).filter(Boolean)).filter((g) => g.length);
   }
 
   function openSplitMembers() {
     const names = visibleTripMembers().map((m) => String(m.name || "").trim()).filter(Boolean);
-    const chosen = splitMemberNames().map((n) => n.toLowerCase());
-    const all = !chosen.length;
-    const rows = names.map((n) => `<label class="split-check"><input type="checkbox" name="split" value="${esc(n)}" ${all || chosen.includes(n.toLowerCase()) ? "checked" : ""}><span>${avatarSlot({ name: n })}<b>${esc(n)}</b></span></label>`).join("");
-    showModal("Who shares the expenses", `<form id="splitForm" class="split-form"><p class="split-hint">Only ticked travellers split the cost equally. Unticked travellers still get money back for anything they paid.</p><div class="split-list">${rows || "<p>No travellers on this trip yet.</p>"}</div>${actions}</form>`);
+    const groups = splitGroups();
+    const all = !groups.length;
+    const choiceFor = (n) => {
+      if (all) return "own";
+      const g = groups.find((grp) => grp.some((x) => x.toLowerCase() === n.toLowerCase()));
+      if (!g) return "none";
+      return g[0].toLowerCase() === n.toLowerCase() ? "own" : "with:" + g[0];
+    };
+    const rows = names.map((n) => {
+      const cur = choiceFor(n);
+      const others = names.filter((o) => o !== n).map((o) => `<option value="with:${esc(o)}" ${cur.toLowerCase() === ("with:" + o).toLowerCase() ? "selected" : ""}>Same family as ${esc(o)}</option>`).join("");
+      return `<div class="split-row"><span class="split-who">${avatarSlot({ name: n })}<b>${esc(n)}</b></span><select name="split" data-name="${esc(n)}"><option value="own" ${cur === "own" ? "selected" : ""}>Own share</option>${others}<option value="none" ${cur === "none" ? "selected" : ""}>Not sharing</option></select></div>`;
+    }).join("");
+    showModal("Who shares the expenses", `<form id="splitForm" class="split-form"><p class="split-hint">The total is split equally between shares. To make a family one share, choose "Same family as" for its other members. Travellers who are not sharing still get back anything they paid.</p><div class="split-list">${rows || "<p>No travellers on this trip yet.</p>"}</div><div class="split-preview" id="splitPreview"></div>${actions}</form>`);
     const form = $("#splitForm");
+    const build = () => {
+      const pick = new Map([...form.querySelectorAll("select[name=split]")].map((s) => [s.dataset.name, s.value]));
+      const rootOf = (n, seen = new Set()) => {
+        const v = pick.get(n);
+        if (!v || v === "none") return null;
+        if (v === "own" || seen.has(n)) return n;
+        seen.add(n);
+        const target = v.slice(5);
+        return pick.has(target) ? (rootOf(target, seen) || n) : n;
+      };
+      const map = new Map();
+      names.forEach((n) => { const r = rootOf(n); if (!r) return; if (!map.has(r)) map.set(r, [r]); if (r !== n) map.get(r).push(n); });
+      return [...map.values()];
+    };
+    const preview = () => {
+      const g = build();
+      $("#splitPreview").innerHTML = g.length ? `<b>${g.length} share${g.length > 1 ? "s" : ""}</b>${g.map((grp) => `<span>${grp.map(esc).join(" + ")}</span>`).join("")}` : "<b>No one is sharing</b>";
+    };
+    form.addEventListener("change", preview); preview();
     form.querySelector("[data-cancel]").addEventListener("click", closeModal);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const picked = [...form.querySelectorAll("input[name=split]:checked")].map((i) => i.value);
-      if (!picked.length) { toast("Tick at least one traveller", true); return; }
-      const value = picked.length === names.length ? "" : picked.join("|");
+      const g = build();
+      if (!g.length) { toast("At least one traveller must share", true); return; }
+      const everyoneOwn = g.length === names.length;
+      const value = everyoneOwn ? "" : g.map((grp) => grp.join("+")).join("|");
       try {
         if (!state.demoMode) await api("updateTrip", authPayload({ trip: { splitMembers: value } }));
         state.data.trip.splitMembers = value; closeModal(); render(); toast("Expense sharing saved");
@@ -1107,24 +1141,25 @@
   function settleUpPlan() {
     const members = visibleTripMembers().map((m) => String(m.name || "").trim()).filter(Boolean);
     const paid = new Map();
-    members.forEach((name) => paid.set(name.toLowerCase(), { name, paid: 0 }));
-    state.data.expenses.forEach((e) => {
-      const name = String(e.paidBy || "").trim(); if (!name) return;
-      const key = name.toLowerCase();
-      if (!paid.has(key)) paid.set(key, { name, paid: 0 });
-      paid.get(key).paid += Number(e.amount || 0);
+    const add = (name, amt) => { const k = name.toLowerCase(); if (!paid.has(k)) paid.set(k, { name, paid: 0 }); paid.get(k).paid += amt; };
+    members.forEach((n) => add(n, 0));
+    state.data.expenses.forEach((e) => { const n = String(e.paidBy || "").trim(); if (n) add(n, Number(e.amount || 0)); });
+    let groups = splitGroups();
+    if (!groups.length) groups = members.map((n) => [n]);
+    const used = new Set();
+    const units = groups.map((grp) => {
+      grp.forEach((n) => { used.add(n.toLowerCase()); if (!paid.has(n.toLowerCase())) add(n, 0); });
+      const people = grp.map((n) => paid.get(n.toLowerCase()));
+      return { name: grp.length > 1 ? `${grp[0]} family` : grp[0], members: grp, lead: grp[0], paid: people.reduce((s, p) => s + p.paid, 0), shares: true };
     });
-    const chosen = splitMemberNames();
-    const sharers = new Set((chosen.length ? chosen : members).map((n) => n.toLowerCase()));
-    chosen.forEach((name) => { if (!paid.has(name.toLowerCase())) paid.set(name.toLowerCase(), { name, paid: 0 }); });
-    const people = [...paid.values()].filter((p) => p.paid > 0 || sharers.has(p.name.toLowerCase()));
-    const total = people.reduce((s, p) => s + p.paid, 0);
-    const shareCount = people.filter((p) => sharers.has(p.name.toLowerCase())).length;
-    if (!people.length || !total || !shareCount) return { people: [], transfers: [], share: 0, total, shareCount: 0 };
+    [...paid.values()].forEach((p) => { if (!used.has(p.name.toLowerCase()) && p.paid > 0) units.push({ name: p.name, members: [p.name], lead: p.name, paid: p.paid, shares: false }); });
+    const total = units.reduce((s, u) => s + u.paid, 0);
+    const shareCount = units.filter((u) => u.shares).length;
+    if (!units.length || !total || !shareCount) return { people: [], transfers: [], share: 0, total, shareCount: 0 };
     const share = total / shareCount;
-    people.forEach((p) => { p.shares = sharers.has(p.name.toLowerCase()); p.net = Math.round((p.paid - (p.shares ? share : 0)) * 100) / 100; });
-    const owe = people.filter((p) => p.net < -0.5).map((p) => ({ ...p, left: -p.net })).sort((a, b) => b.left - a.left);
-    const get = people.filter((p) => p.net > 0.5).map((p) => ({ ...p, left: p.net })).sort((a, b) => b.left - a.left);
+    units.forEach((u) => { u.net = Math.round((u.paid - (u.shares ? share : 0)) * 100) / 100; });
+    const owe = units.filter((u) => u.net < -0.5).map((u) => ({ ...u, left: -u.net })).sort((a, b) => b.left - a.left);
+    const get = units.filter((u) => u.net > 0.5).map((u) => ({ ...u, left: u.net })).sort((a, b) => b.left - a.left);
     const transfers = [];
     let i = 0, j = 0;
     while (i < owe.length && j < get.length) {
@@ -1133,7 +1168,7 @@
       owe[i].left -= amt; get[j].left -= amt;
       if (owe[i].left < 0.5) i++; if (get[j].left < 0.5) j++;
     }
-    return { people: people.sort((a, b) => b.net - a.net), transfers, share, total, shareCount };
+    return { people: units.sort((a, b) => b.net - a.net), transfers, share, total, shareCount, families: units.some((u) => u.members.length > 1) };
   }
 
   function settleShown() {
@@ -1162,9 +1197,9 @@
     if (!plan.total) return "";
     const forced = String((state.data.trip || {}).settleVisible).toUpperCase() === "TRUE";
     if (!settleShown()) return isAdmin() ? `<section class="settle-collapsed"><div><b>Settle up is hidden</b><small>Travellers will see who owes whom after the trip ends.</small></div><div class="settle-collapsed-actions"><button type="button" data-split-members>Choose who shares</button><button type="button" class="settle-show" data-settle-toggle="show">Show now</button></div></section>` : "";
-    const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.name })}<b>${esc(p.name)}</b></span><small>Paid ${money.format(p.paid)}${p.shares ? "" : " · not sharing"}</small><strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong></div>`).join("");
-    const moves = plan.transfers.length ? plan.transfers.map((t) => `<li><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong></li>`).join("") : `<li class="settle-done"><b>All settled</b><span>Everyone has paid an equal share.</span></li>`;
-    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>Split equally across ${plan.shareCount} travellers · ${money.format(Math.round(plan.share))} each</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div></section>`;
+    const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.lead })}<b>${esc(p.name)}</b></span><small>${p.members.length > 1 ? `${p.members.map(esc).join(" + ")} · ` : ""}Paid ${money.format(p.paid)}${p.shares ? "" : " · not sharing"}</small><strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong></div>`).join("");
+    const moves = plan.transfers.length ? plan.transfers.map((t) => `<li><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong></li>`).join("") : `<li class="settle-done"><b>All settled</b><span>Every share is paid equally.</span></li>`;
+    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>Split equally across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · ${money.format(Math.round(plan.share))} each</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div></section>`;
   }
 
   function renderExpenses() {

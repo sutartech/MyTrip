@@ -264,3 +264,17 @@ html body .login-section-divider span{color:var(--calm-primary)!important;backgr
 html body .login-section-divider::before,html body .login-section-divider::after{background:#E4E1D9!important}
 html body .visible-shared-access h3{color:#1F2A33!important}
 html body .visible-shared-access header>i{background:var(--calm-tint)!important;background-image:none!important;color:var(--calm-primary)!important;border:0!important;box-shadow:none!important}
+
+/* v4.32.0 — family shares */
+html body .split-list{display:grid;gap:8px}
+html body .split-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,190px);align-items:center;gap:10px;padding:8px 10px 8px 12px;border:1px solid #EFEDE7;border-radius:12px;min-height:52px}
+html body .split-who{display:flex;align-items:center;gap:10px;min-width:0}
+html body .split-who>b:not(.avatar-slot){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html body .split-row select{height:40px;border-radius:10px;border:1px solid #DDD9D0;background:#fff;padding:0 10px;font:inherit;font-size:14px;width:100%}
+html body .split-preview{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--calm-tint);font-size:13px}
+html body .split-preview b{color:var(--calm-primary);margin-right:4px}
+html body .split-preview span{background:#fff;border:1px solid #CFE5E1;border-radius:99px;padding:4px 10px;font-weight:600}
+html body :is(.settle-name,.split-who,.split-check span) .avatar-slot{position:relative!important;inset:auto!important;display:grid!important;width:32px!important;height:32px!important;flex:none!important;border-radius:50%!important;overflow:hidden!important;place-items:center;background:var(--calm-tint);color:var(--calm-primary);font-size:12px;font-weight:800}
+html body :is(.settle-name,.split-who,.split-check span) .avatar-slot img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+html body .settle-person small{line-height:1.35}
+@media(max-width:760px){html body .split-row{grid-template-columns:1fr}}
