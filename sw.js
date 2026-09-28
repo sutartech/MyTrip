@@ -1,11 +1,11 @@
 "use strict";
 
-const STATIC_CACHE = "mytrip-static-v4.32.0";
+const STATIC_CACHE = "mytrip-static-v4.35.0";
 const VERSIONED_ASSETS = [
   "./index.html",
-  "./styles.css?v=4.32.0", "./theme-calm.css",
-  "./app.js?v=4.32.0",
-  "./favicon.svg",
+  "./app.css?v=4.35.0",
+  "./app.js?v=4.35.0",
+  "./favicon.svg", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "./repair.html"
 ];
 
@@ -31,7 +31,7 @@ async function navigationResponse(request) {
   }
 }
 
-/* app.js and styles.css are fetched fresh first: a stale copy on a slow mobile
+/* app.js and app\.css are fetched fresh first: a stale copy on a slow mobile
    link used to keep the old build running for days. Everything else stays
    cache-first for speed. */
 async function staticResponse(request, freshFirst) {
@@ -56,7 +56,7 @@ self.addEventListener("fetch", (event) => {
   }
   if (url.pathname.endsWith("/config.js")) return;
   if (/\.(?:css|js|svg|png|webp|html)$/.test(url.pathname)) {
-    const freshFirst = /\/(?:app\.js|styles\.css)$/.test(url.pathname);
+    const freshFirst = /\/(?:app\.js|app\.css)$/.test(url.pathname);
     event.respondWith(staticResponse(request, freshFirst));
   }
 });

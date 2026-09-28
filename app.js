@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.32.0";
+  const frontendVersion = "4.35.0";
   const requiredBackendVersion = "4.13.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -147,7 +147,7 @@
   let activeRequests = 0;
   let quickFindVisibleResults = [];
   let printAreaDirty = true;
-  const labels = { overview: "Overview", itinerary: "Itinerary", experiences: "Experiences", photos: "Trip Photos", places: "Places & Map", expenses: "Expenses", people: "Travellers", print: "Print & Export" };
+  const labels = { overview: "Overview", itinerary: "Itinerary", experiences: "Experiences", photos: "Trip Photos", places: "Places & Map", expenses: "Expenses", people: "Travellers", print: "Print & Export", help: "Help & Feedback" };
   const demoTrips = [
     { tripId: "GOA26", name: "Goa Escape", destination: "Goa", startDate: "2026-11-19", endDate: "2026-11-23", budget: 85000, spent: 32450, travellerCount: 6, assignedTravellerCount: 3, assignedTravellerIds: ["ANITA-101", "ROHAN-202", "MEERA-303"], enabled: true, createdBy: "Sarada" },
     { tripId: "KER27", name: "Kerala Backwaters", destination: "Alappuzha", startDate: "2027-01-14", endDate: "2027-01-18", budget: 72000, spent: 8400, travellerCount: 4, assignedTravellerCount: 1, assignedTravellerIds: ["ANITA-101"], enabled: true, createdBy: "Sarada" },
@@ -374,8 +374,70 @@
     idleDeadline = 0;
   }
 
+  /* Stay signed in on this browser until the Administrator's auto sign-out time passes (v4.34.0). */
+  const sessionKey = "mytrip_session_v2";
+  let sessionSavedAt = 0;
+  function persistSession(force = false) {
+    try {
+      if (!state.authenticated || state.demoMode || !state.pin || !idleDeadline) return;
+      const now = Date.now();
+      if (!force && now - sessionSavedAt < 10000) return;
+      sessionSavedAt = now;
+      const record = { v: 2, role: state.accessRole, username: state.accountUsername, secret: btoa(unescape(encodeURIComponent(state.pin))), travellerId: state.travellerId || "", name: state.currentUser || "", loginMode: state.loginMode || "", tripId: state.data && state.data.trip ? String(state.data.trip.tripId) : "", tab: state.tab || "overview", deadline: idleDeadline };
+      localStorage.setItem(sessionKey, JSON.stringify(record));
+    } catch {}
+  }
+  function offlineTripCacheKey(tripId) { return "mytrip_cache_v1_" + String(tripId || ""); }
+  function saveOfflineTripCache(record) {
+    try { if (record && record.data && record.data.trip) localStorage.setItem(offlineTripCacheKey(record.data.trip.tripId), JSON.stringify({ savedAt: Date.now(), ...record })); } catch {}
+  }
+  function readOfflineTripCache(tripId) { try { return JSON.parse(localStorage.getItem(offlineTripCacheKey(tripId)) || "null"); } catch { return null; } }
+  function clearOfflineTripCaches() { try { Object.keys(localStorage).filter((k) => k.startsWith("mytrip_cache_v1_")).forEach((k) => localStorage.removeItem(k)); } catch {} }
+  function clearSession() { try { localStorage.removeItem(sessionKey); } catch {} sessionSavedAt = 0; }
+  function readSession() {
+    try {
+      const record = JSON.parse(localStorage.getItem(sessionKey) || "null");
+      if (!record || record.v !== 2 || !record.secret || !(Number(record.deadline) > Date.now())) { clearSession(); return null; }
+      record.pin = decodeURIComponent(escape(atob(record.secret)));
+      return record;
+    } catch { clearSession(); return null; }
+  }
+  async function resumeSession() {
+    const s = readSession();
+    if (!s || !apiUrlReady()) return false;
+    state.accountUsername = s.username || ""; state.pin = s.pin; state.accessRole = s.role || "traveller"; state.travellerId = s.travellerId || ""; state.currentUser = s.name || "Traveller"; state.demoMode = false; state.authenticated = true;
+    const traveller = s.travellerId ? { travellerId: s.travellerId, name: s.name || "Traveller" } : null;
+    const cached = s.tripId ? readOfflineTripCache(s.tripId) : null;
+    let shownFromCache = false;
+    if (cached && cached.data) {
+      try { await openTrip(cached.data, s.pin, false, cached.name, cached.roleOverride, cached.travellerId || "", cached.loginMode || s.loginMode); shownFromCache = true; if (s.tab && s.tab !== "overview" && labels[s.tab]) setTab(s.tab); } catch {}
+    }
+    if (shownFromCache && navigator.onLine === false) { setOfflineState(true); return true; }
+    try {
+      if (s.tripId && s.loginMode === "shared") {
+        state.accountUsername = "";
+        const trip = await api("getTrip", { tripId: s.tripId, pin: s.pin });
+        await openTrip(trip, s.pin, false, "Shared traveller", "traveller", "", "shared");
+      } else if (s.tripId) {
+        await openListedTrip(s.tripId, s.pin, false, state.accessRole, state.accessRole === "administrator" ? null : traveller);
+      } else if (state.accessRole === "administrator") {
+        await loadAllTrips(s.pin, false, state.accountUsername);
+      } else {
+        await loadMyTrips(s.pin, traveller || { travellerId: state.accountUsername, name: "Traveller" }, false);
+      }
+      if (state.data && s.tab && s.tab !== "overview" && labels[s.tab]) { try { setTab(s.tab); } catch {} }
+      if (!$("#accessScreen").classList.contains("hidden")) { state.authenticated = false; state.pin = ""; return false; }
+      if (!shownFromCache) toast("Welcome back — still signed in");
+      return true;
+    } catch (error) {
+      if (shownFromCache) { setOfflineState(true); return true; }
+      state.authenticated = false; state.pin = ""; toast(error.message, true); return false;
+    }
+  }
+
   function performLogout(message = "Signed out. Login is required again.") {
     try { hideTabbar(); } catch (error) {}
+    clearSession(); clearOfflineTripCaches();
     stopIdleTimer();
     state.data = null; state.pin = ""; state.accountUsername = ""; state.authenticated = false; state.travellerId = ""; state.loginMode = "trip"; state.expenseRowEditId = "";
     state.demoMode = false; state.currentUser = "Traveller"; state.accessRole = "traveller"; state.permissions = {};
@@ -404,6 +466,7 @@
     lastActivitySignal = now;
     idleDeadline = now + idleLogoutMs;
     checkIdleTimeout();
+    persistSession();
   }
 
   function startIdleTimer() {
@@ -411,6 +474,7 @@
     lastActivitySignal = Date.now();
     idleDeadline = lastActivitySignal + idleLogoutMs;
     checkIdleTimeout();
+    setTimeout(() => persistSession(true), 0);
   }
 
   async function clearAppCacheAndReload() {
@@ -491,12 +555,12 @@
     return !assignment || String(assignment[field]).toUpperCase() !== "FALSE";
   }
   function assignmentForTraveller(travellerId) { return (state.data.assignments || []).find((item) => String(item.travellerId || "").toUpperCase() === String(travellerId || "").toUpperCase()); }
-  function tripPhotoUrl(value) {
+  function tripPhotoUrl(value, size = 1600) {
     const url = String(value || "").trim();
     const drivePath = url.match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/i);
     const driveQuery = url.match(/[?&]id=([A-Za-z0-9_-]+)/i);
     const id = drivePath ? drivePath[1] : (driveQuery ? driveQuery[1] : "");
-    return id ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1600` : url;
+    return id ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${size}` : url;
   }
   function expenseTotalsByTraveller() {
     const totals = new Map();
@@ -532,6 +596,7 @@
   }
 
   async function openTrip(data, pin, demoMode, name, roleOverride, travellerId = "", loginMode = "trip") {
+    if (!demoMode) saveOfflineTripCache({ data, name, roleOverride, travellerId, loginMode });
     state.data = normalize(clone(data)); state.pin = pin; state.demoMode = demoMode;
     state.accessRole = roleOverride || data.accessRole || "traveller";
     state.currentUser = name || (state.accessRole === "administrator" ? (data.trip.createdBy || "Administrator") : "Traveller");
@@ -589,7 +654,7 @@
   function setTab(tab) {
     const allowed = { itinerary: canViewItinerary(), experiences: canViewExperiences(), photos: true, places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() };
     if (allowed[tab] === false) return toast("This feature is hidden for your Traveller ID by the Administrator", true);
-    state.tab = tab; $("#crumbLabel").textContent = labels[tab];
+    state.tab = tab; persistSession(true); mtFadeView(); $("#crumbLabel").textContent = labels[tab];
     $$('[data-tab]').forEach((button) => {
       const active = button.dataset.tab === tab;
       button.classList.toggle("active", active);
@@ -756,7 +821,7 @@
     const balance = budget - total;
     const members = visibleTripMembers();
     const photo = tripPhotoUrl(state.data.trip.photoUrl);
-    const cover = photo ? `<section class="trip-cover"><img src="${esc(photo)}" alt="Cover photo for ${esc(state.data.trip.name)}" width="1600" height="900" referrerpolicy="no-referrer" decoding="async" fetchpriority="high"><div><span>TRIP PHOTO</span><h2>${esc(state.data.trip.name)}</h2><p>${esc(state.data.trip.destination)}</p>${isAdmin() ? `<button data-trip-photo>Change photo</button>` : ""}</div></section>` : (isAdmin() ? `<section class="trip-cover trip-cover-empty"><div><span>TRIP PHOTO</span><h2>Add a memorable cover photo</h2><p>Use a public HTTPS image or Google Drive sharing link.</p><button data-trip-photo>Add photo</button></div></section>` : "");
+    const cover = photo ? `<section class="trip-cover"><img src="${esc(photo)}" alt="Cover photo for ${esc(state.data.trip.name)}" fetchpriority="high" decoding="async" width="1600" height="900" referrerpolicy="no-referrer" decoding="async" fetchpriority="high"><div><span>TRIP PHOTO</span><h2>${esc(state.data.trip.name)}</h2><p>${esc(state.data.trip.destination)}</p>${isAdmin() ? `<button data-trip-photo>Change photo</button>` : ""}</div></section>` : (isAdmin() ? `<section class="trip-cover trip-cover-empty"><div><span>TRIP PHOTO</span><h2>Add a memorable cover photo</h2><p>Use a public HTTPS image or Google Drive sharing link.</p><button data-trip-photo>Add photo</button></div></section>` : "");
     const planQuickAction = canViewItinerary() ? `<button data-add="plan"><i>＋</i><span><b>Add plan</b><small>Itinerary</small></span></button>` : "";
     const expenseQuickAction = canViewExpenses() ? `<button data-add="expense"><i>₹</i><span><b>Add expense</b><small>Spending</small></span></button>` : "";
     const placeQuickAction = canViewPlaces() ? `<button data-add="place"><i>⌖</i><span><b>Add place</b><small>Map</small></span></button>` : "";
@@ -1065,7 +1130,7 @@
     const accessText = isAdmin()
       ? `${enabled ? "Traveller uploads are enabled" : "Traveller uploads are disabled"}. Administrator uploads remain available.`
       : (!state.travellerId ? "Shared trip access can view photos but cannot add them." : (enabled && limit > 0 ? `${count} of ${limit} photo slots used · ${remainingPhotos} remaining` : "Photo addition is disabled for your account in this trip."));
-    const cards = photos.map((photo, index) => `<article class="trip-photo-card colour-${index % 6}"><button class="trip-photo-open" data-open-photo="${esc(photo.id)}" aria-label="View photo"><img src="${esc(photo.photoUrl)}" alt="${esc(photo.caption || `Trip photo by ${photo.uploadedBy || "Trip member"}`)}" width="900" height="600" loading="lazy" decoding="async" fetchpriority="low"></button><div><span class="photo-number">PHOTO ${String(index + 1).padStart(2, "0")}</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>📷 ${esc(photo.uploadedBy || "Trip member")} · ${displayDate(String(photo.createdAt || "").slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</p>${mayManagePhoto(photo) ? `<span class="trip-photo-actions">${mayReplacePhoto(photo) ? `<button data-replace-photo="${esc(photo.id)}">Replace</button>` : ""}<button class="delete" data-delete-photo="${esc(photo.id)}">Delete</button></span>` : ""}</div></article>`).join("");
+    const cards = photos.map((photo, index) => `<article class="trip-photo-card colour-${index % 6}"><button class="trip-photo-open" data-open-photo="${esc(photo.id)}" aria-label="View photo"><img src="${esc(tripPhotoUrl(photo.photoUrl, 800))}" loading="lazy" decoding="async" alt="${esc(photo.caption || `Trip photo by ${photo.uploadedBy || "Trip member"}`)}" width="900" height="600" loading="lazy" decoding="async" fetchpriority="low"></button><div><span class="photo-number">PHOTO ${String(index + 1).padStart(2, "0")}</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>📷 ${esc(photo.uploadedBy || "Trip member")} · ${displayDate(String(photo.createdAt || "").slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</p>${mayManagePhoto(photo) ? `<span class="trip-photo-actions">${mayReplacePhoto(photo) ? `<button data-replace-photo="${esc(photo.id)}">Replace</button>` : ""}<button class="delete" data-delete-photo="${esc(photo.id)}">Delete</button></span>` : ""}</div></article>`).join("");
     return `<section class="trip-photos-page"><div class="trip-photos-hero"><div><span class="kicker">COLOURFUL TRIP GALLERY</span><h2>Photos from the journey</h2><p>Keep selected trip photographs together. Images are stored in Google Drive and photo details are stored in Google Sheets.</p></div><div class="trip-photos-hero-actions">${isAdmin() ? `<button class="photo-access-toggle ${enabled ? "enabled" : "disabled"}" data-toggle-photo-uploads>${enabled ? "Disable traveller uploads" : "Enable traveller uploads"}</button>` : ""}${mayAdd ? `<button class="primary" data-add-trip-photo>＋ Add photo</button>` : ""}</div></div><div class="photo-access-strip ${enabled ? "enabled" : "disabled"}"><i>${enabled ? "●" : "○"}</i><div><b>${isAdmin() ? "Administrator photo control" : "Your photo allowance"}</b><p>${esc(accessText)}</p></div>${!isAdmin() && state.travellerId ? `<strong>${count}/${limit}</strong>` : `<strong>${photos.length} photos</strong>`}</div><div class="trip-photo-grid">${cards || `<div class="empty-photo-gallery"><i>▣</i><b>No trip photos yet</b><p>${mayAdd ? "Add the first colourful memory from this journey." : "An authorised traveller or the Administrator can add the first photo."}</p></div>`}</div></section>`;
   }
 
@@ -1289,10 +1354,249 @@
 
   function showSkeleton() { if ($("#view")) $("#view").innerHTML = skeletonView(); }
 
+  const FAQ = [
+    { group: "Getting started", go: "overview", items: [
+      ["How do I sign in?", "Use your Traveller ID and password from the Administrator. For one shared trip, use the Trip ID and trip password."],
+      ["How do I switch trips?", "Tap All trips (admin) or My trips (traveller) at the top, or in ⋯ More on mobile, then choose a trip."],
+      ["What is on Overview?", "Days to go or today's plan, trip progress, what's next and the pinned sticky note."]] },
+    { group: "Itinerary", go: "itinerary", items: [
+      ["How do I add a plan?", "Tap ＋ (bottom right on mobile) or Add plan. Enter day, time, what and an optional remark, then Save."],
+      ["How do I edit or delete a row?", "Tap Row edit to change it in place, then Save. Admins also see Delete. On mobile, tap a card to see its actions."],
+      ["How do I change the order?", "Drag a row by its handle ⋮⋮ to a new place. Rows on the same day can also be sorted by time."],
+      ["How do I mark a plan done?", "Tick the box at the start of the row. Everyone sees it as done."],
+      ["How do I record who paid?", "Tap ₹ on the row. The amount is added to Expenses with the payer's name."],
+      ["How do I resize columns?", "Drag the edge of a column heading. The width is remembered on that device."]] },
+    { group: "Expenses & settle up", go: "expenses", items: [
+      ["How do I add an expense?", "Open Expenses and tap ＋. Choose Paid by carefully. It must match the traveller's name."],
+      ["Who shares the cost?", "The Administrator taps Choose who shares. Each person can be Own share, Same family as someone, or Not sharing."],
+      ["When is Settle up shown?", "The Administrator decides. It can stay hidden until the journey ends, then show who pays whom."]] },
+    { group: "Sticky notes", go: "overview", items: [
+      ["What is the pinned sticky note?", "A shared note on Overview that every traveller on the trip can read."],
+      ["Who can edit it?", "The Administrator, and any traveller the Administrator allows. Type directly in the note and tap Save."],
+      ["Why don't I see my change?", "Always tap Save before leaving. Then pull to refresh or tap Refresh data on the other device."]] },
+    { group: "Photos & travellers", go: "people", items: [
+      ["How do I add my photo?", "Tap your name or picture, then Change photo. Admins can set anyone's photo."],
+      ["How do I add trip photos?", "Open Trip photos and tap Upload. The Administrator can turn uploads on or off."],
+      ["Why is a feature missing for me?", "The Administrator can hide features for each Traveller ID. Ask them to turn it on."]] },
+    { group: "Print & settings", go: "print", items: [
+      ["How do I print the itinerary?", "Open Print & export, choose wrap, layout and alignment, then Print or Save as PDF."],
+      ["How do I make text bigger?", "Use A− / A+ at the top, or in ⋯ More on mobile. Your choice is remembered."],
+      ["Why was I signed out?", "The Administrator can set auto sign-out after 5 min, 30 min, 1 hr or 2 hr without use."]] }
+  ];
+  const FEEDBACK_FEATURES = [["overall", "Overall"], ["itinerary", "Itinerary"], ["expenses", "Expenses"], ["sticky", "Sticky notes"], ["photos", "Photos"]];
+  function feedbackKey() { return `mytrip.feedback.${state.data ? state.data.trip.tripId : ""}.${state.travellerId || state.accountUsername || state.currentUser || ""}`; }
+  function feedbackDraft() {
+    if (!state.feedbackDraft) { try { state.feedbackDraft = JSON.parse(localStorage.getItem(feedbackKey()) || "null"); } catch (e) {} }
+    if (!state.feedbackDraft) state.feedbackDraft = { ratings: {}, suggestion: "" };
+    return state.feedbackDraft;
+  }
+  function rateReminder() {
+    try {
+      if (tripOverviewStage(new Date().toISOString().slice(0, 10)) !== "completed") return "";
+      if (localStorage.getItem(feedbackKey()) || localStorage.getItem(feedbackKey() + ".later")) return "";
+    } catch (e) { return ""; }
+    return `<div class="rate-reminder"><span>${mtIcon("feedback")}</span><p><b>How was MyTrip on this trip?</b><small>Rate it in 20 seconds and help make it better.</small></p><button type="button" data-go="help">Rate</button><button type="button" class="rate-later" data-rate-later aria-label="Not now">×</button></div>`;
+  }
+  function maybeWelcome() {
+    try {
+      if (!state.data || state.welcomeShown || localStorage.getItem("mytrip.welcomed.v1")) return;
+      state.welcomeShown = true; localStorage.setItem("mytrip.welcomed.v1", "1");
+    } catch (e) { return; }
+    const steps = [["overview", "Today at a glance", "Overview shows what's next, trip progress and the pinned sticky note."], ["itinerary", "Plan together", "Add plans, drag rows to reorder and tick them off as you go."], ["expenses", "Track money", "Record who paid. Settle up shows who owes whom when the Administrator allows it."], ["help", "Help is always here", "Open Help & Feedback in the menu for answers, or to rate features."]];
+    setTimeout(() => {
+      if ($("#modal") && !$("#modal").classList.contains("hidden")) return;
+      showModal("Welcome to MyTrip", `<div class="welcome-tour">${steps.map(([icon, t, d], i) => `<div class="welcome-step"><span>${mtIcon(icon)}</span><p><b>${i + 1}. ${t}</b><small>${d}</small></p></div>`).join("")}<div class="welcome-actions"><button type="button" class="secondary" data-welcome-help>Open Help</button><button type="button" data-welcome-close>Got it</button></div></div>`);
+      const body = $("#modalBody");
+      body.querySelector("[data-welcome-close]").addEventListener("click", closeModal);
+      body.querySelector("[data-welcome-help]").addEventListener("click", () => { closeModal(); setTab("help"); });
+    }, 700);
+  }
+  function starRow(key, label, value) {
+    return `<div class="fb-row"><span>${label}</span><div class="fb-stars" role="radiogroup" aria-label="${label}">${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="${n <= value ? "on" : ""}" data-fb-star="${key}:${n}" aria-label="${n} star${n > 1 ? "s" : ""}">★</button>`).join("")}</div></div>`;
+  }
+  function renderHelp() {
+    const q = (state.helpQuery || "").trim().toLowerCase();
+    const groups = FAQ.map((g) => ({ ...g, items: g.items.filter(([qq, a]) => !q || (qq + " " + a + " " + g.group).toLowerCase().includes(q)) })).filter((g) => g.items.length);
+    const faq = groups.length ? groups.map((g) => `<div class="faq-group"><div class="faq-group-head"><h3>${g.group}</h3><button type="button" class="faq-go" data-go="${g.go}">Go there ›</button></div>${g.items.map(([qq, a]) => `<details class="faq-item" ${q ? "open" : ""}><summary>${esc(qq)}</summary><p>${esc(a)}</p></details>`).join("")}</div>`).join("") : `<p class="faq-empty">No answers match "${esc(state.helpQuery)}". Try another word, or send it as a suggestion below.</p>`;
+    const d = feedbackDraft();
+    const sent = d.sentAt ? `<small class="fb-sent">Sent ${esc(displayDate(d.sentAt.slice(0, 10)))} · you can change it any time</small>` : "";
+    const form = `<section class="fb-card" id="feedbackCard"><div class="fb-head"><span>${mtIcon("feedback")}</span><div><h3>Rate &amp; suggest</h3><p>Tap the stars for each feature. Only the Administrator sees replies.</p></div></div>${FEEDBACK_FEATURES.map(([k, l]) => starRow(k, l, Number(d.ratings[k] || 0))).join("")}<label class="fb-label" for="fbSuggestion">What would you like added or improved?</label><textarea id="fbSuggestion" rows="3" maxlength="600" placeholder="e.g. Show weather for each day">${esc(d.suggestion || "")}</textarea><div class="fb-actions">${sent}<button type="button" data-fb-send>${d.sentAt ? "Update feedback" : "Send feedback"}</button></div></section>`;
+    const admin = isAdmin() ? renderFeedbackSummary() : "";
+    return `<section class="help-page"><div class="view-head"><div><span class="kicker">HELP &amp; FEEDBACK</span><h2>How can we help?</h2></div></div><div class="help-search"><span>${mtIcon("help")}</span><input id="helpSearch" type="search" placeholder="Search e.g. settle, sticky, print" value="${esc(state.helpQuery || "")}" autocomplete="off"></div><div class="help-grid"><div class="faq-list">${faq}</div><div class="help-side">${form}${admin}</div></div></section>`;
+  }
+  function renderFeedbackSummary() {
+    const s = state.feedbackSummary;
+    if (!s) { loadFeedbackSummary(); return `<section class="fb-card fb-admin"><h3>Feedback from travellers</h3><p class="fb-muted">Loading…</p></section>`; }
+    const avg = FEEDBACK_FEATURES.map(([k, l]) => { const a = s.averages[k]; return `<div class="fb-avg"><span>${l}</span><b>${a && a.count ? `★ ${a.average.toFixed(1)}` : "—"}</b><small>${a && a.count ? `${a.count} rating${a.count > 1 ? "s" : ""}` : "No ratings"}</small></div>`; }).join("");
+    const list = (s.suggestions || []).length ? s.suggestions.map((x) => `<li><p>${esc(x.suggestion)}</p><small>${esc(x.name || "Traveller")} · ${esc(x.tripId)} · ${esc(displayDate(String(x.updatedAt || "").slice(0, 10)))}</small></li>`).join("") : `<li class="fb-muted">No suggestions yet.</li>`;
+    return `<section class="fb-card fb-admin"><div class="fb-admin-head"><h3>Feedback from travellers</h3><small>${s.total} repl${s.total === 1 ? "y" : "ies"} · all trips</small></div><div class="fb-avg-grid">${avg}</div><h4>Latest suggestions</h4><ul class="fb-list">${list}</ul></section>`;
+  }
+  async function loadFeedbackSummary() {
+    if (state.feedbackLoading) return; state.feedbackLoading = true;
+    try {
+      if (state.demoMode) state.feedbackSummary = { total: 0, averages: {}, suggestions: [] };
+      else state.feedbackSummary = await api("getFeedback", authPayload());
+    } catch (error) { state.feedbackSummary = { total: 0, averages: {}, suggestions: [], error: error.message }; }
+    state.feedbackLoading = false;
+    if (state.tab === "help") render();
+  }
+  async function sendFeedback() {
+    const d = feedbackDraft();
+    d.suggestion = ($("#fbSuggestion") || {}).value || "";
+    if (!Object.keys(d.ratings).length && !d.suggestion.trim()) return toast("Tap some stars or write a suggestion first", true);
+    const btn = $("[data-fb-send]"); if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+    try {
+      if (!state.demoMode) await api("saveFeedback", authPayload({ feedback: { ...d.ratings, suggestion: d.suggestion.trim(), name: state.currentUser || "" } }));
+      d.sentAt = new Date().toISOString();
+      try { localStorage.setItem(feedbackKey(), JSON.stringify(d)); } catch (e) {}
+      state.feedbackSummary = null; toast("Thanks! Your feedback was sent"); render();
+    } catch (error) { toast(error.message, true); if (btn) { btn.disabled = false; btn.textContent = "Send feedback"; } }
+  }
+  document.addEventListener("click", (event) => {
+    const star = event.target.closest("[data-fb-star]");
+    if (star) { const [k, n] = star.dataset.fbStar.split(":"); const d = feedbackDraft(); const ta = $("#fbSuggestion"); if (ta) d.suggestion = ta.value; d.ratings[k] = Number(d.ratings[k]) === Number(n) ? 0 : Number(n); if (!d.ratings[k]) delete d.ratings[k]; render(); return; }
+    if (event.target.closest("[data-fb-send]")) { sendFeedback(); return; }
+    if (event.target.closest("[data-rate-later]")) { try { localStorage.setItem(feedbackKey() + ".later", "1"); } catch (e) {} render(); }
+  });
+  document.addEventListener("input", (event) => {
+    if (event.target.id !== "helpSearch") return;
+    state.helpQuery = event.target.value;
+    const pos = event.target.selectionStart; render();
+    const el = $("#helpSearch"); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
+  });
+
+  /* ---------- v4.35.0: motion, night mode, weather, swipe, pull-to-refresh, offline, quick chips ---------- */
+  function mtFadeView() { const v = $("#view"); if (!v) return; v.classList.remove("mt-fade"); void v.offsetWidth; v.classList.add("mt-fade"); }
+
+  const themeKey = "mytrip.theme";
+  function themeChoice() { try { return localStorage.getItem(themeKey) || "auto"; } catch { return "auto"; } }
+  const darkQuery = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
+  function applyTheme() {
+    const choice = themeChoice();
+    const dark = choice === "dark" || (choice === "auto" && darkQuery && darkQuery.matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = dark ? "#0E1418" : "#F7F6F2";
+    $$("[data-night-label]").forEach((el) => { el.textContent = choice === "auto" ? "Auto" : (choice === "dark" ? "On" : "Off"); });
+  }
+  function setTheme(choice) { try { localStorage.setItem(themeKey, choice); } catch {} applyTheme(); $$("[data-theme-set]").forEach((b) => b.classList.toggle("on", b.dataset.themeSet === choice)); }
+  function nightModeRow() {
+    const c = themeChoice();
+    return `<div class="mt-more-row mt-more-theme"><span>Night mode</span><div class="theme-seg">${[["auto", "Auto"], ["light", "Off"], ["dark", "On"]].map(([v, l]) => `<button type="button" data-theme-set="${v}" class="${c === v ? "on" : ""}">${l}</button>`).join("")}</div></div>`;
+  }
+  if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener("change", applyTheme);
+  applyTheme();
+
+  const WMO = { 0: ["Clear sky", "☀"], 1: ["Mostly clear", "🌤"], 2: ["Partly cloudy", "⛅"], 3: ["Cloudy", "☁"], 45: ["Fog", "🌫"], 48: ["Fog", "🌫"], 51: ["Light drizzle", "🌦"], 53: ["Drizzle", "🌦"], 55: ["Heavy drizzle", "🌧"], 61: ["Light rain", "🌦"], 63: ["Rain", "🌧"], 65: ["Heavy rain", "🌧"], 80: ["Rain showers", "🌦"], 81: ["Rain showers", "🌧"], 82: ["Heavy showers", "⛈"], 95: ["Thunderstorm", "⛈"], 96: ["Thunderstorm", "⛈"], 99: ["Thunderstorm", "⛈"], 71: ["Snow", "🌨"], 73: ["Snow", "🌨"], 75: ["Heavy snow", "❄"] };
+  function weatherTarget() {
+    if (!state.data || !state.data.trip) return null;
+    const trip = state.data.trip; const today = new Date().toISOString().slice(0, 10);
+    const place = String(trip.destination || trip.name || "").split(/[,·|/-]/)[0].trim();
+    if (!place || (trip.endDate && trip.endDate < today)) return null;
+    const day = trip.startDate && trip.startDate > today ? trip.startDate : today;
+    const ahead = Math.round((new Date(day) - new Date(today)) / 86400000);
+    if (ahead > 15) return null;
+    return { place, day, ahead };
+  }
+  function weatherSlot() { return weatherTarget() ? `<div id="weatherSlot" class="weather-card weather-loading" aria-live="polite"></div>` : ""; }
+  async function loadWeather() {
+    const t = weatherTarget(); const slot = $("#weatherSlot"); if (!t || !slot) return;
+    const key = "mytrip.weather." + t.place.toLowerCase() + "." + t.day;
+    let w = null; try { w = JSON.parse(localStorage.getItem(key) || "null"); } catch {}
+    if (!w || Date.now() - w.at > 3600000) {
+      try {
+        let geo = null; const gk = "mytrip.geo." + t.place.toLowerCase();
+        try { geo = JSON.parse(localStorage.getItem(gk) || "null"); } catch {}
+        if (!geo) {
+          const g = await (await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + encodeURIComponent(t.place))).json();
+          if (!g.results || !g.results.length) { slot.remove(); return; }
+          geo = { lat: g.results[0].latitude, lon: g.results[0].longitude, name: g.results[0].name };
+          try { localStorage.setItem(gk, JSON.stringify(geo)); } catch {}
+        }
+        const f = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&start_date=${t.day}&end_date=${t.day}`)).json();
+        w = { at: Date.now(), name: geo.name, now: f.current ? Math.round(f.current.temperature_2m) : null, code: t.ahead ? f.daily.weather_code[0] : (f.current ? f.current.weather_code : f.daily.weather_code[0]), max: Math.round(f.daily.temperature_2m_max[0]), min: Math.round(f.daily.temperature_2m_min[0]), rain: f.daily.precipitation_probability_max[0] };
+        try { localStorage.setItem(key, JSON.stringify(w)); } catch {}
+      } catch { if (!w) { slot.remove(); return; } }
+    }
+    const el = $("#weatherSlot"); if (!el) return;
+    const [label, icon] = WMO[w.code] || ["Weather", "⛅"];
+    const when = t.ahead ? `${displayDate(t.day, { weekday: "short", day: "numeric", month: "short" })} · first day` : "Today";
+    const tip = w.rain >= 50 ? "Carry an umbrella" : (w.max >= 33 ? "Stay hydrated" : "Good day to be outside");
+    el.classList.remove("weather-loading");
+    el.innerHTML = `<span class="weather-icon" aria-hidden="true">${icon}</span><div class="weather-main"><b>${esc(w.name)} · ${t.ahead || w.now == null ? w.max : w.now}°</b><small>${when} · ${label} · ${w.min}°–${w.max}°</small></div><div class="weather-rain"><b>${w.rain ?? 0}%</b><small>rain</small></div><p class="weather-tip">${tip}</p>`;
+  }
+
+  function setOfflineState(offline) {
+    document.body.classList.toggle("is-offline", !!offline);
+    let bar = $("#offlineBar");
+    if (offline && !bar) { bar = document.createElement("div"); bar.id = "offlineBar"; bar.setAttribute("role", "status"); bar.textContent = "Offline — showing your saved copy. Changes need internet."; document.body.appendChild(bar); }
+    if (!offline && bar) bar.remove();
+  }
+  addEventListener("offline", () => { if (state.authenticated) setOfflineState(true); });
+  addEventListener("online", () => { setOfflineState(false); if (state.authenticated && state.data && !state.demoMode) pullRefresh(true); });
+
+  let pulling = false;
+  async function pullRefresh(quiet = false) {
+    if (pulling || !state.data || state.demoMode) return; pulling = true;
+    try {
+      const fresh = await api("getTrip", authPayload());
+      if (fresh && fresh.trip && String(fresh.trip.tripId) === String(state.data.trip.tripId)) {
+        const prevPerms = state.data.permissions;
+        state.data = normalize(clone(fresh)); if (!state.data.permissions && prevPerms) state.data.permissions = prevPerms;
+        saveOfflineTripCache({ ...(readOfflineTripCache(fresh.trip.tripId) || {}), data: state.data });
+        hydrateShell(); render(); setOfflineState(false); if (!quiet) toast("Up to date");
+      }
+    } catch (error) { if (!quiet) toast(error.message, true); }
+    pulling = false;
+  }
+  (function bindTouchGestures() {
+    const mobile = () => matchMedia("(max-width: 760px)").matches;
+    let sx = 0, sy = 0, row = null, pull = 0, mode = "", ind = null;
+    document.addEventListener("touchstart", (e) => {
+      if (!mobile() || !state.authenticated || e.touches.length !== 1) return;
+      const t = e.touches[0]; sx = t.clientX; sy = t.clientY; mode = ""; pull = 0;
+      row = e.target.closest(".plan-row, .timeline-row");
+      if (row && (!row.querySelector("[data-toggle-plan-done]") || row.querySelector("input, textarea") || e.target.closest("button, a, input, textarea, select, .plan-drag"))) row = null;
+      if (!row && (document.scrollingElement.scrollTop > 0 || e.target.closest("#modal, input, textarea, .sticky-note"))) mode = "none";
+    }, { passive: true });
+    document.addEventListener("touchmove", (e) => {
+      if (mode === "none" || !e.touches.length) return;
+      const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+      if (!mode) { if (row && Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.4) mode = "swipe"; else if (!row && dy > 12 && Math.abs(dy) > Math.abs(dx) && document.scrollingElement.scrollTop <= 0) mode = "pull"; else if (Math.abs(dx) > 10 || Math.abs(dy) > 10) mode = "none"; }
+      if (mode === "swipe") { const x = Math.max(-120, Math.min(120, dx)); row.style.transform = `translateX(${x}px)`; row.classList.toggle("swipe-done", x > 60); row.classList.toggle("swipe-delete", x < -60 && isAdmin()); }
+      if (mode === "pull") { pull = Math.min(110, dy * 0.5); if (!ind) { ind = document.createElement("div"); ind.id = "pullIndicator"; document.body.appendChild(ind); } ind.style.transform = `translate(-50%, ${pull}px)`; ind.textContent = pull > 64 ? "↻ Release to refresh" : "↓ Pull to refresh"; }
+    }, { passive: true });
+    document.addEventListener("touchend", () => {
+      if (mode === "swipe" && row) {
+        const x = parseFloat((row.style.transform.match(/-?[\d.]+/) || [0])[0]);
+        const id = row.querySelector("[data-toggle-plan-done]").dataset.togglePlanDone;
+        row.style.transform = ""; row.classList.remove("swipe-done", "swipe-delete");
+        if (x > 60) { togglePlanDone(id); if (navigator.vibrate) navigator.vibrate(12); }
+        else if (x < -60 && isAdmin()) { state.planRowDeleteId = id; render(); }
+      }
+      if (mode === "pull" && ind) { const go = pull > 64; ind.remove(); ind = null; if (go) pullRefresh(); }
+      row = null; mode = ""; pull = 0;
+    });
+  })();
+
+  const QUICK_PLANS = ["Flight", "Train", "Cab", "Check-in", "Check-out", "Breakfast", "Lunch", "Dinner", "Sightseeing", "Temple visit", "Beach", "Shopping"];
+  function addQuickPlanChips() {
+    const input = $("#modalBody input[name=\"title\"][placeholder=\"e.g. Sunset cruise\"]");
+    if (!input || input.dataset.chips) return; input.dataset.chips = "1";
+    const box = document.createElement("div"); box.className = "quick-plan-chips";
+    box.innerHTML = QUICK_PLANS.map((p) => `<button type="button" data-quick-plan="${esc(p)}">${esc(p)}</button>`).join("");
+    (input.closest("label") || input).insertAdjacentElement("afterend", box);
+    box.addEventListener("click", (e) => { const b = e.target.closest("[data-quick-plan]"); if (!b) return; const v = input.value.trim(); input.value = v && !QUICK_PLANS.includes(v) ? `${b.dataset.quickPlan} · ${v}` : b.dataset.quickPlan; input.focus(); box.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); });
+  }
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-theme-set]"); if (t) { setTheme(t.dataset.themeSet); return; }
+    if (e.target.closest("[data-night-toggle]")) { const c = themeChoice(); setTheme(c === "auto" ? "dark" : c === "dark" ? "light" : "auto"); toast("Night mode: " + (themeChoice() === "auto" ? "Auto (follows your device)" : themeChoice() === "dark" ? "On" : "Off")); }
+  });
+
   function render() {
     if (!state.data) { try { hideTabbar(); } catch (error) {} return; }
-    const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint };
-    $("#view").innerHTML = accessNotice() + renderers[state.tab]();
+    const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint, help: renderHelp };
+    $("#view").innerHTML = accessNotice() + (state.tab === "overview" ? rateReminder() + weatherSlot() : "") + renderers[state.tab]();
+    maybeWelcome(); if (state.tab === "overview") loadWeather();
     try { applyLineIcons(); updateTabbar(); } catch (error) {}
     if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
     const printMenu = $(".plan-print-menu");
@@ -1372,6 +1676,7 @@
       .replaceAll("shared trip-PIN users", "shared one-trip users")
       .replaceAll("password/PIN", "password");
     closeQuickFind();
+    setTimeout(addQuickPlanChips, 30);
     requestAnimationFrame(addModalTextSizeControl);
     $("#modalTitle").textContent = title; $("#modalBody").innerHTML = accountWording; $("#modal").classList.remove("hidden");
     document.body.classList.add("overlay-open");
@@ -2896,14 +3201,14 @@
 
   function showTripGalleryPhoto(photo) {
     if (!photo) return toast("Photo not found", true);
-    showModal("Trip photo", `<div class="trip-photo-view"><img src="${esc(photo.photoUrl)}" alt="${esc(photo.caption || "Trip photo")}"><div><span>TRIP MEMORY</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>Uploaded by <b>${esc(photo.uploadedBy || "Trip member")}</b>${photo.createdAt ? ` · ${displayDate(String(photo.createdAt).slice(0, 10))}` : ""}</p></div><div class="form-actions"><button type="button" data-cancel>Close</button>${mayReplacePhoto(photo) ? `<button id="replaceViewedPhoto" type="button">Replace</button>` : ""}</div></div>`);
+    showModal("Trip photo", `<div class="trip-photo-view"><img src="${esc(tripPhotoUrl(photo.photoUrl, 600))}" loading="lazy" decoding="async" alt="${esc(photo.caption || "Trip photo")}"><div><span>TRIP MEMORY</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>Uploaded by <b>${esc(photo.uploadedBy || "Trip member")}</b>${photo.createdAt ? ` · ${displayDate(String(photo.createdAt).slice(0, 10))}` : ""}</p></div><div class="form-actions"><button type="button" data-cancel>Close</button>${mayReplacePhoto(photo) ? `<button id="replaceViewedPhoto" type="button">Replace</button>` : ""}</div></div>`);
     $('[data-cancel]').addEventListener("click", closeModal);
     if ($("#replaceViewedPhoto")) $("#replaceViewedPhoto").addEventListener("click", () => showTripGalleryPhotoEditor(photo));
   }
 
   function showDeleteTripGalleryPhoto(photo) {
     if (!photo || !mayManagePhoto(photo)) return toast("You can delete only photos that you uploaded", true);
-    showModal("Delete trip photo", `<div class="delete-confirmation"><div class="danger-note"><b>Delete this photo?</b><p>The image will be moved to Google Drive trash and removed from the TripPhotos Google Sheet.</p></div><div class="photo-preview"><img src="${esc(photo.photoUrl)}" alt="${esc(photo.caption || "Trip photo")}"></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button class="danger-button" id="confirmTripPhotoDelete" type="button">Delete photo</button></div></div>`);
+    showModal("Delete trip photo", `<div class="delete-confirmation"><div class="danger-note"><b>Delete this photo?</b><p>The image will be moved to Google Drive trash and removed from the TripPhotos Google Sheet.</p></div><div class="photo-preview"><img src="${esc(tripPhotoUrl(photo.photoUrl, 600))}" loading="lazy" decoding="async" alt="${esc(photo.caption || "Trip photo")}"></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button class="danger-button" id="confirmTripPhotoDelete" type="button">Delete photo</button></div></div>`);
     $("#confirmTripPhotoDelete").addEventListener("click", async (event) => {
       const button = event.currentTarget; button.disabled = true; button.textContent = "Deleting…";
       try {
@@ -3186,7 +3491,7 @@
   });
   $("#closeModal").addEventListener("click", closeModal); $("#modal").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeModal(); });
 
-  const mtIcons = {
+  const mtIcons = { help: '<circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.5 2.5 0 1 1 3.3 2.4c-.5.2-.8.7-.8 1.2V14"></path><path d="M12 17.2v.1"></path>', feedback: '<path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"></path>',
     overview: '<path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/>',
     itinerary: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
     experiences: '<path d="M4 20h4l10-10-4-4L4 16z"/><path d="M13 7l4 4"/>',
@@ -3222,11 +3527,11 @@
   }
   function openMoreSheet() {
     const allowed = mtAllowed();
-    const items = [["experiences", "Experiences"], ["photos", "Trip photos"], ["places", "Places & map"], ["people", "Travellers"], ["print", "Print & export"]]
+    const items = [["experiences", "Experiences"], ["photos", "Trip photos"], ["places", "Places & map"], ["people", "Travellers"], ["print", "Print & export"], ["help", "Help & feedback"]]
       .filter(([tab]) => allowed[tab] !== false).map(([tab, label]) => `<button type="button" class="mt-more-row" data-mt-go="${tab}">${mtIcon(tab)}<span>${label}</span><em>›</em></button>`).join("");
     const trips = state.travellerId && !isAdmin() ? `<button type="button" class="mt-more-row" data-mt-action="mytrips">${mtIcon("trips")}<span>My trips</span><em>›</em></button>` : (isAdmin() ? `<button type="button" class="mt-more-row" data-mt-action="alltrips">${mtIcon("trips")}<span>All trips</span><em>›</em></button>` : "");
     const size = $("#textSizeValue") ? $("#textSizeValue").textContent : "100%";
-    showModal("More", `<div class="mt-more"><div class="mt-more-group">${items}</div><div class="mt-more-label">SETTINGS</div><div class="mt-more-group">${trips}<div class="mt-more-row mt-more-size"><span>Text size</span><div><button type="button" data-mt-action="size-down">A−</button><b>${esc(size)}</b><button type="button" data-mt-action="size-up">A+</button></div></div><button type="button" class="mt-more-row mt-more-danger" data-mt-action="logout">${mtIcon("logout")}<span>Sign out</span></button></div><p class="mt-more-meta">Trip ID ${esc((state.data && state.data.trip && state.data.trip.tripId) || "")} · FE v${frontendVersion}${typeof backendVersion !== "undefined" && backendVersion ? ` · BE v${esc(backendVersion)}` : ""}</p></div>`);
+    showModal("More", `<div class="mt-more"><div class="mt-more-group">${items}</div><div class="mt-more-label">SETTINGS</div><div class="mt-more-group">${trips}${nightModeRow()}<div class="mt-more-row mt-more-size"><span>Text size</span><div><button type="button" data-mt-action="size-down">A−</button><b>${esc(size)}</b><button type="button" data-mt-action="size-up">A+</button></div></div><button type="button" class="mt-more-row mt-more-danger" data-mt-action="logout">${mtIcon("logout")}<span>Sign out</span></button></div><p class="mt-more-meta">Trip ID ${esc((state.data && state.data.trip && state.data.trip.tripId) || "")} · FE v${frontendVersion}${typeof backendVersion !== "undefined" && backendVersion ? ` · BE v${esc(backendVersion)}` : ""}</p></div>`);
     $("#modalBody").querySelectorAll("[data-mt-go]").forEach((b) => b.addEventListener("click", () => { closeModal(); setTab(b.dataset.mtGo); }));
     $("#modalBody").querySelectorAll("[data-mt-action]").forEach((b) => b.addEventListener("click", () => {
       const a = b.dataset.mtAction;
@@ -3295,8 +3600,9 @@
     else { const openMenu = $(".trip-tools[open]"); if (openMenu) openMenu.removeAttribute("open"); }
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkIdleTimeout(); });
-  addEventListener("pagehide", () => { state.pin = ""; stopIdleTimer(); });
-  addEventListener("pageshow", (event) => { if (event.persisted && state.authenticated) performLogout("Page restored securely. Please log in again."); });
+  addEventListener("pagehide", () => persistSession(true));
+  document.addEventListener("visibilitychange", () => { if (document.hidden) persistSession(true); });
+  addEventListener("pageshow", (event) => { if (event.persisted && state.authenticated) checkIdleTimeout(); });
 
   const inviteQuery = new URLSearchParams(location.search);
   const invitedApi = inviteQuery.get("api");
@@ -3307,6 +3613,7 @@
   setInterval(() => { if (!document.hidden) updateHeaderDateTime(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) updateHeaderDateTime(); });
   restoreSavedAccountLogin();
+  if (!new URLSearchParams(location.search).get("trip")) setTimeout(() => { resumeSession(); }, 0);
   const scheduleBackgroundTask = (task) => "requestIdleCallback" in window ? requestIdleCallback(task, { timeout: 1500 }) : setTimeout(task, 40);
   if (apiUrlReady()) scheduleBackgroundTask(() => ensureCurrentBackend().catch(() => {}));
   /* Self-healing update: registers the worker, forces an update check, and
