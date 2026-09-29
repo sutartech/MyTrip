@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.35.0";
+  const frontendVersion = "4.38.0";
   const requiredBackendVersion = "4.13.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -15,8 +15,15 @@
      config.js; the other one stays as an automatic fallback. Before, config.js
      always won, so after a "New deployment" (new URL) the app kept calling the
      old, deleted URL and got HTTP 404. */
+  (function dropStaleStoredUrl() {
+    try {
+      const configured = String(config.API_URL || "").trim();
+      const stored = readStoredApiUrl();
+      if (validApiUrl(configured) && stored && stored !== configured) localStorage.removeItem(apiStorageKey);
+    } catch {}
+  })();
   function backendCandidates() {
-    return [...new Set([readStoredApiUrl(), String(config.API_URL || "").trim()].filter(validApiUrl))];
+    return [...new Set([String(config.API_URL || "").trim(), readStoredApiUrl()].filter(validApiUrl))];
   }
   let apiUrl = backendCandidates()[0] || "";
   let backendState = apiUrl ? "checking" : "missing";
@@ -161,7 +168,15 @@
   ];
 
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
-  function toast(message, error = false) { const element = $("#toast"); element.textContent = `${error ? "!" : "✓"} ${message}`; element.style.background = error ? "#a34343" : "#17263c"; element.classList.remove("hidden"); clearTimeout(toast.timer); toast.timer = setTimeout(() => element.classList.add("hidden"), error ? 9000 : 2800); }
+  function friendlyError(message) {
+    const m = String(message || "");
+    if (/Cannot read propert|undefined|null|is not a function|is not defined|Unexpected token|JSON/i.test(m)) return "Something didn't load properly. Please tap Refresh, or pick the trip again.";
+    if (/Failed to fetch|NetworkError|Load failed|network/i.test(m)) return "No connection right now. Your changes will be tried again when you're back online.";
+    if (/timeout|timed out/i.test(m)) return "The server is taking too long. Please try again in a moment.";
+    if (/quota|exceeded/i.test(m)) return "The server is busy. Please wait a minute and try again.";
+    return m;
+  }
+  function toast(message, error = false) { const element = $("#toast"); if (!element) return; if (error) message = friendlyError(message); element.textContent = `${error ? "!" : "✓"} ${message}`; element.style.background = error ? "#B23A2A" : "#1F2A33"; element.classList.remove("hidden"); clearTimeout(toast.timer); toast.timer = setTimeout(() => element.classList.add("hidden"), error ? 9000 : 2800); }
   function displayDate(date, options = { day: "2-digit", month: "short", year: "numeric" }) { if (!date) return "—"; return new Date(`${date}T12:00:00`).toLocaleDateString("en-IN", options); }
   function displayTime(value) { if (!value) return ""; const [hours, minutes] = String(value).split(":"); const date = new Date(2000, 0, 1, Number(hours), Number(minutes)); return date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }); }
   /* ---- profile photos ----
@@ -207,7 +222,7 @@
       const url = photoForSlot(slot);
       const current = slot.querySelector("img");
       if (url && (!current || current.getAttribute("src") !== url)) {
-        slot.innerHTML = `<img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
+        slot.innerHTML = `<img src="${esc(url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`;
         slot.querySelector("img").addEventListener("error", () => { slot.textContent = initials(slot.dataset.avatarName); slot.classList.remove("has-photo"); }, { once: true });
         slot.classList.add("has-photo");
         if (slot.parentElement) slot.parentElement.classList.add("avatar-photo-host");
@@ -431,9 +446,18 @@
       return true;
     } catch (error) {
       if (shownFromCache) { setOfflineState(true); return true; }
-      state.authenticated = false; state.pin = ""; toast(error.message, true); return false;
+      try {
+        if (s.tripId && s.loginMode !== "shared") {
+          if (state.accessRole === "administrator") await loadAllTrips(s.pin, false, state.accountUsername);
+          else await loadMyTrips(s.pin, traveller || { travellerId: state.accountUsername, name: "Traveller" }, false);
+          return true;
+        }
+      } catch {}
+      clearSession(); state.authenticated = false; state.pin = ""; return false;
     }
   }
+
+  function hideSkeletonSafe() { try { const s = document.querySelector(".mt-skeleton, #skeleton"); if (s) s.remove(); } catch {} }
 
   function performLogout(message = "Signed out. Login is required again.") {
     try { hideTabbar(); } catch (error) {}
@@ -478,23 +502,22 @@
   }
 
   async function clearAppCacheAndReload() {
-    const button = $("#clearAppCache");
-    button.disabled = true; button.textContent = "Clearing…";
+    const button = null;
+    if (button) { button.disabled = true; button.textContent = "Clearing…"; }
+    toast("Clearing cache and loading the latest version…");
     try {
-      if ("caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((key) => caches.delete(key)));
-      }
-      if ("serviceWorker" in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((registration) => registration.unregister()));
-      }
+      if ("caches" in window) { const keys = await caches.keys(); await Promise.all(keys.map((key) => caches.delete(key))); }
+      if ("serviceWorker" in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.unregister())); }
+      try {
+        const keep = new Set([savedUsernameStorageKey, textSizeKey, themeKey, planColumnKey, planViewKey, printWidthKey, printWrapKey, printLayoutKey, printAlignKey, "mytrip.welcomed.v1", "mytrip_photo_original"]);
+        Object.keys(localStorage).forEach((key) => { if (/^mytrip/i.test(key) && !keep.has(key)) localStorage.removeItem(key); });
+      } catch {}
       try { sessionStorage.clear(); } catch {}
-      const refreshedUrl = new URL(location.href);
-      refreshedUrl.searchParams.set("refresh", String(Date.now()));
-      location.replace(refreshedUrl.href);
+      const url = new URL(location.href);
+      url.searchParams.delete("refresh"); url.searchParams.set("refresh", String(Date.now()));
+      location.replace(url.href);
     } catch (error) {
-      button.disabled = false; button.textContent = "↻ Repair MyTrip cache/session";
+      if (button) { button.disabled = false; button.textContent = "↻ Clear cache & update"; }
       toast("Cache could not be cleared automatically. Use a browser hard refresh.", true);
     }
   }
@@ -596,10 +619,11 @@
   }
 
   async function openTrip(data, pin, demoMode, name, roleOverride, travellerId = "", loginMode = "trip") {
+    if (!data || !data.trip) throw new Error("This trip could not be opened. Please pick it again from the list.");
     if (!demoMode) saveOfflineTripCache({ data, name, roleOverride, travellerId, loginMode });
     state.data = normalize(clone(data)); state.pin = pin; state.demoMode = demoMode;
     state.accessRole = roleOverride || data.accessRole || "traveller";
-    state.currentUser = name || (state.accessRole === "administrator" ? (data.trip.createdBy || "Administrator") : "Traveller");
+    state.currentUser = name || (state.accessRole === "administrator" ? ((data.trip && data.trip.createdBy) || "Administrator") : "Traveller");
     state.travellerId = travellerId; state.loginMode = loginMode;
     if (!state.accountUsername) state.accountUsername = travellerId || (state.accessRole === "administrator" ? "administrator" : "shared");
     state.authenticated = true;
@@ -1098,7 +1122,7 @@
         : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.planDayFilter || state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
       : "";
 
-    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool plan-view-toggle" data-plan-view title="Switch between compact cards and the full table">${planWideView() ? "☰ Card view" : "▦ Table view"}</button><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button>${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label>`)}${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table${planWideView() ? " plan-table-wide" : ""}" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
+    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}${canAdd("plan") ? quickAddBar() : ""}${planMapOpen() ? planMapSlot(items) : ""}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool${planMapOpen() ? " active" : ""}" data-plan-map title="Show the day on a map">⌖ ${planMapOpen() ? "Hide map" : "Map"}</button><button type="button" class="plan-tool plan-view-toggle" data-plan-view title="Switch between compact cards and the full table">${planWideView() ? "☰ Card view" : "▦ Table view"}</button><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button>${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label>`)}${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table${planWideView() ? " plan-table-wide" : ""}" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
   }
 
   function renderExperiences() {
@@ -1192,7 +1216,12 @@
       const everyoneOwn = g.length === names.length;
       const value = everyoneOwn ? "" : g.map((grp) => grp.join("+")).join("|");
       try {
-        if (!state.demoMode) await api("updateTrip", authPayload({ trip: { splitMembers: value } }));
+        if (!state.demoMode) {
+          const saved = await api("updateTrip", authPayload({ trip: { splitMembers: value } }));
+          const check = await api("getTrip", authPayload());
+          const stored = String(((check && check.trip) || (saved && saved.trip) || {}).splitMembers || "");
+          if (stored !== value) { toast("Not saved: your live backend is older than 4.15.0. Deploy the new Code.gs as a New version, then try again.", true); return; }
+        }
         state.data.trip.splitMembers = value; closeModal(); render(); toast("Expense sharing saved");
       } catch (error) { toast(error.message, true); }
     });
@@ -1281,7 +1310,7 @@
       const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
       return `<div class="expense-row"><span class="expense-description"><i>₹</i><b>${esc(expense.label)}</b></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${editActions}${deleteAction}</span></div>`;
     }).join("");
-    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section><section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>Detailed expense statement</h2><p>Use Row edit for a quick change or Edit for every field.</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu()}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div><div class="expense-table expense-action-table"><div class="expense-table-header"><span>DESCRIPTION</span><span>DATE</span><span>CATEGORY</span><span>PAID BY</span><span>AMOUNT</span><span>ACTIONS</span></div>${rows || `<div class="expense-empty-row"><b>No expenses recorded</b><p>Add the first trip payment.</p></div>`}</div></section>`;
+    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderSpendChart(total, budget)}<section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>Detailed expense statement</h2><p>Use Row edit for a quick change or Edit for every field.</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu()}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div><div class="expense-table expense-action-table"><div class="expense-table-header"><span>DESCRIPTION</span><span>DATE</span><span>CATEGORY</span><span>PAID BY</span><span>AMOUNT</span><span>ACTIONS</span></div>${rows || `<div class="expense-empty-row"><b>No expenses recorded</b><p>Add the first trip payment.</p></div>`}</div></section>`;
   }
 
   function renderExpenseRowEditor(expense) {
@@ -1422,7 +1451,7 @@
     const sent = d.sentAt ? `<small class="fb-sent">Sent ${esc(displayDate(d.sentAt.slice(0, 10)))} · you can change it any time</small>` : "";
     const form = `<section class="fb-card" id="feedbackCard"><div class="fb-head"><span>${mtIcon("feedback")}</span><div><h3>Rate &amp; suggest</h3><p>Tap the stars for each feature. Only the Administrator sees replies.</p></div></div>${FEEDBACK_FEATURES.map(([k, l]) => starRow(k, l, Number(d.ratings[k] || 0))).join("")}<label class="fb-label" for="fbSuggestion">What would you like added or improved?</label><textarea id="fbSuggestion" rows="3" maxlength="600" placeholder="e.g. Show weather for each day">${esc(d.suggestion || "")}</textarea><div class="fb-actions">${sent}<button type="button" data-fb-send>${d.sentAt ? "Update feedback" : "Send feedback"}</button></div></section>`;
     const admin = isAdmin() ? renderFeedbackSummary() : "";
-    return `<section class="help-page"><div class="view-head"><div><span class="kicker">HELP &amp; FEEDBACK</span><h2>How can we help?</h2></div></div><div class="help-search"><span>${mtIcon("help")}</span><input id="helpSearch" type="search" placeholder="Search e.g. settle, sticky, print" value="${esc(state.helpQuery || "")}" autocomplete="off"></div><div class="help-grid"><div class="faq-list">${faq}</div><div class="help-side">${form}${admin}</div></div></section>`;
+    return `<section class="help-page"><div class="view-head"><div><span class="kicker">HELP &amp; FEEDBACK</span><h2>How can we help?</h2></div><button type="button" class="help-update" data-app-update>↻ Clear cache &amp; update</button></div><p class="help-version">You are on FE v${frontendVersion}${backendVersion ? ` · BE v${esc(backendVersion)}` : ""}. If a new version doesn't show, tap Clear cache &amp; update.</p><div class="help-search"><span>${mtIcon("help")}</span><input id="helpSearch" type="search" placeholder="Search e.g. settle, sticky, print" value="${esc(state.helpQuery || "")}" autocomplete="off"></div><div class="help-grid"><div class="faq-list">${faq}</div><div class="help-side">${form}${admin}</div></div></section>`;
   }
   function renderFeedbackSummary() {
     const s = state.feedbackSummary;
@@ -1452,6 +1481,7 @@
       state.feedbackSummary = null; toast("Thanks! Your feedback was sent"); render();
     } catch (error) { toast(error.message, true); if (btn) { btn.disabled = false; btn.textContent = "Send feedback"; } }
   }
+  document.addEventListener("click", (event) => { if (event.target.closest("[data-app-update]")) clearAppCacheAndReload(); });
   document.addEventListener("click", (event) => {
     const star = event.target.closest("[data-fb-star]");
     if (star) { const [k, n] = star.dataset.fbStar.split(":"); const d = feedbackDraft(); const ta = $("#fbSuggestion"); if (ta) d.suggestion = ta.value; d.ratings[k] = Number(d.ratings[k]) === Number(n) ? 0 : Number(n); if (!d.ratings[k]) delete d.ratings[k]; render(); return; }
@@ -1592,11 +1622,195 @@
     if (e.target.closest("[data-night-toggle]")) { const c = themeChoice(); setTheme(c === "auto" ? "dark" : c === "dark" ? "light" : "auto"); toast("Night mode: " + (themeChoice() === "auto" ? "Auto (follows your device)" : themeChoice() === "dark" ? "On" : "Off")); }
   });
 
+  /* Day map — OpenStreetMap + Leaflet, loaded only when opened (v4.36.0) */
+  const planMapKey = "mytrip_plan_map_v1";
+  const geoCacheKey = "mytrip_geo_cache_v1";
+  function planMapOpen() { try { return localStorage.getItem(planMapKey) === "1"; } catch { return false; } }
+  function planMapPoints(items) {
+    return items.filter((item) => String(item.place || item.title || "").trim()).slice(0, 25);
+  }
+  function planMapSlot(items) {
+    const pts = planMapPoints(items);
+    const label = state.planDayFilter ? displayDate(state.planDayFilter, { weekday: "short", day: "numeric", month: "short" }) : "All days";
+    return `<section class="plan-map-panel"><div class="plan-map-head"><b>Map · ${esc(label)}</b><small id="planMapStatus">${pts.length ? `${pts.length} stop${pts.length > 1 ? "s" : ""}` : "Add a place to a plan to see it here"}</small></div><div id="planMap" class="plan-map"></div><small class="plan-map-credit">Map © OpenStreetMap contributors</small></section>`;
+  }
+  let leafletPromise = null;
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve(window.L);
+    if (leafletPromise) return leafletPromise;
+    leafletPromise = new Promise((resolve, reject) => {
+      const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; document.head.appendChild(css);
+      const s = document.createElement("script"); s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; s.async = true;
+      s.onload = () => resolve(window.L); s.onerror = () => { leafletPromise = null; reject(new Error("Map could not load. Check the internet connection.")); };
+      document.head.appendChild(s);
+    });
+    return leafletPromise;
+  }
+  function geoCache() { try { return JSON.parse(localStorage.getItem(geoCacheKey) || "{}"); } catch { return {}; } }
+  function saveGeoCache(cache) { try { const keys = Object.keys(cache); if (keys.length > 400) keys.slice(0, keys.length - 400).forEach((k) => delete cache[k]); localStorage.setItem(geoCacheKey, JSON.stringify(cache)); } catch {} }
+  let geoQueue = Promise.resolve();
+  function geocode(query) {
+    const key = query.toLowerCase().trim();
+    const cache = geoCache();
+    if (Object.prototype.hasOwnProperty.call(cache, key)) return Promise.resolve(cache[key]);
+    geoQueue = geoQueue.then(() => new Promise((r) => setTimeout(r, 1100))).then(async () => {
+      const c = geoCache(); if (Object.prototype.hasOwnProperty.call(c, key)) return c[key];
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=en&q=${encodeURIComponent(query)}`, { headers: { Accept: "application/json" } });
+        const list = res.ok ? await res.json() : [];
+        const hit = list && list[0] ? [Number(list[0].lat), Number(list[0].lon)] : null;
+        c[key] = hit; saveGeoCache(c); return hit;
+      } catch { return undefined; }
+    });
+    return geoQueue;
+  }
+  let planMapInstance = null; let planMapRun = 0;
+  async function initPlanMap() {
+    const el = $("#planMap"); if (!el) return;
+    const run = ++planMapRun;
+    const all = sortedPlans();
+    const items = planMapPoints(state.planDayFilter ? all.filter((i) => i.date === state.planDayFilter) : all);
+    const status = $("#planMapStatus");
+    let L;
+    try { L = await loadLeaflet(); } catch (error) { if (status) status.textContent = error.message; return; }
+    if (run !== planMapRun || !document.body.contains(el)) return;
+    if (planMapInstance) { try { planMapInstance.remove(); } catch {} }
+    const map = L.map(el, { zoomControl: true, attributionControl: false, scrollWheelZoom: false });
+    planMapInstance = map;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, subdomains: "abc" }).addTo(map);
+    const dest = String((state.data.trip && state.data.trip.destination) || "").trim();
+    const home = dest ? await geocode(dest) : null;
+    if (run !== planMapRun) return;
+    map.setView(home || [20.59, 78.96], home ? 11 : 4);
+    const layer = L.layerGroup().addTo(map); const line = [];
+    let found = 0;
+    for (let n = 0; n < items.length; n++) {
+      const item = items[n];
+      const place = String(item.place || item.title || "").trim();
+      const query = dest && !place.toLowerCase().includes(dest.toLowerCase()) ? `${place}, ${dest}` : place;
+      if (status) status.textContent = `Finding places… ${n + 1}/${items.length}`;
+      let pt = await geocode(query);
+      if (!pt && query !== place) pt = await geocode(place);
+      if (run !== planMapRun) return;
+      if (!pt) continue;
+      found++; line.push(pt);
+      const done = String(item.status || "").toLowerCase() === "done" || item.done === true || item.done === "true";
+      const icon = L.divIcon({ className: "plan-pin-wrap", html: `<span class="plan-pin${done ? " done" : ""}">${n + 1}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
+      const dirs = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(query)}`;
+      L.marker(pt, { icon }).addTo(layer).bindPopup(`<b>${esc(item.title || place)}</b><br><small>${esc([displayDate(item.date, { day: "numeric", month: "short" }), item.time].filter(Boolean).join(" · "))}</small><br><a href="${dirs}" target="_blank" rel="noopener">Directions ↗</a>`);
+    }
+    if (line.length > 1) L.polyline(line, { color: "#0F6E6A", weight: 3, opacity: .6, dashArray: "6 6" }).addTo(layer);
+    if (line.length) map.fitBounds(L.latLngBounds(line).pad(0.25), { maxZoom: 15 });
+    if (status) status.textContent = items.length ? `${found} of ${items.length} stop${items.length > 1 ? "s" : ""} on map${found < items.length ? " · add a clearer place name for the rest" : ""}` : "Add a place to a plan to see it here";
+    setTimeout(() => { try { map.invalidateSize(); } catch {} }, 120);
+  }
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("[data-plan-map]")) return;
+    try { localStorage.setItem(planMapKey, planMapOpen() ? "0" : "1"); } catch {}
+    render();
+  });
+
+  /* Spending by category (v4.37.0) */
+  const SPEND_COLORS = ["#0F6E6A", "#E0A526", "#4B3F99", "#C4553F", "#2F7FB8", "#7A8C84", "#B0548A", "#9AA1AB"];
+  function renderSpendChart(total, budget) {
+    if (!total) return "";
+    const map = new Map();
+    state.data.expenses.forEach((e) => { const k = String(e.category || "Other").trim() || "Other"; map.set(k, (map.get(k) || 0) + Number(e.amount || 0)); });
+    let cats = [...map.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    if (cats.length > 7) { const rest = cats.slice(6).reduce((s, [, v]) => s + v, 0); cats = [...cats.slice(0, 6), ["Other", rest]]; }
+    let acc = 0;
+    const stops = cats.map(([, v], i) => { const from = acc / total * 100; acc += v; return `${SPEND_COLORS[i % SPEND_COLORS.length]} ${from.toFixed(2)}% ${(acc / total * 100).toFixed(2)}%`; }).join(",");
+    const used = budget ? Math.round(total / budget * 100) : 0;
+    const legend = cats.map(([k, v], i) => `<li><i style="background:${SPEND_COLORS[i % SPEND_COLORS.length]}"></i><span>${esc(k)}</span><b>${money.format(Math.round(v))}</b><small>${Math.round(v / total * 100)}%</small></li>`).join("");
+    return `<section class="spend-chart"><div class="spend-ring" style="background:conic-gradient(${stops})"><div><b>${budget ? used + "%" : money.format(Math.round(total))}</b><small>${budget ? "OF BUDGET" : "SPENT"}</small></div></div><div class="spend-legend"><span class="kicker">WHERE THE MONEY WENT</span><ul>${legend}</ul></div></section>`;
+  }
+
+  /* Quick add: "Wed 10am backwater cruise at Poovar" (v4.37.0) */
+  function quickAddBar() {
+    return `<form class="quick-add" data-quick-add><span class="quick-add-ico">＋</span><input name="q" autocomplete="off" placeholder="Quick add: Wed 10am backwater cruise at Poovar" aria-label="Quick add a plan"><button type="submit">Add</button><small class="quick-add-hint" id="quickAddHint">Type a day, time and what. Paste several lines to add many.</small></form>`;
+  }
+  function tripDates() {
+    const t = state.data.trip; const out = [];
+    const s = new Date(`${t.startDate}T12:00:00`), e = new Date(`${t.endDate || t.startDate}T12:00:00`);
+    if (isNaN(s)) return out;
+    for (let d = new Date(s); d <= e && out.length < 120; d.setDate(d.getDate() + 1)) out.push(d.toISOString().slice(0, 10));
+    return out;
+  }
+  function parseQuickPlan(text) {
+    let s = " " + String(text || "").replace(/\s+/g, " ").trim() + " ";
+    const dates = tripDates();
+    const fallback = state.planDayFilter || dates[0] || new Date().toISOString().slice(0, 10);
+    let date = "", time = "";
+    const take = (re, fn) => { const m = s.match(re); if (m) { const v = fn(m); if (v) { s = s.replace(m[0], " "); return v; } } return ""; };
+    const iso = (d) => d.toISOString().slice(0, 10);
+    time = take(/\b(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b/i, (m) => { let h = Number(m[1]) % 12; if (/pm/i.test(m[3])) h += 12; return `${String(h).padStart(2, "0")}:${m[2] || "00"}`; })
+      || take(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/, (m) => `${m[1].padStart(2, "0")}:${m[2]}`);
+    date = take(/\b(\d{4})-(\d{2})-(\d{2})\b/, (m) => `${m[1]}-${m[2]}-${m[3]}`)
+      || take(/\bday\s*(\d{1,2})\b/i, (m) => dates[Number(m[1]) - 1] || "")
+      || take(/\b(today|tomorrow)\b/i, (m) => { const d = new Date(); if (/tomorrow/i.test(m[1])) d.setDate(d.getDate() + 1); return iso(d); })
+      || take(/\b(\d{1,2})(?:st|nd|rd|th)?[\s\/.-](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2})[a-z]*\.?(?:[\s\/.-](\d{4}|\d{2}(?![:.]\d)))?\b/i, (m) => {
+          const months = "janfebmaraprmayjunjulaugsepoctnovdec"; const mon = isNaN(m[2]) ? months.indexOf(m[2].slice(0, 3).toLowerCase()) / 3 : Number(m[2]) - 1;
+          if (mon < 0 || mon > 11) return ""; const y = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : Number((dates[0] || iso(new Date())).slice(0, 4));
+          const d = new Date(y, mon, Number(m[1]), 12); return isNaN(d) ? "" : iso(d); })
+      || take(/\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b/i, (m) => { const w = "sunmontuewedthufrisat".indexOf(m[1].slice(0, 3).toLowerCase()) / 3; return dates.find((d) => new Date(`${d}T12:00:00`).getDay() === w) || ""; });
+    s = s.replace(/\s+/g, " ").trim().replace(/^[-–·,:]+|[-–·,:]+$/g, "").trim();
+    let place = "";
+    const at = s.match(/^(.*\S)\s+(?:at|@|in)\s+(.+)$/i);
+    if (at) { s = at[1]; place = at[2]; }
+    const flight = s.match(/\b([A-Z0-9]{2})\s?(\d{2,4})\b/);
+    let category = "";
+    if (flight && /flight|pnr|dep|arr|→|->/i.test(text)) { category = "Travel"; if (!/flight/i.test(s)) s = `Flight ${flight[1]} ${flight[2]}`; }
+    const title = s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+    return { date: date || fallback, time, title, place, category };
+  }
+  async function submitQuickAdd(form) {
+    const input = form.querySelector('input[name="q"]'); const btn = form.querySelector("button");
+    const lines = String(input.value || "").split(/\n|;/).map((l) => l.trim()).filter(Boolean);
+    const plans = lines.map(parseQuickPlan).filter((p) => p.title);
+    if (!plans.length) return toast("Type what the plan is, e.g. Wed 10am backwater cruise", true);
+    btn.disabled = true; btn.textContent = "Adding…";
+    try {
+      for (const p of plans) {
+        const record = { id: uid(), date: p.date, time: p.time, title: p.title, place: p.place, notes: "", category: p.category, status: "", bookingRef: "", cost: "", sortOrder: nextPlanSortOrder(p.date), createdBy: state.currentUser };
+        if (!state.demoMode) await api("addPlan", authPayload({ record }));
+        state.data.itinerary.push(record);
+      }
+      toast(plans.length > 1 ? `${plans.length} plans added` : `Added · ${plans[0].title} on ${displayDate(plans[0].date, { weekday: "short", day: "numeric", month: "short" })}`);
+      render();
+    } catch (error) { toast(error.message, true); btn.disabled = false; btn.textContent = "Add"; }
+  }
+  document.addEventListener("submit", (event) => { const f = event.target.closest && event.target.closest("[data-quick-add]"); if (!f) return; event.preventDefault(); submitQuickAdd(f); });
+  document.addEventListener("input", (event) => {
+    const f = event.target.closest && event.target.closest("[data-quick-add]"); if (!f) return;
+    const hint = $("#quickAddHint"); if (!hint) return;
+    const v = event.target.value.trim(); if (!v) { hint.textContent = "Type a day, time and what. Paste several lines to add many."; return; }
+    const p = parseQuickPlan(v.split(/\n|;/)[0]);
+    hint.innerHTML = [`📅 ${esc(displayDate(p.date, { weekday: "short", day: "numeric", month: "short" }))}`, p.time ? `🕙 ${esc(p.time)}` : "", p.place ? `📍 ${esc(p.place)}` : "", p.title ? `<b>${esc(p.title)}</b>` : ""].filter(Boolean).map((x) => `<span>${x}</span>`).join("");
+  });
+  document.addEventListener("paste", (event) => {
+    const input = event.target; if (!input.closest || !input.closest("[data-quick-add]")) return;
+    const text = (event.clipboardData || window.clipboardData).getData("text");
+    if (text && /\n/.test(text.trim())) { event.preventDefault(); input.value = text.trim().split(/\r?\n/).filter(Boolean).join("; "); input.dispatchEvent(new Event("input", { bubbles: true })); }
+  });
+
+  let lastCrashToast = 0;
+  function reportCrash(reason) {
+    try { console.error("MyTrip:", reason); } catch {}
+    const now = Date.now(); if (now - lastCrashToast < 8000) return; lastCrashToast = now;
+    try { toast(reason && reason.message ? reason.message : String(reason || ""), true); } catch {}
+  }
+  window.addEventListener("error", (event) => { if (event && event.target && event.target !== window) return; reportCrash(event.error || event.message); });
+  window.addEventListener("unhandledrejection", (event) => { reportCrash(event.reason); });
+
   function render() {
+    try { renderInner(); } catch (error) { reportCrash(error); try { $("#view").innerHTML = `<section class="crash-card"><h2>This screen didn't open</h2><p>Nothing is lost. Tap Try again, or open another tab.</p><button type="button" onclick="location.reload()">Try again</button></section>`; } catch {} }
+  }
+  function renderInner() {
     if (!state.data) { try { hideTabbar(); } catch (error) {} return; }
     const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint, help: renderHelp };
     $("#view").innerHTML = accessNotice() + (state.tab === "overview" ? rateReminder() + weatherSlot() : "") + renderers[state.tab]();
     maybeWelcome(); if (state.tab === "overview") loadWeather();
+    if (state.tab === "itinerary" && planMapOpen()) { try { initPlanMap(); } catch (error) {} }
     try { applyLineIcons(); updateTabbar(); } catch (error) {}
     if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
     const printMenu = $(".plan-print-menu");
@@ -2470,6 +2684,19 @@
     return await saveTripOrder(ids);
   }
   /** Order + visibility controls as one bar: absolute on desktop, full-width row on mobile. */
+  function libraryCover(trip) {
+    const today = new Date(); today.setHours(12, 0, 0, 0);
+    const s = new Date(`${trip.startDate}T12:00:00`), e = new Date(`${trip.endDate || trip.startDate}T12:00:00`);
+    let chip = "";
+    if (!isNaN(s)) {
+      const d = Math.round((s - today) / 86400000);
+      chip = d > 1 ? `In ${d} days` : d === 1 ? "Tomorrow" : today <= e ? "On trip now" : "Completed";
+    }
+    const url = String(trip.photoUrl || "").trim();
+    const letter = esc(String(trip.destination || trip.name || "T").trim().charAt(0).toUpperCase());
+    return `<div class="library-cover${url ? " has-photo" : ""}">${url ? `<img src="${esc(url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : `<span class="library-cover-letter">${letter}</span>`}${chip ? `<b class="library-chip${chip === "Completed" ? " done" : chip === "On trip now" ? " live" : ""}">${chip}</b>` : ""}</div>`;
+  }
+
   function tripCardTools(trip, position, total) {
     return `<span class="trip-card-tools">${tripOrderControls(trip, position, total)}${tripVisibilityButton(trip)}</span>`;
   }
@@ -2529,7 +2756,7 @@
           const photoLimit = Number(assignment.photoLimit || 0);
           bundle.permissions = { viewItinerary: true, viewExperiences: true, viewPlaces: true, viewExpenses: assignment.canViewExpenses !== false, viewTravellers: true, printReports: true, writeStickyNotes: false, viewPhotos: true, photoUploadsEnabled: true, photoUploadLimit: photoLimit, photoUploadCount: photoCount, photoUploadRemaining: Math.max(0, photoLimit - photoCount), addPhotos: photoCount < photoLimit };
         } else bundle.permissions = { viewPhotos: true, addPhotos: true, photoUploadsEnabled: true, photoUploadCount: bundle.photos.length };
-        closeModal(); await openTrip(bundle, pin, true, traveller ? traveller.name : summary.createdBy, role, traveller ? traveller.travellerId : "", traveller ? "personal" : "admin");
+        closeModal(); await openTrip(bundle, pin, true, traveller ? traveller.name : ((summary && summary.createdBy) || state.accountUsername || "Administrator"), role, traveller ? traveller.travellerId : "", traveller ? "personal" : "admin");
       } else {
         const payload = { tripId, username: state.accountUsername, password: pin, pin, ...(traveller ? { travellerId: traveller.travellerId } : {}) };
         const cached = readCachedTrip(tripId);
@@ -2547,6 +2774,7 @@
         }
         showSkeleton();
         const bundle = await api("getTrip", payload);
+        if (!bundle || !bundle.trip) { hideSkeletonSafe(); return toast("This trip could not be opened. It may have been removed or hidden. Please pick it again from the list.", true); }
         if (bundle && bundle.trip && String(bundle.trip.tripId).trim().toUpperCase() !== String(tripId).trim().toUpperCase()) {
           return toast(`The server returned ${bundle.trip.tripId} instead of ${tripId}. Please try again.`, true);
         }
@@ -2579,7 +2807,7 @@
   function renderAllTrips(trips, administratorSecret, demoMode) {
     loadProfilePhotos();
     const items = visibleLibraryTrips(trips);
-    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="all-trips-summary"><i class="avatar-edit admin-avatar" data-photo-upload="admin" title="Change the Administrator photo">${avatarSlot({ name: state.currentUser || "Administrator", isAdmin: true })}<em>📷</em></i><span><small>ADMINISTRATOR LIBRARY</small><b>${items.length} ${items.length === 1 ? "trip" : "trips"}</b></span><span class="summary-actions"><button id="changeAdministratorLogin" class="secondary-action" type="button">⚿ Change login</button><button id="idleSignoutSetting" class="secondary-action" type="button">⏻ Auto sign-out: ${idleLabel(idleMinutes)}</button><button id="manageTravellerAccounts" class="secondary-action" type="button">♙ Traveller profiles</button>${hiddenTripsBar(trips)}<button id="resetTripOrder" class="secondary-action" type="button">↕ Reset order</button><button id="createFromTrips" type="button">＋ Create trip</button></span></div><div class="trip-library admin-library">${items.map((trip, position) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}">${tripCardTools(trip, position, items.length)}<i>⌖</i><div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button data-open-admin-trip="${esc(trip.tripId)}" type="button">Open</button><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">Edit</button><button data-assign-trip="${esc(trip.tripId)}" type="button">Travellers</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "Disable" : "Enable"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete</button></div></article>`).join("") || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip with this Administrator account.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
+    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="all-trips-summary"><i class="avatar-edit admin-avatar" data-photo-upload="admin" title="Change the Administrator photo">${avatarSlot({ name: state.currentUser || "Administrator", isAdmin: true })}<em>📷</em></i><span><small>ADMINISTRATOR LIBRARY</small><b>${items.length} ${items.length === 1 ? "trip" : "trips"}</b></span><span class="summary-actions"><button id="changeAdministratorLogin" class="secondary-action" type="button">⚿ Change login</button><button id="idleSignoutSetting" class="secondary-action" type="button">⏻ Auto sign-out: ${idleLabel(idleMinutes)}</button><button id="manageTravellerAccounts" class="secondary-action" type="button">♙ Traveller profiles</button>${hiddenTripsBar(trips)}<button id="resetTripOrder" class="secondary-action" type="button">↕ Reset order</button><button id="createFromTrips" type="button">＋ Create trip</button></span></div><div class="trip-library admin-library">${items.map((trip, position) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}">${libraryCover(trip)}${tripCardTools(trip, position, items.length)}<div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button data-open-admin-trip="${esc(trip.tripId)}" type="button">Open</button><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">Edit</button><button data-assign-trip="${esc(trip.tripId)}" type="button">Travellers</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "Disable" : "Enable"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete</button></div></article>`).join("") || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip with this Administrator account.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
     $$('[data-move-trip]').forEach((button) => button.addEventListener("click", async () => {
       button.disabled = true;
       if (await moveTripInOrder(button.dataset.moveTrip, Number(button.dataset.direction), items)) { renderAllTrips(state.libraryTrips, administratorSecret, demoMode); toast("Trip order saved for everyone"); }
@@ -3151,9 +3379,49 @@
     state.permissions.addPhotos = photoUploadsEnabled() && limit > nextCount;
   }
 
+  /* Shrink big phone photos before upload (keeps them sharp: max 2048px, JPEG ~85%). */
+  const photoOriginalMax = 15728640;
+  function keepOriginalPref(value) { try { if (typeof value === "boolean") localStorage.setItem("mytrip_photo_original", value ? "1" : "0"); return localStorage.getItem("mytrip_photo_original") !== "0"; } catch { return true; } }
+  function originalToggle() { const o = keepOriginalPref(); return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><label><input type="radio" name="photoQuality" value="original" ${o ? "checked" : ""}><span><b>Original</b><small>Full size, up to 15 MB · best for printing</small></span></label><label><input type="radio" name="photoQuality" value="smaller" ${o ? "" : "checked"}><span><b>Smaller</b><small>About 1 MB · faster, saves space</small></span></label></fieldset>`; }
+  async function preparePhoto(file, keepOriginal) {
+    keepOriginalPref(Boolean(keepOriginal));
+    const okType = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+    if (keepOriginal && okType && file.size <= photoOriginalMax) return file;
+    if (keepOriginal && okType && file.size > photoOriginalMax) toast("Photo is over 15 MB, so it was reduced slightly");
+    return shrinkPhoto(file, keepOriginal ? 4096 : 2048, keepOriginal ? 14000000 : 2800000);
+  }
+  async function shrinkPhoto(file, maxSide = 2048, maxBytes = 2800000) {
+    if (!file || !/^image\//.test(file.type || "")) return file;
+    if (file.size <= 1500000 && ["image/jpeg", "image/png", "image/webp"].includes(file.type)) return file;
+    let bitmap;
+    try { bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+    catch { try { bitmap = await createImageBitmap(file); } catch { bitmap = null; } }
+    let img = bitmap;
+    if (!img) {
+      img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => reject(new Error("This photo type can't be opened. Choose a JPEG, PNG or WebP photo.")); i.src = URL.createObjectURL(file); });
+    }
+    const w0 = img.width || img.naturalWidth, h0 = img.height || img.naturalHeight;
+    let side = maxSide, quality = 0.85, blob = null;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const scale = Math.min(1, side / Math.max(w0, h0));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(w0 * scale); canvas.height = Math.round(h0 * scale);
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+      if (blob && blob.size <= maxBytes) break;
+      if (quality > 0.7) quality -= 0.08; else side = Math.round(side * 0.8);
+    }
+    if (bitmap && bitmap.close) bitmap.close();
+    if (!blob) throw new Error("Could not prepare that photo. Try another one.");
+    const name = String(file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  }
+
   function validateGalleryPhotoFile(file) {
     if (!file) throw new Error("Choose a photo from this device.");
-    if (file.size > 3145728) throw new Error("Trip photo must be smaller than 3 MB.");
+    if (file.size > photoOriginalMax) throw new Error("This photo is too large. Try another one.");
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Choose a JPEG, PNG or WebP photo.");
   }
 
@@ -3169,14 +3437,18 @@
   function showTripGalleryPhotoEditor(photo = null) {
     if (!isAdmin() && (!state.travellerId || (photo ? !mayReplacePhoto(photo) : state.permissions.addPhotos !== true))) return toast("Photo addition or replacement is not allowed for this account", true);
     const replacing = Boolean(photo);
-    showModal(replacing ? "Replace trip photo" : "Add trip photo", `<form class="modal-form trip-gallery-photo-form" id="tripGalleryPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>${replacing ? "The new image will replace this photo without using another allowance slot." : "Upload one selected trip photo. It will be stored in Google Drive."} JPEG, PNG or WebP · maximum 3 MB.</p></div>${replacing ? `<div class="photo-preview"><img src="${esc(photo.photoUrl)}" alt="Current photo"></div>` : ""}<label>${replacing ? "Replacement photo" : "Photo from this device"}<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp" required></label><label>Caption <small>(optional)</small><input name="caption" maxlength="240" value="${esc(photo?.caption || "")}" placeholder="What should everyone remember about this photo?"></label><p class="form-help">Travellers can replace only their own photos. The Administrator can replace any photo.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">${replacing ? "Replace photo" : "Save photo"}</button></div></form>`);
+    showModal(replacing ? "Replace trip photo" : "Add trip photo", `<form class="modal-form trip-gallery-photo-form" id="tripGalleryPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>${replacing ? "The new image will replace this photo without using another allowance slot." : "Upload one selected trip photo. It will be stored in Google Drive."} JPEG, PNG or WebP · up to 15 MB.</p></div>${replacing ? `<div class="photo-preview"><img src="${esc(photo.photoUrl)}" alt="Current photo"></div>` : ""}<label>${replacing ? "Replacement photo" : "Photo from this device"}<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp" required></label>${originalToggle()}<label>Caption <small>(optional)</small><input name="caption" maxlength="240" value="${esc(photo?.caption || "")}" placeholder="What should everyone remember about this photo?"></label><p class="form-help">Travellers can replace only their own photos. The Administrator can replace any photo.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">${replacing ? "Replace photo" : "Save photo"}</button></div></form>`);
     const form = $("#tripGalleryPhotoForm");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const file = form.elements.photoFile.files[0];
+      let file = form.elements.photoFile.files[0];
       const caption = String(form.elements.caption.value || "").trim();
       const submit = form.querySelector('button[type="submit"]');
       try {
+        if (!file) throw new Error("Choose a photo from this device.");
+        submit.disabled = true; submit.textContent = "Preparing photo…";
+        file = await preparePhoto(file, (form.querySelector('input[name="photoQuality"]:checked') || {}).value !== "smaller");
+        submit.textContent = "Uploading…";
         validateGalleryPhotoFile(file);
         submit.disabled = true; submit.textContent = replacing ? "Replacing…" : "Uploading…";
         let savedPhoto;
@@ -3234,14 +3506,15 @@
   function showTripPhotoSettings() {
     if (!isAdmin()) return toast("Administrator access required to change the trip photo", true);
     const current = String(state.data.trip.photoUrl || "");
-    showModal(current ? "Change trip photo" : "Add trip photo", `<form class="modal-form" id="tripPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>Upload a JPEG, PNG or WebP photo up to 3 MB. It will be stored in your Google Drive by the MyTrip backend. You can alternatively paste a public HTTPS image link.</p></div><label>Upload from this device<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp"></label><div class="or"><span>or</span></div><label>Public photo link <small>(optional)</small><input name="photoUrl" type="url" value="${esc(current)}" placeholder="https://…"></label>${current ? `<div class="photo-preview"><img src="${esc(tripPhotoUrl(current))}" alt="Current trip photo"></div>` : ""}<div class="form-actions">${current ? `<button type="button" id="removeTripPhoto" class="danger-link">Remove photo</button>` : `<button type="button" data-cancel>Cancel</button>`}<button type="submit">Save photo</button></div></form>`);
+    showModal(current ? "Change trip photo" : "Add trip photo", `<form class="modal-form" id="tripPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>Upload any JPEG, PNG or WebP photo up to 15 MB. It will be stored in your Google Drive by the MyTrip backend. You can alternatively paste a public HTTPS image link.</p></div><label>Upload from this device<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp"></label>${originalToggle()}<div class="or"><span>or</span></div><label>Public photo link <small>(optional)</small><input name="photoUrl" type="url" value="${esc(current)}" placeholder="https://…"></label>${current ? `<div class="photo-preview"><img src="${esc(tripPhotoUrl(current))}" alt="Current trip photo"></div>` : ""}<div class="form-actions">${current ? `<button type="button" id="removeTripPhoto" class="danger-link">Remove photo</button>` : `<button type="button" data-cancel>Cancel</button>`}<button type="submit">Save photo</button></div></form>`);
     const form = $("#tripPhotoForm");
     const savePhoto = async () => {
       try {
-        const file = form.elements.photoFile.files[0];
+        let file = form.elements.photoFile.files[0];
         const photoUrl = String(form.elements.photoUrl.value || "").trim();
         if (!file && !photoUrl) return toast("Choose a photo file or enter a public photo link", true);
-        if (file && file.size > 3145728) return toast("Trip photo must be smaller than 3 MB", true);
+        if (file) { try { toast("Preparing photo…"); file = await preparePhoto(file, (form.querySelector('input[name="photoQuality"]:checked') || {}).value !== "smaller"); } catch (error) { return toast(error.message, true); } }
+        if (file && file.size > photoOriginalMax) return toast("This photo is too large. Try another one.", true);
         if (file && !["image/jpeg", "image/png", "image/webp"].includes(file.type)) return toast("Choose a JPEG, PNG or WebP photo", true);
         if (photoUrl && !/^https:\/\//i.test(photoUrl)) return toast("Trip photo link must start with https://", true);
         let savedUrl = photoUrl;
@@ -3531,12 +3804,13 @@
       .filter(([tab]) => allowed[tab] !== false).map(([tab, label]) => `<button type="button" class="mt-more-row" data-mt-go="${tab}">${mtIcon(tab)}<span>${label}</span><em>›</em></button>`).join("");
     const trips = state.travellerId && !isAdmin() ? `<button type="button" class="mt-more-row" data-mt-action="mytrips">${mtIcon("trips")}<span>My trips</span><em>›</em></button>` : (isAdmin() ? `<button type="button" class="mt-more-row" data-mt-action="alltrips">${mtIcon("trips")}<span>All trips</span><em>›</em></button>` : "");
     const size = $("#textSizeValue") ? $("#textSizeValue").textContent : "100%";
-    showModal("More", `<div class="mt-more"><div class="mt-more-group">${items}</div><div class="mt-more-label">SETTINGS</div><div class="mt-more-group">${trips}${nightModeRow()}<div class="mt-more-row mt-more-size"><span>Text size</span><div><button type="button" data-mt-action="size-down">A−</button><b>${esc(size)}</b><button type="button" data-mt-action="size-up">A+</button></div></div><button type="button" class="mt-more-row mt-more-danger" data-mt-action="logout">${mtIcon("logout")}<span>Sign out</span></button></div><p class="mt-more-meta">Trip ID ${esc((state.data && state.data.trip && state.data.trip.tripId) || "")} · FE v${frontendVersion}${typeof backendVersion !== "undefined" && backendVersion ? ` · BE v${esc(backendVersion)}` : ""}</p></div>`);
+    showModal("More", `<div class="mt-more"><div class="mt-more-group">${items}</div><div class="mt-more-label">SETTINGS</div><div class="mt-more-group">${trips}${nightModeRow()}<div class="mt-more-row mt-more-size"><span>Text size</span><div><button type="button" data-mt-action="size-down">A−</button><b>${esc(size)}</b><button type="button" data-mt-action="size-up">A+</button></div></div><button type="button" class="mt-more-row" data-mt-action="update"><span class="mt-update-ico">↻</span><span>Clear cache &amp; update</span><em>›</em></button><button type="button" class="mt-more-row mt-more-danger" data-mt-action="logout">${mtIcon("logout")}<span>Sign out</span></button></div><p class="mt-more-meta">Trip ID ${esc((state.data && state.data.trip && state.data.trip.tripId) || "")} · FE v${frontendVersion}${typeof backendVersion !== "undefined" && backendVersion ? ` · BE v${esc(backendVersion)}` : ""}</p></div>`);
     $("#modalBody").querySelectorAll("[data-mt-go]").forEach((b) => b.addEventListener("click", () => { closeModal(); setTab(b.dataset.mtGo); }));
     $("#modalBody").querySelectorAll("[data-mt-action]").forEach((b) => b.addEventListener("click", () => {
       const a = b.dataset.mtAction;
       if (a === "size-down" || a === "size-up") { const t = $(a === "size-down" ? "#textSizeDown" : "#textSizeUp"); if (t) t.click(); const v = b.parentElement.querySelector("b"); if (v && $("#textSizeValue")) v.textContent = $("#textSizeValue").textContent; return; }
       closeModal();
+      if (a === "update") { clearAppCacheAndReload(); return; }
       if (a === "logout") performLogout();
       if (a === "mytrips") showMyTrips();
       if (a === "alltrips") showAllTrips();
@@ -3565,7 +3839,6 @@
   if ($("#textSizeDown")) $("#textSizeDown").addEventListener("click", () => stepTextScale(-1));
   if ($("#textSizeUp")) $("#textSizeUp").addEventListener("click", () => stepTextScale(1));
   applyTextScale();
-  $("#clearAppCache").addEventListener("click", clearAppCacheAndReload);
   $("#closeQuickFind").addEventListener("click", closeQuickFind);
   $("#quickFindLayer").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeQuickFind(); });
   $("#quickFindInput").addEventListener("input", renderQuickFindResults);

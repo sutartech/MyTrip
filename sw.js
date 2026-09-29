@@ -1,10 +1,10 @@
 "use strict";
 
-const STATIC_CACHE = "mytrip-static-v4.35.0";
+const STATIC_CACHE = "mytrip-static-v4.38.0";
 const VERSIONED_ASSETS = [
   "./index.html",
-  "./app.css?v=4.35.0",
-  "./app.js?v=4.35.0",
+  "./app.css?v=4.38.0",
+  "./app.js?v=4.38.0",
   "./favicon.svg", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "./repair.html"
 ];
@@ -56,7 +56,7 @@ self.addEventListener("fetch", (event) => {
   }
   if (url.pathname.endsWith("/config.js")) return;
   if (/\.(?:css|js|svg|png|webp|html)$/.test(url.pathname)) {
-    const freshFirst = /\/(?:app\.js|app\.css)$/.test(url.pathname);
+    const freshFirst = /\.(?:js|css|html)$/.test(url.pathname);
     event.respondWith(staticResponse(request, freshFirst));
   }
 });
