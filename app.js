@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.39.2";
+  const frontendVersion = "4.39.3";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -241,7 +241,8 @@
     .observe(document.documentElement, { childList: true, subtree: true });
 
   /** Crops to a centred square, resizes to 256px and uploads as JPEG. */
-  function squareJpeg(file) {
+  async function squareJpeg(file) {
+    file = await snapshotFile(file);
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = () => reject(new Error("The photo could not be read."));
@@ -3384,7 +3385,33 @@
   const photoOriginalMax = 15728640;
   function keepOriginalPref(value) { try { if (typeof value === "boolean") localStorage.setItem("mytrip_photo_original", value ? "1" : "0"); return localStorage.getItem("mytrip_photo_original") !== "0"; } catch { return true; } }
   function originalToggle() { const o = keepOriginalPref(); return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><label><input type="radio" name="photoQuality" value="original" ${o ? "checked" : ""}><span><b>Original</b><small>Full size, up to 15 MB · best for printing</small></span></label><label><input type="radio" name="photoQuality" value="smaller" ${o ? "" : "checked"}><span><b>Smaller</b><small>About 1 MB · faster, saves space</small></span></label></fieldset>`; }
+  const mtFileCache = new WeakMap();
+  document.addEventListener("change", (e) => {
+    const input = e.target;
+    if (!input || input.type !== "file" || !input.files) return;
+    Array.from(input.files).forEach((f) => { if (!mtFileCache.has(f)) mtFileCache.set(f, f.arrayBuffer().then((buf) => new File([buf], f.name || "photo.jpg", { type: f.type || guessImageType(f.name), lastModified: f.lastModified })).catch(() => null)); });
+  }, true);
+  function guessImageType(name) {
+    const ext = String(name || "").split(".").pop().toLowerCase();
+    return ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", heic: "image/heic", heif: "image/heif" })[ext] || "image/jpeg";
+  }
+  async function snapshotFile(file) {
+    if (!file) return file;
+    const cached = mtFileCache.get(file);
+    if (cached) { const f = await cached; if (f && f.size) return f; }
+    try { const buf = await file.arrayBuffer(); if (buf.byteLength) return new File([buf], file.name || "photo.jpg", { type: file.type || guessImageType(file.name) }); } catch {}
+    throw new Error("Phone could not open this photo. In Gallery/Google Photos tap ⋮ → Download (save to phone), then choose it again.");
+  }
+  async function fileToBase64(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let out = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(out);
+  }
+  async function fileToDataUrl(file) { return "data:" + (file.type || "image/jpeg") + ";base64," + await fileToBase64(file); }
   async function preparePhoto(file, keepOriginal) {
+    file = await snapshotFile(file);
+    if (/image\/(heic|heif)/.test(file.type)) keepOriginal = false;
     keepOriginalPref(Boolean(keepOriginal));
     const okType = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
     if (keepOriginal && okType && file.size <= photoOriginalMax) return file;
@@ -3392,7 +3419,7 @@
     return shrinkPhoto(file, keepOriginal ? 4096 : 2048, keepOriginal ? 14000000 : 2800000);
   }
   async function shrinkPhoto(file, maxSide = 2048, maxBytes = 2800000) {
-    if (!file || !/^image\//.test(file.type || "")) return file;
+    if (!file) return file;
     if (file.size <= 1500000 && ["image/jpeg", "image/png", "image/webp"].includes(file.type)) return file;
     let bitmap;
     try { bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }); }
@@ -3426,13 +3453,9 @@
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Choose a JPEG, PNG or WebP photo.");
   }
 
-  function readPhotoFile(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({ name: file.name, type: file.type, data: String(reader.result || "").split(",")[1] || "" });
-      reader.onerror = () => reject(new Error("Could not read that photo."));
-      reader.readAsDataURL(file);
-    });
+  async function readPhotoFile(file) {
+    const f = await snapshotFile(file);
+    return { name: f.name, type: f.type || "image/jpeg", data: await fileToBase64(f) };
   }
 
   function showTripGalleryPhotoEditor(photo = null) {
@@ -3522,7 +3545,7 @@
         if (file) {
           if (state.demoMode) savedUrl = URL.createObjectURL(file);
           else {
-            const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || "")); reader.onerror = () => reject(new Error("Could not read that photo")); reader.readAsDataURL(file); });
+            const dataUrl = await fileToDataUrl(file);
             const result = await api("uploadTripPhoto", authPayload({ file: { name: file.name, type: file.type, data: dataUrl.split(",")[1] || "" } }));
             savedUrl = result.photoUrl;
           }
