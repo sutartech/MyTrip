@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.38.2";
+  const frontendVersion = "4.38.3";
   const requiredBackendVersion = "4.13.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -308,7 +308,7 @@
     setRequestProgress(1);
     try {
       const response = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action, ...payload }), signal: controller.signal });
-      if (!response.ok) throw new Error(`Google backend returned HTTP ${response.status}.${response.status === 404 ? " The saved Web App URL no longer exists — in Apps Script open Deploy → Manage deployments, copy the Web app URL, then paste it under Other setup tools → Connect backend (or into config.js)." : ""}`);
+      if (!response.ok) throw new Error(`Google backend returned HTTP ${response.status}.${response.status === 404 ? ` Link ending …${String(url).replace(/\/exec.*$/, "").slice(-6)} was not found. Open that link in Chrome: if it also says not found, redeploy in Apps Script (Deploy → Manage deployments → Edit → New version, Who has access: Anyone).` : ""}`);
       const result = await response.json();
       if (!result.ok) throw new Error(result.error || "The request could not be completed.");
       if (result.idleMinutes) applyIdleMinutes(result.idleMinutes);
