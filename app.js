@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.39.3";
+  const frontendVersion = "4.40.0";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -303,13 +303,24 @@
   }
 
   async function requestAt(url, action, payload = {}) {
+    for (let attempt = 0; ; attempt++) {
+      try { return await requestOnce(url, action, payload); }
+      catch (error) {
+        const msg = String(error && error.message || "");
+        const transient = /HTTP (404|408|429|500|502|503|504)|Failed to fetch|NetworkError|Load failed/i.test(msg);
+        if (!transient || attempt >= 2 || navigator.onLine === false) throw error;
+        await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+      }
+    }
+  }
+  async function requestOnce(url, action, payload = {}) {
     if (navigator.onLine === false) throw new Error("No internet connection. Reconnect and try again.");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
     setRequestProgress(1);
     try {
       const response = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action, ...payload }), signal: controller.signal });
-      if (!response.ok) throw new Error(`Google backend returned HTTP ${response.status}.${response.status === 404 ? ` Link ending …${String(url).replace(/\/exec.*$/, "").slice(-6)} was not found. Open that link in Chrome: if it also says not found, redeploy in Apps Script (Deploy → Manage deployments → Edit → New version, Who has access: Anyone).` : ""}`);
+      if (!response.ok) throw new Error(`Google backend returned HTTP ${response.status}.${response.status === 404 ? ` Google was busy — please try again in a moment. If it keeps happening, sign out of extra Google accounts in Chrome or reopen the dashboard.` : ""}`);
       const result = await response.json();
       if (!result.ok) throw new Error(result.error || "The request could not be completed.");
       if (result.idleMinutes) applyIdleMinutes(result.idleMinutes);
@@ -579,6 +590,24 @@
     return !assignment || String(assignment[field]).toUpperCase() !== "FALSE";
   }
   function assignmentForTraveller(travellerId) { return (state.data.assignments || []).find((item) => String(item.travellerId || "").toUpperCase() === String(travellerId || "").toUpperCase()); }
+  const thumbKey = "mytrip_thumbs_v1";
+  let thumbMem = null;
+  function tripThumbs() { if (!thumbMem) { try { thumbMem = JSON.parse(localStorage.getItem(thumbKey) || "{}") || {}; } catch { thumbMem = {}; } } return thumbMem; }
+  function setTripThumb(tripId, data) { const m = tripThumbs(); m[String(tripId).toUpperCase()] = data; try { localStorage.setItem(thumbKey, JSON.stringify(m)); } catch {} }
+  function makeCardThumb(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image(), src = URL.createObjectURL(file);
+      img.onload = () => { const w = 480, h = Math.round(480 * Math.min(1, img.naturalHeight / img.naturalWidth)); const c = document.createElement("canvas"); c.width = w; c.height = h; const sw = img.naturalWidth, sh = Math.round(sw * h / w); c.getContext("2d").drawImage(img, 0, Math.max(0, (img.naturalHeight - sh) / 2), sw, sh, 0, 0, w, h); URL.revokeObjectURL(src); let q = 0.72, out = c.toDataURL("image/jpeg", q); while (out.length > 46000 && q > 0.35) { q -= 0.1; out = c.toDataURL("image/jpeg", q); } resolve(out); };
+      img.onerror = () => { URL.revokeObjectURL(src); reject(new Error("thumb")); };
+      img.src = src;
+    });
+  }
+  async function refreshTripThumbs() {
+    if (state.demoMode || !apiUrlReady()) return;
+    try { const map = await api("getTripThumbs", {}); if (!map || typeof map !== "object") return; thumbMem = map; try { localStorage.setItem(thumbKey, JSON.stringify(map)); } catch {}
+      document.querySelectorAll("[data-cover-trip]").forEach((box) => { const t = map[box.dataset.coverTrip]; const img = box.querySelector("img"); if (t && img && img.getAttribute("src") !== t) { img.dataset.mtTry = "0"; img.src = t; } }); } catch {}
+  }
+  setTimeout(refreshTripThumbs, 1500);
   function tripPhotoUrl(value, size = 1600) {
     const url = String(value || "").trim();
     const drivePath = url.match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/i);
@@ -2696,7 +2725,8 @@
     }
     const url = String(trip.photoUrl || "").trim();
     const letter = esc(String(trip.destination || trip.name || "T").trim().charAt(0).toUpperCase());
-    return `<div class="library-cover${url ? " has-photo" : ""}">${url ? `<img src="${esc(url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : `<span class="library-cover-letter">${letter}</span>`}${chip ? `<b class="library-chip${chip === "Completed" ? " done" : chip === "On trip now" ? " live" : ""}">${chip}</b>` : ""}</div>`;
+    const thumb = url ? tripThumbs()[String(trip.tripId || "").toUpperCase()] : "";
+    return `<div class="library-cover${url ? " has-photo" : ""}" data-cover-trip="${esc(String(trip.tripId || "").toUpperCase())}">${url ? `<img src="${esc(thumb || url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-letter="${letter}">` : `<span class="library-cover-letter">${letter}</span>`}${chip ? `<b class="library-chip${chip === "Completed" ? " done" : chip === "On trip now" ? " live" : ""}">${chip}</b>` : ""}</div>`;
   }
 
   function tripCardTools(trip, position, total) {
@@ -3546,7 +3576,9 @@
           if (state.demoMode) savedUrl = URL.createObjectURL(file);
           else {
             const dataUrl = await fileToDataUrl(file);
-            const result = await api("uploadTripPhoto", authPayload({ file: { name: file.name, type: file.type, data: dataUrl.split(",")[1] || "" } }));
+            const thumb = await makeCardThumb(file).catch(() => "");
+            const result = await api("uploadTripPhoto", authPayload({ file: { name: file.name, type: file.type, data: dataUrl.split(",")[1] || "", thumb } }));
+            if (thumb) setTripThumb(state.data.trip.tripId, thumb);
             savedUrl = result.photoUrl;
           }
         } else if (!state.demoMode) await api("updateTrip", authPayload({ trip: { photoUrl } }));
@@ -4108,9 +4140,16 @@ const scan=()=>{q=0;const dark=document.documentElement.getAttribute("data-theme
 document.querySelectorAll("[data-mt-media]").forEach(e=>{if(!dark)e.removeAttribute("data-mt-media")});if(!dark)return;
 const all=document.body.querySelectorAll("*");for(const e of all){if(e.closest(".leaflet-container")&&!e.classList.contains("leaflet-container"))continue;
 let m=e.matches(MEDIA)||e.classList.contains("leaflet-container");
-if(!m){const bg=getComputedStyle(e).backgroundImage;m=!!bg&&bg.includes("url(");}
+if(!m){const bg=getComputedStyle(e).backgroundImage;m=!!bg&&bg.includes("url(")&&!e.querySelector("h1,h2,h3,h4,p,button,a,input,textarea,select,label")&&(e.textContent||"").trim().length<30;}
 if(m){if(e.parentElement&&e.parentElement.closest("[data-mt-media]"))e.removeAttribute("data-mt-media");else e.setAttribute("data-mt-media","");}
 else if(e.hasAttribute("data-mt-media"))e.removeAttribute("data-mt-media");}};
 const later=()=>{if(!q)q=requestAnimationFrame(()=>setTimeout(scan,60))};
 new MutationObserver(ms=>{if(ms.every(m=>m.type==="attributes"&&m.attributeName==="data-mt-media"))return;later()}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:["style","class","src","data-theme"]});
 document.addEventListener("DOMContentLoaded",scan);window.addEventListener("load",scan);later();})();
+
+;(()=>{const idOf=(u)=>{u=String(u||"");const m=u.match(/[?&]id=([A-Za-z0-9_-]{10,})/)||u.match(/\/file\/d\/([A-Za-z0-9_-]{10,})/)||u.match(/googleusercontent\.com\/d\/([A-Za-z0-9_-]{10,})/);return m?m[1]:"";};
+const chain=(id)=>["https://lh3.googleusercontent.com/d/"+id+"=w1600","https://drive.google.com/thumbnail?id="+id+"&sz=w1000","https://drive.usercontent.google.com/download?id="+id+"&export=view"];
+document.addEventListener("error",(e)=>{const img=e.target;if(!img||img.tagName!=="IMG")return;const id=idOf(img.dataset.mtOrig||img.src);const step=Number(img.dataset.mtTry||0);
+if(id&&step<3){if(!img.dataset.mtOrig)img.dataset.mtOrig=img.src;img.dataset.mtTry=String(step+1);img.src=chain(id)[step];return;}
+const box=img.closest(".library-cover");if(box&&!box.querySelector(".library-cover-letter")){const s=document.createElement("span");s.className="library-cover-letter";s.textContent=img.dataset.letter||"";box.classList.remove("has-photo");box.prepend(s);}
+img.style.display="none";},true);})();
