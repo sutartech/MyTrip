@@ -2241,3 +2241,22 @@ html body .all-trips-summary .summary-actions #createFromTrips{grid-column:1/-1}
 html body .all-trips-modal,html body .account-hub-shell,html body .trip-library{max-width:100%;min-width:0;box-sizing:border-box}
 html body .trip-library-card{min-width:0;max-width:100%;box-sizing:border-box}
 @media(max-width:420px){html body .all-trips-summary .summary-actions button{font-size:13px!important;padding:0 8px!important}}
+
+html body .trip-library,html body .admin-library{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))!important;grid-auto-rows:auto!important;align-items:start!important;gap:14px!important;height:auto!important;max-height:none!important;overflow:visible!important}
+html body .trip-library-card{height:auto!important;max-height:none!important;min-height:0!important;overflow:hidden!important;background:#fff!important;color:#1F2A33!important;border:1px solid #EFEDE7!important;content-visibility:visible!important;contain:none!important}
+html body .trip-library-card>*{flex:0 0 auto!important;max-height:none!important}
+html body .trip-library-card .library-cover{display:grid!important;width:100%;flex:0 0 132px!important;height:132px!important}
+html body .trip-library-card .trip-card-copy{display:flex!important;overflow:visible!important;height:auto!important}
+html body .trip-library-card .trip-card-copy h3{display:block!important;color:#1F2A33!important;opacity:1!important;line-height:1.3}
+html body .trip-library-card .trip-card-copy p{color:#3F4A56!important;font-size:13px!important;opacity:1!important}
+html body .trip-library-card .trip-code{color:var(--calm-primary)!important;font-size:11px;font-weight:800;letter-spacing:.08em}
+html body .trip-library-card .trip-card-actions{display:flex!important;visibility:visible!important;opacity:1!important}
+html body .trip-library-card .trip-card-actions button{background:#F4F2EC!important;color:#1F2A33!important;border:1px solid #E6E2D8!important}
+html body .trip-library-card .trip-card-actions [data-open-admin-trip]{background:var(--calm-primary)!important;color:#fff!important;border:0!important;font-size:15px!important}
+html body .trip-library-card .trip-card-actions .danger-link{color:#B23A2A!important}
+html body .trip-library-card .trip-card-tools button{width:34px!important;height:34px!important;min-width:0!important;border-radius:50%!important;padding:0!important;background:#fff!important;color:#1F2A33!important;border:1px solid #E6E2D8!important}
+html body .trip-library-card .trip-card-tools button:disabled{opacity:.35}
+html[data-theme=dark] body .trip-library-card{background:#1B232A!important;color:#EEF1F2!important;border-color:#2A343C!important}
+html[data-theme=dark] body .trip-library-card .trip-card-copy h3{color:#EEF1F2!important}
+html[data-theme=dark] body .trip-library-card .trip-card-copy p{color:#C5CCD2!important}
+html[data-theme=dark] body .trip-library-card .trip-card-actions button:not([data-open-admin-trip]),html[data-theme=dark] body .trip-library-card .trip-card-tools button{background:#232D35!important;color:#EEF1F2!important;border-color:#2F3A43!important}
