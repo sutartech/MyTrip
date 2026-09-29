@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.39.0";
+  const frontendVersion = "4.39.2";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -4078,4 +4078,16 @@
 
 ;(()=>{const kill=()=>setTimeout(()=>{const i=document.getElementById("pullIndicator");if(i)i.remove();},350);document.addEventListener("touchend",kill,{passive:true});document.addEventListener("touchcancel",kill,{passive:true});window.addEventListener("pageshow",kill);})();
 
-;(()=>{const sync=()=>{const d=document.documentElement.getAttribute("data-theme")==="dark";const m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=d?"only dark":"only light";document.documentElement.style.colorScheme=d?"only dark":"only light";};sync();new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});})();
+;(()=>{const sync=()=>{const d=document.documentElement.getAttribute("data-theme")==="dark";const m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only light";document.documentElement.style.colorScheme="only light";};sync();new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});})();
+
+;(()=>{const MEDIA="img,video,canvas,iframe,picture,svg image";let q=0;
+const scan=()=>{q=0;const dark=document.documentElement.getAttribute("data-theme")==="dark";
+document.querySelectorAll("[data-mt-media]").forEach(e=>{if(!dark)e.removeAttribute("data-mt-media")});if(!dark)return;
+const all=document.body.querySelectorAll("*");for(const e of all){if(e.closest(".leaflet-container")&&!e.classList.contains("leaflet-container"))continue;
+let m=e.matches(MEDIA)||e.classList.contains("leaflet-container");
+if(!m){const bg=getComputedStyle(e).backgroundImage;m=!!bg&&bg.includes("url(");}
+if(m){if(e.parentElement&&e.parentElement.closest("[data-mt-media]"))e.removeAttribute("data-mt-media");else e.setAttribute("data-mt-media","");}
+else if(e.hasAttribute("data-mt-media"))e.removeAttribute("data-mt-media");}};
+const later=()=>{if(!q)q=requestAnimationFrame(()=>setTimeout(scan,60))};
+new MutationObserver(ms=>{if(ms.every(m=>m.type==="attributes"&&m.attributeName==="data-mt-media"))return;later()}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:["style","class","src","data-theme"]});
+document.addEventListener("DOMContentLoaded",scan);window.addEventListener("load",scan);later();})();
