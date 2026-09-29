@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.38.7";
+  const frontendVersion = "4.39.0";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -130,7 +130,7 @@
     ]
   };
 
-  const state = { data: null, tab: "overview", pin: "", accountUsername: "", authenticated: false, travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "Goa, India", currentUser: "Traveller", accessRole: "traveller", permissions: {}, expenseRowEditId: "" };
+  const state = { data: null, tab: "overview", pin: "", accountUsername: "", authenticated: false, travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "", mapTripId: "", currentUser: "Traveller", accessRole: "traveller", permissions: {}, expenseRowEditId: "" };
   const stickyStoragePrefix = "mytrip_trip_stickies_v1";
   const stickyColours = ["yellow", "rose", "blue", "green", "violet"];
   const idleChoices = [5, 30, 60, 120];
@@ -1159,6 +1159,8 @@
   }
 
   function renderPlaces() {
+    const tripKey = String(state.data.trip.tripId || "");
+    if (state.mapTripId !== tripKey || !state.mapQuery) { state.mapTripId = tripKey; state.mapQuery = String(state.data.trip.destination || state.data.trip.name || "India").trim(); }
     if (!canViewPlaces()) return `<section class="feature-locked"><i>⌖</i><h2>Places & Map hidden</h2><p>The Administrator has not enabled this feature for your Traveller ID.</p></section>`;
     return `${heading("DISCOVER & SAVE", "Places and map", "Travellers can save and edit places; the administrator can also remove them.", "place")}<div class="map-search"><input id="mapQuery" value="${esc(state.mapQuery)}" aria-label="Search Google Maps"><button id="mapSearchButton">⌖ Search Google Maps</button></div><div class="places-layout"><div class="map-frame"><iframe title="Trip map" src="https://www.google.com/maps?q=${encodeURIComponent(state.mapQuery)}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div><div class="places-list">${state.data.places.map((place) => `<article class="place"><i class="place-icon">⌖</i><div><h3>${esc(place.name)}</h3><p>${esc(place.area)} · ${esc(place.category)}</p><small>${esc(place.plannedDay || "Unplanned")}</small></div><span class="row-actions"><button data-map="${esc(`${place.name}, ${place.area}`)}">Map ↗</button>${canEditRecords("Places") ? `<button class="edit-control mini" data-edit data-sheet="Places" data-id="${esc(place.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control mini" data-delete data-sheet="Places" data-id="${esc(place.id)}">×</button>` : ""}</span></article>`).join("")}</div></div>`;
   }
@@ -1524,8 +1526,7 @@
     if (!place || (trip.endDate && trip.endDate < today)) return null;
     const day = trip.startDate && trip.startDate > today ? trip.startDate : today;
     const ahead = Math.round((new Date(day) - new Date(today)) / 86400000);
-    if (ahead > 15) return null;
-    return { place, day, ahead };
+    return { place, day, ahead: Math.max(0, Math.min(ahead, 15)) };
   }
   function weatherSlot() { return weatherTarget() ? `<div id="weatherSlot" class="weather-card weather-loading" aria-live="polite"></div>` : ""; }
   async function loadWeather() {
@@ -4076,3 +4077,5 @@
 })();
 
 ;(()=>{const kill=()=>setTimeout(()=>{const i=document.getElementById("pullIndicator");if(i)i.remove();},350);document.addEventListener("touchend",kill,{passive:true});document.addEventListener("touchcancel",kill,{passive:true});window.addEventListener("pageshow",kill);})();
+
+;(()=>{const sync=()=>{const d=document.documentElement.getAttribute("data-theme")==="dark";const m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=d?"only dark":"only light";document.documentElement.style.colorScheme=d?"only dark":"only light";};sync();new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});})();
