@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.38.4";
-  const requiredBackendVersion = "4.13.0";
+  const frontendVersion = "4.38.7";
+  const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -845,7 +845,7 @@
     const balance = budget - total;
     const members = visibleTripMembers();
     const photo = tripPhotoUrl(state.data.trip.photoUrl);
-    const cover = photo ? `<section class="trip-cover"><img src="${esc(photo)}" alt="Cover photo for ${esc(state.data.trip.name)}" fetchpriority="high" decoding="async" width="1600" height="900" referrerpolicy="no-referrer" decoding="async" fetchpriority="high"><div><span>TRIP PHOTO</span><h2>${esc(state.data.trip.name)}</h2><p>${esc(state.data.trip.destination)}</p>${isAdmin() ? `<button data-trip-photo>Change photo</button>` : ""}</div></section>` : (isAdmin() ? `<section class="trip-cover trip-cover-empty"><div><span>TRIP PHOTO</span><h2>Add a memorable cover photo</h2><p>Use a public HTTPS image or Google Drive sharing link.</p><button data-trip-photo>Add photo</button></div></section>` : "");
+    const cover = photo ? `<section class="trip-cover"><img loading="lazy" decoding="async" src="${esc(photo)}" alt="Cover photo for ${esc(state.data.trip.name)}" fetchpriority="high" decoding="async" width="1600" height="900" referrerpolicy="no-referrer" decoding="async" fetchpriority="high"><div><span>TRIP PHOTO</span><h2>${esc(state.data.trip.name)}</h2><p>${esc(state.data.trip.destination)}</p>${isAdmin() ? `<button data-trip-photo>Change photo</button>` : ""}</div></section>` : (isAdmin() ? `<section class="trip-cover trip-cover-empty"><div><span>TRIP PHOTO</span><h2>Add a memorable cover photo</h2><p>Use a public HTTPS image or Google Drive sharing link.</p><button data-trip-photo>Add photo</button></div></section>` : "");
     const planQuickAction = canViewItinerary() ? `<button data-add="plan"><i>＋</i><span><b>Add plan</b><small>Itinerary</small></span></button>` : "";
     const expenseQuickAction = canViewExpenses() ? `<button data-add="expense"><i>₹</i><span><b>Add expense</b><small>Spending</small></span></button>` : "";
     const placeQuickAction = canViewPlaces() ? `<button data-add="place"><i>⌖</i><span><b>Add place</b><small>Map</small></span></button>` : "";
@@ -1593,7 +1593,7 @@
       const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
       if (!mode) { if (row && Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.4) mode = "swipe"; else if (!row && dy > 12 && Math.abs(dy) > Math.abs(dx) && document.scrollingElement.scrollTop <= 0) mode = "pull"; else if (Math.abs(dx) > 10 || Math.abs(dy) > 10) mode = "none"; }
       if (mode === "swipe") { const x = Math.max(-120, Math.min(120, dx)); row.style.transform = `translateX(${x}px)`; row.classList.toggle("swipe-done", x > 60); row.classList.toggle("swipe-delete", x < -60 && isAdmin()); }
-      if (mode === "pull") { pull = Math.min(110, dy * 0.5); if (!ind) { ind = document.createElement("div"); ind.id = "pullIndicator"; document.body.appendChild(ind); } ind.style.transform = `translate(-50%, ${pull}px)`; ind.textContent = pull > 64 ? "↻ Release to refresh" : "↓ Pull to refresh"; }
+      if (mode === "pull") { pull = Math.min(110, dy * 0.5); if (!ind) { ind = document.createElement("div"); ind.id = "pullIndicator"; document.body.appendChild(ind); } ind.classList.add("show"); ind.style.transform = `translate(-50%, ${pull}px)`; ind.textContent = pull > 64 ? "↻ Release to refresh" : "↓ Pull to refresh"; }
     }, { passive: true });
     document.addEventListener("touchend", () => {
       if (mode === "swipe" && row) {
@@ -3437,7 +3437,7 @@
   function showTripGalleryPhotoEditor(photo = null) {
     if (!isAdmin() && (!state.travellerId || (photo ? !mayReplacePhoto(photo) : state.permissions.addPhotos !== true))) return toast("Photo addition or replacement is not allowed for this account", true);
     const replacing = Boolean(photo);
-    showModal(replacing ? "Replace trip photo" : "Add trip photo", `<form class="modal-form trip-gallery-photo-form" id="tripGalleryPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>${replacing ? "The new image will replace this photo without using another allowance slot." : "Upload one selected trip photo. It will be stored in Google Drive."} JPEG, PNG or WebP · up to 15 MB.</p></div>${replacing ? `<div class="photo-preview"><img src="${esc(photo.photoUrl)}" alt="Current photo"></div>` : ""}<label>${replacing ? "Replacement photo" : "Photo from this device"}<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp" required></label>${originalToggle()}<label>Caption <small>(optional)</small><input name="caption" maxlength="240" value="${esc(photo?.caption || "")}" placeholder="What should everyone remember about this photo?"></label><p class="form-help">Travellers can replace only their own photos. The Administrator can replace any photo.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">${replacing ? "Replace photo" : "Save photo"}</button></div></form>`);
+    showModal(replacing ? "Replace trip photo" : "Add trip photo", `<form class="modal-form trip-gallery-photo-form" id="tripGalleryPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>${replacing ? "The new image will replace this photo without using another allowance slot." : "Upload one selected trip photo. It will be stored in Google Drive."} JPEG, PNG or WebP · up to 15 MB.</p></div>${replacing ? `<div class="photo-preview"><img loading="lazy" decoding="async" src="${esc(photo.photoUrl)}" alt="Current photo"></div>` : ""}<label>${replacing ? "Replacement photo" : "Photo from this device"}<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp" required></label>${originalToggle()}<label>Caption <small>(optional)</small><input name="caption" maxlength="240" value="${esc(photo?.caption || "")}" placeholder="What should everyone remember about this photo?"></label><p class="form-help">Travellers can replace only their own photos. The Administrator can replace any photo.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">${replacing ? "Replace photo" : "Save photo"}</button></div></form>`);
     const form = $("#tripGalleryPhotoForm");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -3506,7 +3506,7 @@
   function showTripPhotoSettings() {
     if (!isAdmin()) return toast("Administrator access required to change the trip photo", true);
     const current = String(state.data.trip.photoUrl || "");
-    showModal(current ? "Change trip photo" : "Add trip photo", `<form class="modal-form" id="tripPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>Upload any JPEG, PNG or WebP photo up to 15 MB. It will be stored in your Google Drive by the MyTrip backend. You can alternatively paste a public HTTPS image link.</p></div><label>Upload from this device<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp"></label>${originalToggle()}<div class="or"><span>or</span></div><label>Public photo link <small>(optional)</small><input name="photoUrl" type="url" value="${esc(current)}" placeholder="https://…"></label>${current ? `<div class="photo-preview"><img src="${esc(tripPhotoUrl(current))}" alt="Current trip photo"></div>` : ""}<div class="form-actions">${current ? `<button type="button" id="removeTripPhoto" class="danger-link">Remove photo</button>` : `<button type="button" data-cancel>Cancel</button>`}<button type="submit">Save photo</button></div></form>`);
+    showModal(current ? "Change trip photo" : "Add trip photo", `<form class="modal-form" id="tripPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>Upload any JPEG, PNG or WebP photo up to 15 MB. It will be stored in your Google Drive by the MyTrip backend. You can alternatively paste a public HTTPS image link.</p></div><label>Upload from this device<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp"></label>${originalToggle()}<div class="or"><span>or</span></div><label>Public photo link <small>(optional)</small><input name="photoUrl" type="url" value="${esc(current)}" placeholder="https://…"></label>${current ? `<div class="photo-preview"><img loading="lazy" decoding="async" src="${esc(tripPhotoUrl(current))}" alt="Current trip photo"></div>` : ""}<div class="form-actions">${current ? `<button type="button" id="removeTripPhoto" class="danger-link">Remove photo</button>` : `<button type="button" data-cancel>Cancel</button>`}<button type="submit">Save photo</button></div></form>`);
     const form = $("#tripPhotoForm");
     const savePhoto = async () => {
       try {
@@ -3693,7 +3693,7 @@
     const planSection = canViewItinerary() ? `<section class="print-plan"><h2>${esc(planTitle)}</h2><table class="print-plan-table"><colgroup>${printCols}</colgroup><thead><tr><th>Day</th><th>Time</th><th>Itinerary</th><th>Place</th><th>Remark</th><th class="print-tick">✓</th></tr></thead><tbody>${printedPlans || `<tr><td colspan="6">No itinerary items were added.</td></tr>`}</tbody></table></section>` : "";
     const experienceSection = canViewExperiences() ? `<section class="print-experiences"><h2>Trip experience notes</h2>${printedExperiences || `<p>No experience notes were added.</p>`}</section>` : "";
     const expenseSection = canViewExpenses() ? `<section class="print-expenses"><h2>Expense statement</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div><div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table class="print-expense-table"><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div><h3>Detailed expense statement</h3><table class="print-expense-table"><thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${state.data.expenses.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label)}</td><td>${esc(expense.category)}</td><td>${esc(expense.paidBy)}</td><td>${money.format(expense.amount)}</td></tr>`).join("")}</tbody></table></section>` : "";
-    $("#printArea").innerHTML = `${photo ? `<img class="print-cover-photo" src="${esc(photo)}" alt="Trip cover photo">` : ""}<header><div><span class="kicker">MYTRIP · TRIP BOOK · FRONTEND v${frontendVersion}</span><h1>${esc(state.data.trip.name)}</h1><p>${displayDate(state.data.trip.startDate)}–${displayDate(state.data.trip.endDate)}${memberText}</p></div><b>${esc(state.data.trip.tripId)}</b></header>${planSection}${experienceSection}${expenseSection}`;
+    $("#printArea").innerHTML = `${photo ? `<img loading="lazy" decoding="async" class="print-cover-photo" src="${esc(photo)}" alt="Trip cover photo">` : ""}<header><div><span class="kicker">MYTRIP · TRIP BOOK · FRONTEND v${frontendVersion}</span><h1>${esc(state.data.trip.name)}</h1><p>${displayDate(state.data.trip.startDate)}–${displayDate(state.data.trip.endDate)}${memberText}</p></div><b>${esc(state.data.trip.tripId)}</b></header>${planSection}${experienceSection}${expenseSection}`;
     printAreaDirty = false;
   }
 
@@ -4074,3 +4074,5 @@
     });
   }
 })();
+
+;(()=>{const kill=()=>setTimeout(()=>{const i=document.getElementById("pullIndicator");if(i)i.remove();},350);document.addEventListener("touchend",kill,{passive:true});document.addEventListener("touchcancel",kill,{passive:true});window.addEventListener("pageshow",kill);})();
