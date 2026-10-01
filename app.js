@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.41.0";
+  const frontendVersion = "4.42.1";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -884,7 +884,7 @@
     const notes = (typeof stickyNotes !== "undefined" ? stickyNotes : []).filter((n) => !n.completed).length;
     const chip = notes ? `<button type="button" class="mt-today-chip" data-mt-sticky>📌 ${notes} note${notes > 1 ? "s" : ""}</button>` : "";
     const adds = `${canViewExpenses() && canAdd("expense") ? `<button type="button" class="mt-today-add primary" data-mt-add="expense">＋ Expense</button>` : ""}${canViewItinerary() && canAdd("plan") ? `<button type="button" class="mt-today-add" data-mt-add="plan">＋ Plan</button>` : ""}`;
-    return `<section class="mt-today" aria-label="Today"><div class="mt-today-top"><div><span class="mt-today-kicker">${esc(displayDate(today, { weekday: "long", day: "numeric", month: "short" }))}</span><h2>Today</h2></div>${chip}</div>${adds ? `<div class="mt-today-adds">${adds}</div>` : ""}${spend}${plan}</section>`;
+    return `<section class="mt-today" aria-label="Today"><div class="mt-today-top"><div><span class="mt-today-kicker">${esc(displayDate(today, { weekday: "long", day: "numeric", month: "short" }))}</span><h2>Today</h2></div></div>${adds ? `<div class="mt-today-adds">${adds}</div>` : ""}${spend}${plan}</section>`;
   }
   document.addEventListener("click", (event) => {
     const add = event.target.closest("[data-mt-add]"); if (add) { showAddModal(add.dataset.mtAdd); return; }
@@ -1363,8 +1363,51 @@
     return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>Split equally across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · ${money.format(Math.round(plan.share))} each</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div></section>`;
   }
 
+  function mtDefaultDate() {
+    const t = new Date(), today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+    const s = String(state.data.trip.startDate || ""), e = String(state.data.trip.endDate || "");
+    return (!s || today >= s) && (!e || today <= e) ? today : (s || today);
+  }
+  function mtExpenseSheet() {
+    let last = {}; try { last = JSON.parse(localStorage.getItem("mytrip_last_expense") || "{}") || {}; } catch {}
+    const cats = ["Food", "Travel", "Local travel", "Stay", "Activities", "Shopping", "Other"];
+    const cat = cats.includes(last.category) ? last.category : "Food";
+    const payers = visibleTripMembers(); const list = payers.length ? payers : [{ name: state.currentUser }];
+    const payer = list.some((m) => m.name === last.paidBy) ? last.paidBy : (list.some((m) => m.name === state.currentUser) ? state.currentUser : list[0].name);
+    return `<form class="modal-form mt-xsheet" data-form="expense"><label class="mt-x-amount"><span>₹</span><input name="amount" type="number" inputmode="decimal" min="1" step="0.01" placeholder="0" required autofocus></label><div class="mt-x-group"><span class="mt-x-label">Category</span><div class="mt-x-chips">${cats.map((c) => `<label><input type="radio" name="category" value="${c}"${c === cat ? " checked" : ""}><span>${c}</span></label>`).join("")}</div></div><div class="mt-x-group"><span class="mt-x-label">Paid by</span><div class="mt-x-chips mt-x-payers">${list.map((m) => `<label><input type="radio" name="paidBy" value="${esc(m.name)}"${m.name === payer ? " checked" : ""}><span>${avatarSlot(m)}${esc(m.name)}</span></label>`).join("")}</div></div><label class="mt-x-field">What for? <small>(optional)</small><input name="label" placeholder="e.g. Lunch, auto, tickets" maxlength="120"></label><label class="mt-x-field">Date<input name="date" type="date" value="${esc(mtDefaultDate())}" required></label><div class="mt-x-actions"><button type="submit" class="mt-x-save">Save</button><button type="submit" class="mt-x-again" data-again>Save &amp; add another</button><button type="button" class="mt-x-cancel" data-cancel>Cancel</button></div></form>`;
+  }
+  function mtMoneyMobile() {
+    const budget = Number(state.data.trip.budget || 0), total = spent();
+    const d = (off) => { const t = new Date(); t.setDate(t.getDate() - off); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
+    const today = d(0), yday = d(1), f = state.mtExpFilter || "all";
+    const all = [...state.data.expenses].sort((x, y) => `${y.date || ""}${y.id || ""}`.localeCompare(`${x.date || ""}${x.id || ""}`));
+    const sum = (arr) => arr.reduce((s, e) => s + Number(e.amount || 0), 0);
+    const todaySum = sum(all.filter((e) => String(e.date) === today));
+    const shown = f === "today" ? all.filter((e) => String(e.date) === today) : f === "yday" ? all.filter((e) => String(e.date) === yday) : all;
+    const canEdit = canEditRecords("Expenses"), canDel = isAdmin();
+    const groups = []; shown.forEach((e) => { const k = String(e.date || ""); let g = groups[groups.length - 1]; if (!g || g.k !== k) groups.push(g = { k, items: [] }); g.items.push(e); });
+    const list = groups.map((g) => `<div class="mt-xday"><div class="mt-xday-head"><b>${g.k === today ? "Today" : g.k === yday ? "Yesterday" : esc(displayDate(g.k, { weekday: "short", day: "numeric", month: "short" }))}</b><span>${money.format(sum(g.items))}</span></div>${g.items.map((e) => `<div class="mt-xrow-wrap">${canDel ? `<button type="button" class="mt-xrow-del" data-delete-expense="${esc(e.id)}">Delete</button>` : ""}<button type="button" class="mt-xrow"${canEdit ? ` data-edit data-sheet="Expenses" data-id="${esc(e.id)}"` : ` data-view-expense="${esc(e.id)}"`}><i class="mt-xcat">${esc(String(e.category || "Other").slice(0, 1))}</i><span class="mt-xwhat"><b>${esc(e.label || e.category || "Expense")}</b><small>${avatarSlot({ name: e.paidBy || "" })}${esc(e.paidBy || "Not specified")} · ${esc(e.category || "Other")}</small></span><strong>${money.format(e.amount)}</strong></button></div>`).join("")}</div>`).join("");
+    const chips = [["today", "Today"], ["yday", "Yesterday"], ["all", "All"]].map(([k, l]) => `<button type="button" data-mt-xfilter="${k}" class="${f === k ? "on" : ""}">${l}</button>`).join("");
+    const travellerCards = expenseTotalsByTraveller().map((row) => `<article class="traveller-expense-card"><i>${avatarSlot(row)}</i><div><b>${esc(row.name)}</b><small>${row.count} ${row.count === 1 ? "payment" : "payments"}</small></div><strong>${money.format(row.total)}</strong></article>`).join("");
+    const fold = (t, s, body) => `<details class="mt-fold"><summary><span><b>${t}</b><small>${s}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>`;
+    const left = budget - total;
+    return `<section class="mt-money"><div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button>` : ""}<div class="mt-xfilters">${chips}</div><div class="mt-xlist">${list || `<p class="mt-today-empty">${f === "all" ? "No expenses yet. Tap ＋ to add the first one." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", `<div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No payments yet.</p>`}</div>`)}${fold("Settle up", "Who owes whom", renderSettleUp())}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
+  }
+  document.addEventListener("click", (event) => { const c = event.target.closest("[data-mt-xfilter]"); if (c) { state.mtExpFilter = c.dataset.mtXfilter; render(); } });
+  (() => {
+    let timer = 0, long = false;
+    document.addEventListener("pointerdown", (e) => { const p = e.target.closest("[data-mt-plus]"); if (!p) return; long = false; clearTimeout(timer); timer = setTimeout(() => { long = true; if (canViewItinerary() && canAdd("plan")) { navigator.vibrate && navigator.vibrate(15); showAddModal("plan"); } }, 520); });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((t) => document.addEventListener(t, () => clearTimeout(timer)));
+    document.addEventListener("click", (e) => { const p = e.target.closest("[data-mt-plus]"); if (!p) return; e.preventDefault(); if (long) { long = false; return; } if (canViewExpenses() && canAdd("expense")) showAddModal("expense"); else if (canViewItinerary() && canAdd("plan")) showAddModal("plan"); });
+    document.addEventListener("contextmenu", (e) => { if (e.target.closest("[data-mt-plus]")) e.preventDefault(); });
+    let sx = 0, sy = 0, row = null;
+    document.addEventListener("touchstart", (e) => { const r = e.target.closest(".mt-xrow"); document.querySelectorAll(".mt-xrow-wrap.swiped").forEach((w) => { if (!r || w !== r.parentElement) w.classList.remove("swiped"); }); if (!r || !r.parentElement.querySelector(".mt-xrow-del")) { row = null; return; } row = r; sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+    document.addEventListener("touchend", (e) => { if (!row) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy); if (dy < 30 && dx < -50) row.parentElement.classList.add("swiped"); else if (dy < 30 && dx > 40) row.parentElement.classList.remove("swiped"); row = null; }, { passive: true });
+    document.addEventListener("click", (e) => { const r = e.target.closest(".mt-xrow"); if (r && r.parentElement.classList.contains("swiped")) { e.stopPropagation(); e.preventDefault(); r.parentElement.classList.remove("swiped"); } }, true);
+  })();
   function renderExpenses() {
     if (!canViewExpenses()) return `<section class="feature-locked"><i>₹</i><h2>Expenses hidden</h2><p>The Administrator has not enabled this feature for your Traveller ID.</p></section>`;
+    if (mtIsPhone()) return mtMoneyMobile();
     const budget = Number(state.data.trip.budget || 0), total = spent();
     const travellerTotals = expenseTotalsByTraveller();
     const travellerCards = travellerTotals.map((row) => {
@@ -1877,7 +1920,7 @@
     $("#view").innerHTML = accessNotice() + (state.tab === "overview" ? rateReminder() + weatherSlot() : "") + renderers[state.tab]();
     maybeWelcome(); if (state.tab === "overview") loadWeather();
     if (state.tab === "itinerary" && planMapOpen()) { try { initPlanMap(); } catch (error) {} }
-    try { applyLineIcons(); updateTabbar(); } catch (error) {}
+    try { applyLineIcons(); } catch {} try { updateTabbar(); } catch {}
     if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
     const printMenu = $(".plan-print-menu");
     if (printMenu) printMenu.addEventListener("toggle", () => { state.printMenuOpen = printMenu.open; });
@@ -3655,7 +3698,8 @@
       showModal("Add experience note", `<form class="modal-form" data-form="experience"><div class="security-note traveller-note"><i>✍</i><p>This note will appear below the itinerary and in the printed trip book with the writer’s name.</p></div><div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(state.data.trip.startDate)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" placeholder="e.g. Padmanabhaswamy Temple"></label></div><label>Experience note<textarea name="note" rows="5" maxlength="4000" placeholder="What happened? What did you enjoy, learn or want to remember?" required></textarea></label><label>Written by<input name="writer" list="experienceWriterNames" maxlength="80" value="${esc(writer)}" placeholder="Enter the writer’s name" required><datalist id="experienceWriterNames">${writerNames.map((name) => `<option value="${esc(name)}"></option>`).join("")}</datalist></label>${actions}</form>`);
     }
     if (type === "place") showModal("Save a place", `<form class="modal-form" data-form="place"><label>Place name<input name="name" placeholder="e.g. Dudhsagar Falls" required></label><label>Area or address<input name="area" placeholder="Goa" required></label><div class="form-row"><label>Category<select name="category"><option>Beach</option><option>Food</option><option>Culture</option><option>Nature</option><option>Shopping</option><option>Stay</option></select></label><label>Plan for<select name="plannedDay"><option>Unplanned</option><option>Day 1</option><option>Day 2</option><option>Day 3</option><option>Day 4</option><option>Day 5</option></select></label></div>${actions}</form>`);
-    if (type === "expense") { const payers = visibleTripMembers(); showModal("Add an expense", `<form class="modal-form" data-form="expense"><label>What was it for?<input name="label" placeholder="e.g. Dinner at Fisherman’s Wharf" required></label><div class="form-row"><label>Amount (₹)<input name="amount" type="number" min="1" step="0.01" required></label><label>Date<input name="date" type="date" value="${esc(state.data.trip.startDate)}" required></label></div><div class="form-row"><label>Category<select name="category"><option>Food</option><option>Stay</option><option>Travel</option><option>Local travel</option><option>Activities</option><option>Shopping</option><option>Other</option></select></label><label>Paid by<select name="paidBy">${(payers.length ? payers : [{ name: state.currentUser }]).map((member) => `<option>${esc(member.name)}</option>`).join("")}</select></label></div>${actions}</form>`); }
+    if (type === "expense" && mtIsPhone()) { showModal("Add expense", mtExpenseSheet()); }
+    else if (type === "expense") { const payers = visibleTripMembers(); showModal("Add an expense", `<form class="modal-form" data-form="expense"><label>What was it for?<input name="label" placeholder="e.g. Dinner at Fisherman’s Wharf" required></label><div class="form-row"><label>Amount (₹)<input name="amount" type="number" min="1" step="0.01" required></label><label>Date<input name="date" type="date" value="${esc(mtDefaultDate())}" required></label></div><div class="form-row"><label>Category<select name="category"><option>Food</option><option>Stay</option><option>Travel</option><option>Local travel</option><option>Activities</option><option>Shopping</option><option>Other</option></select></label><label>Paid by<select name="paidBy">${(payers.length ? payers : [{ name: state.currentUser }]).map((member) => `<option>${esc(member.name)}</option>`).join("")}</select></label></div>${actions}</form>`); }
     if (type === "traveller") showModal("Add a traveller", `<form class="modal-form" data-form="member"><label>Name<input name="name" placeholder="Traveller’s name" required></label><label>Access role<select name="role"><option>Editor</option><option>Viewer</option></select></label>${actions}</form>`);
     const form = $('[data-form]'); if (form) form.addEventListener("submit", saveForm); const cancel = $('[data-cancel]'); if (cancel) cancel.addEventListener("click", closeModal);
   }
@@ -3664,13 +3708,15 @@
     event.preventDefault();
     const form = event.currentTarget, type = form.dataset.form, values = Object.fromEntries(new FormData(form).entries());
     if (!canAdd(type)) return toast("Global Administrator access required for this action", true);
-    const record = { id: uid(), ...values }; if (type === "expense") record.amount = Number(record.amount);
+    const record = { id: uid(), ...values }; if (type === "expense") { record.amount = Number(record.amount); if (!String(record.label || "").trim()) record.label = record.category || "Expense"; }
+    const again = type === "expense" && event.submitter && event.submitter.hasAttribute("data-again");
     if (type === "plan") { record.cost = Number(record.cost) > 0 ? Number(record.cost) : ""; record.sortOrder = nextPlanSortOrder(record.date); }
     record.createdBy = type === "experience" ? values.writer : state.currentUser;
     const collection = { plan: "itinerary", place: "places", expense: "expenses", experience: "experiences", member: "members" }[type];
     try {
       if (!state.demoMode) await api(`add${type[0].toUpperCase()}${type.slice(1)}`, authPayload({ record }));
-      state.data[collection].push(record); closeModal(); render(); hydrateShell(); updatePrintArea(); toast(type === "experience" ? `Experience note saved · Written by ${values.writer}` : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`);
+      state.data[collection].push(record); closeModal(); render(); hydrateShell(); updatePrintArea(); if (type === "expense") { try { localStorage.setItem("mytrip_last_expense", JSON.stringify({ paidBy: record.paidBy, category: record.category })); } catch {} if (again) setTimeout(() => showAddModal("expense"), 60); }
+      toast(type === "experience" ? `Experience note saved · Written by ${values.writer}` : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`);
     } catch (error) { toast(error.message, true); }
   }
 
@@ -3870,8 +3916,8 @@
   };
   function mtIcon(name) { return `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${mtIcons[name] || ""}</svg>`; }
   function applyLineIcons() {
-    $("#mainNav [data-tab]").forEach((button) => { const i = button.querySelector("i"); if (i && !i.dataset.lined) { i.innerHTML = mtIcon(button.dataset.tab); i.dataset.lined = "1"; i.classList.add("mt-line-icon"); } });
-    $("#mtTabbar [data-icon]").forEach((i) => { if (!i.dataset.lined) { i.innerHTML = mtIcon(i.dataset.icon); i.dataset.lined = "1"; } });
+    $$("#mainNav [data-tab]").forEach((button) => { const i = button.querySelector("i"); if (i && !i.dataset.lined) { i.innerHTML = mtIcon(button.dataset.tab); i.dataset.lined = "1"; i.classList.add("mt-line-icon"); } });
+    $$("#mtTabbar [data-icon]").forEach((i) => { if (!i.dataset.lined) { i.innerHTML = mtIcon(i.dataset.icon); i.dataset.lined = "1"; } });
   }
   const mtAllowed = () => ({ itinerary: canViewItinerary(), experiences: canViewExperiences(), photos: true, places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() });
   function hideTabbar() { const bar = $("#mtTabbar"), fab = $("#mtFab"); if (bar) bar.hidden = true; if (fab) fab.hidden = true; document.body.classList.remove("mt-has-tabbar"); }
@@ -3884,6 +3930,7 @@
     const sidePhotos = $('#mainNav [data-tab="photos"]'); if (sidePhotos) allowed.photos = !sidePhotos.hidden && getComputedStyle(sidePhotos).display !== "none";
     const addType = state.tab === "expenses" ? (allowed.expenses ? "expense" : "") : state.tab === "places" ? (allowed.places ? "place" : "") : state.tab === "experiences" ? (allowed.experiences ? "experience" : "") : (state.tab === "overview" || state.tab === "itinerary") && allowed.itinerary ? "plan" : "";
     fab.dataset.add = addType; fab.hidden = !addType || !state.data;
+    const plus = bar.querySelector("[data-mt-plus]"); if (plus) plus.hidden = !((allowed.expenses && canAdd("expense")) || (allowed.itinerary && canAdd("plan")));
     bar.hidden = !state.data;
     document.body.classList.toggle("mt-has-tabbar", Boolean(state.data));
     const inMore = ["experiences", "photos", "places", "people", "print"].includes(state.tab);
