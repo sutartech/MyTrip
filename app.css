@@ -2284,3 +2284,51 @@ html[data-theme="dark"] body .leaflet-container img{filter:none!important}
 
 html[data-theme="dark"] body [data-mt-media]{filter:invert(1) hue-rotate(180deg)!important;-webkit-filter:invert(1) hue-rotate(180deg)!important}
 html[data-theme="dark"] body [data-mt-media] [data-mt-media],html[data-theme="dark"] body [data-mt-media] :is(img,video,canvas,iframe){filter:none!important;-webkit-filter:none!important}
+
+/* ---- 4.41 mobile Today ---- */
+.mt-today{display:grid;gap:12px;margin:0 0 14px}
+.mt-today-top{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.mt-today-kicker{font-size:12px;font-weight:800;letter-spacing:.08em;color:var(--calm-primary,#0F766E);text-transform:uppercase}
+.mt-today h2{margin:2px 0 0;font-size:28px;line-height:1.1;color:#1F2A33}
+.mt-today-chip{border:1px solid #F1D9A6;background:#FFF6E2;color:#6B4A08;border-radius:999px;padding:8px 14px;font-weight:700;font-size:14px;min-height:40px}
+.mt-today-adds{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:10px}
+.mt-today-add{min-height:52px;border-radius:16px;border:1px solid #E6E2D8;background:#fff;color:#1F2A33;font-size:16px;font-weight:800}
+.mt-today-add.primary{background:var(--calm-primary,#0F766E);border-color:transparent;color:#fff}
+.mt-today-add:active{transform:scale(.98)}
+.mt-today-spend{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 10px;text-align:left;width:100%;border:1px solid #EFEDE7;background:#fff;border-radius:18px;padding:14px 16px;color:#1F2A33}
+.mt-today-spend span{grid-column:1/-1;font-size:11px;font-weight:800;letter-spacing:.08em;color:#5B6670}
+.mt-today-spend b{font-size:26px;line-height:1.1}
+.mt-today-spend small{color:#5B6670;font-size:13px;justify-self:end}
+.mt-today-plan{border:1px solid #EFEDE7;background:#fff;border-radius:18px;padding:12px 12px 6px}
+.mt-today-head{display:flex;justify-content:space-between;align-items:center;padding:0 4px 6px}
+.mt-today-head span{font-size:11px;font-weight:800;letter-spacing:.08em;color:#5B6670}
+.mt-today-head button{border:0;background:none;color:var(--calm-primary,#0F766E);font-weight:800;font-size:14px;min-height:36px;padding:0 4px}
+.mt-today-row{display:grid;grid-template-columns:auto 64px minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 4px;border-top:1px solid #F3F1EC;transition:opacity .18s,transform .18s}
+.mt-today-row:first-of-type{border-top:0}
+.mt-today-row.leaving{opacity:0;transform:translateX(24px)}
+.mt-today-row.is-next{background:#F1F8F6;border-radius:12px;border-top-color:transparent}
+.mt-today-tick{width:36px;height:36px;border-radius:50%;border:2px solid #CFD8D6;background:#fff;color:transparent;font-weight:900;font-size:16px;padding:0}
+.mt-today-tick:active{background:var(--calm-primary,#0F766E);color:#fff;border-color:transparent}
+.mt-today-time{font-size:13px;font-weight:800;color:#3F4A56}
+.mt-today-what{display:grid;min-width:0}
+.mt-today-what b{font-size:15px;color:#1F2A33;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mt-today-what small{font-size:12px;color:#5B6670;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mt-today-row em{font-style:normal;font-size:10px;font-weight:900;letter-spacing:.08em;color:#fff;background:var(--calm-primary,#0F766E);border-radius:999px;padding:3px 8px}
+.mt-today-empty,.mt-today-meta{margin:6px 4px 8px;color:#5B6670;font-size:14px}
+.mt-fold{border:1px solid #EFEDE7;background:#fff;border-radius:18px;margin:0 0 10px;overflow:hidden}
+.mt-fold>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;min-height:56px;cursor:pointer}
+.mt-fold>summary::-webkit-details-marker{display:none}
+.mt-fold>summary span{display:grid}
+.mt-fold>summary b{font-size:16px;color:#1F2A33}
+.mt-fold>summary small{font-size:12px;color:#5B6670}
+.mt-fold>summary i{font-style:normal;font-size:18px;color:#5B6670;transition:transform .2s}
+.mt-fold[open]>summary i{transform:rotate(180deg)}
+.mt-fold-body{padding:0 10px 12px;display:grid;gap:12px}
+.mt-fold-body>section,.mt-fold-body .panel{margin:0!important}
+html[data-theme=dark] .mt-today h2,html[data-theme=dark] .mt-today-what b,html[data-theme=dark] .mt-fold>summary b,html[data-theme=dark] .mt-today-spend{color:#EEF1F2}
+html[data-theme=dark] .mt-today-spend,html[data-theme=dark] .mt-today-plan,html[data-theme=dark] .mt-fold,html[data-theme=dark] .mt-today-add:not(.primary),html[data-theme=dark] .mt-today-tick{background:#1B232A;border-color:#2A343C;color:#EEF1F2}
+html[data-theme=dark] .mt-today-row{border-top-color:#26313A}
+html[data-theme=dark] .mt-today-row.is-next{background:#1E3330}
+html[data-theme=dark] .mt-today-time{color:#C5CCD2}
+html[data-theme=dark] .mt-today-what small,html[data-theme=dark] .mt-today-spend span,html[data-theme=dark] .mt-today-spend small,html[data-theme=dark] .mt-today-head span,html[data-theme=dark] .mt-fold>summary small,html[data-theme=dark] .mt-today-empty,html[data-theme=dark] .mt-today-meta{color:#A9B3BB}
+html[data-theme=dark] .mt-today-chip{background:#3A2F17;border-color:#5A4720;color:#F6E2B5}

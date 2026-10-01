@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.40.0";
+  const frontendVersion = "4.41.0";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -865,6 +865,34 @@
     return `<section class="journey-stage active"><div class="journey-stage-hero"><div><span class="journey-stage-kicker">◆ DAY ${tripDay} OF ${totalDays}</span><h2>Today’s Journey</h2><p><b>${displayDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b> · ${destination}</p></div><span class="journey-stage-badge">LIVE TODAY</span></div><div class="journey-live-grid"><div class="journey-main"><header><div><small>${next ? `UP NEXT${next.time ? ` · ${journeyCountdown(itineraryTimeMinutes(next.time) - nowMinutes)}` : ""}` : (todayItems.length ? "TODAY’S PLAN" : "OPEN DAY")}</small><h3>${next ? esc(next.title || "Next plan") : (todayItems.length ? "Today’s scheduled plans are complete" : "No itinerary planned for today")}</h3><p>${next ? `${next.time ? `${esc(displayTime(next.time))} · ` : ""}${next.place ? `⌖ ${esc(next.place)}` : "Location not added"}` : "Use this free time for a spontaneous discovery or add a plan."}</p></div>${next && next.place ? `<a class="journey-navigate" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(next.place)}" target="_blank" rel="noreferrer">⌖ Navigate</a>` : ""}</header><div class="journey-plan-list">${journeyList || `<div class="journey-empty"><i>☀</i><b>Make today memorable</b><span>Add a plan, visit a saved place, or record an experience.</span></div>`}</div></div><aside class="journey-side">${canViewExpenses() ? `<article class="journey-metric"><small>TODAY’S SPENDING</small><strong>${money.format(todaySpent)}</strong><span>${todayExpenses.length} ${todayExpenses.length === 1 ? "payment" : "payments"} recorded</span></article>` : ""}${reminderCard}</aside></div></section>`;
   }
 
+  function mtIsPhone() { return window.matchMedia("(max-width: 760px)").matches; }
+  function mtTodayBlock(today, sorted) {
+    const nowHM = new Date().toTimeString().slice(0, 5);
+    const todays = sorted.filter((item) => String(item.date || "") === today);
+    const open = todays.filter((item) => String(item.status || "") !== "Done");
+    const nextIdx = open.findIndex((item) => !item.time || String(item.time) >= nowHM);
+    const list = (nextIdx > 0 ? open.slice(nextIdx - 1) : open).slice(0, 3);
+    const doneCount = todays.length - open.length;
+    const canEdit = canViewItinerary() && (isAdmin() || canAdd("plan"));
+    const rows = list.map((item, k) => {
+      const tag = nextIdx >= 0 && item === open[nextIdx] ? "NEXT" : (nextIdx > 0 && k === 0 ? "NOW" : "");
+      return `<div class="mt-today-row${tag === "NEXT" ? " is-next" : ""}">${canEdit ? `<button type="button" class="mt-today-tick" data-mt-done="${esc(item.id)}" aria-label="Mark done">✓</button>` : ""}<span class="mt-today-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="mt-today-what"><b>${esc(item.title)}</b>${item.place ? `<small>${esc(item.place)}</small>` : ""}</span>${tag ? `<em>${tag}</em>` : ""}</div>`;
+    }).join("");
+    const plan = canViewItinerary() ? `<div class="mt-today-plan"><div class="mt-today-head"><span>TODAY'S PLAN</span><button type="button" data-go="itinerary">All →</button></div>${rows || `<p class="mt-today-empty">${todays.length ? "All done for today ✓" : "Nothing planned today"}</p>`}${doneCount ? `<p class="mt-today-meta">${doneCount} of ${todays.length} done</p>` : ""}</div>` : "";
+    const spendToday = state.data.expenses.filter((e) => String(e.date || "") === today).reduce((s, e) => s + Number(e.amount || 0), 0);
+    const spend = canViewExpenses() ? `<button type="button" class="mt-today-spend" data-go="expenses"><span>SPENT TODAY</span><b>${money.format(spendToday)}</b><small>Trip total ${money.format(spent())}</small></button>` : "";
+    const notes = (typeof stickyNotes !== "undefined" ? stickyNotes : []).filter((n) => !n.completed).length;
+    const chip = notes ? `<button type="button" class="mt-today-chip" data-mt-sticky>📌 ${notes} note${notes > 1 ? "s" : ""}</button>` : "";
+    const adds = `${canViewExpenses() && canAdd("expense") ? `<button type="button" class="mt-today-add primary" data-mt-add="expense">＋ Expense</button>` : ""}${canViewItinerary() && canAdd("plan") ? `<button type="button" class="mt-today-add" data-mt-add="plan">＋ Plan</button>` : ""}`;
+    return `<section class="mt-today" aria-label="Today"><div class="mt-today-top"><div><span class="mt-today-kicker">${esc(displayDate(today, { weekday: "long", day: "numeric", month: "short" }))}</span><h2>Today</h2></div>${chip}</div>${adds ? `<div class="mt-today-adds">${adds}</div>` : ""}${spend}${plan}</section>`;
+  }
+  document.addEventListener("click", (event) => {
+    const add = event.target.closest("[data-mt-add]"); if (add) { showAddModal(add.dataset.mtAdd); return; }
+    const done = event.target.closest("[data-mt-done]"); if (done) { done.disabled = true; done.closest(".mt-today-row")?.classList.add("leaving"); setTimeout(() => togglePlanDone(done.dataset.mtDone), 180); return; }
+    if (event.target.closest("[data-mt-sticky]") && typeof openStickyPanel === "function") openStickyPanel();
+  });
+  let mtPhoneWas = mtIsPhone();
+  addEventListener("resize", () => { const p = mtIsPhone(); if (p !== mtPhoneWas) { mtPhoneWas = p; if (state.data && state.tab === "overview") render(); } });
   function renderOverview() {
     const budget = Number(state.data.trip.budget || 0), total = spent(), percent = budget ? Math.min(100, Math.round(total / budget * 100)) : 0;
     const today = localDateKey();
@@ -889,7 +917,14 @@
     const itineraryPanelTitle = stage === "completed" ? ["JOURNEY ARCHIVE", "Latest itinerary"] : (stage === "active" ? ["REST OF THE TRIP", "Coming up next"] : ["WHAT’S NEXT", "Upcoming itinerary"]);
     const itineraryPanel = canViewItinerary() ? `<article class="panel itinerary-overview">${panelHead(itineraryPanelTitle[0], itineraryPanelTitle[1], "itinerary")}<div class="timeline">${upcoming.map((item) => `<div class="timeline-row"><span class="date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b></span><time>${displayTime(item.time)}</time><span><h3>${esc(item.title)}</h3><p>⌖ ${esc(item.place)}</p></span><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">Map ↗</a></div>`).join("") || `<p class="empty-overview">${stage === "completed" ? "No itinerary was recorded for this trip." : "No future plans added yet."}</p>`}</div></article>` : `<article class="panel feature-access-summary"><span class="kicker">YOUR ACCESS</span><h2>Trip overview</h2><p>The Administrator has selected which trip sections are available to this Traveller ID. Use the visible menu items to continue.</p></article>`;
     const expensePanels = canViewExpenses() ? `<div class="overview-side"><article class="panel spending-panel">${panelHead("TRIP EXPENSES", "Spending summary", "expenses")}<div class="spending-summary"><div class="donut" style="background:conic-gradient(var(--coral) ${percent}%,#e9edef 0)"><b>${percent}%</b></div><div class="spending-total"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? `${Math.round(total / budget * 100)}% of the trip budget used` : "No budget set"}</span></div></div><div class="spending-breakdown"><span><small>TRIP BUDGET</small><b>${money.format(budget)}</b></span><span class="${balance < 0 ? "over-budget" : ""}"><small>${balance < 0 ? "OVER BUDGET" : "BALANCE LEFT"}</small><b>${money.format(Math.abs(balance))}</b></span></div><div class="progress" aria-label="${percent}% of budget used"><i style="width:${percent}%"></i></div></article><article class="panel recent-expenses-panel">${panelHead("LATEST PAYMENTS", "Recent spending", "expenses")}<div>${recentExpenses.map((expense) => `<div class="expense-mini overview-expense"><i>₹</i><span><b>${esc(expense.label)}</b><small>${esc(expense.category || "Expense")} · ${displayDate(expense.date, { day: "numeric", month: "short" })} · Paid by ${esc(expense.paidBy)}</small></span><strong>${money.format(expense.amount)}</strong></div>`).join("") || `<p class="empty-overview">No expenses recorded yet.</p>`}</div></article></div>` : "";
-    return `${renderJourneyStage(today)}<section class="quick-actions overview-primary-actions" aria-label="Quick actions">${planQuickAction}${expenseQuickAction}${placeQuickAction}${peopleQuickAction}${experienceQuickAction}${printQuickAction}</section>${cover}<section class="stats"><article class="stat"><i>◫</i><div><small>TRIP LENGTH</small><strong>${nights()} nights</strong><span>${displayDate(state.data.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(state.data.trip.endDate, { day: "numeric", month: "short" })}</span></div></article>${expenseStat}${placeStat}${peopleStat}${notesStat}</section><section class="main-grid overview-grid ${canViewExpenses() ? "" : "no-expenses"}">${itineraryPanel}${expensePanels}</section>`;
+    const statsHtml = `<section class="stats"><article class="stat"><i>◫</i><div><small>TRIP LENGTH</small><strong>${nights()} nights</strong><span>${displayDate(state.data.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(state.data.trip.endDate, { day: "numeric", month: "short" })}</span></div></article>${expenseStat}${placeStat}${peopleStat}${notesStat}</section>`;
+    const gridHtml = `<section class="main-grid overview-grid ${canViewExpenses() ? "" : "no-expenses"}">${itineraryPanel}${expensePanels}</section>`;
+    const quick = `<section class="quick-actions overview-primary-actions" aria-label="Quick actions">${planQuickAction}${expenseQuickAction}${placeQuickAction}${peopleQuickAction}${experienceQuickAction}${printQuickAction}</section>`;
+    if (mtIsPhone() && stage === "active") {
+      const fold = (title, sub, body, open) => body ? `<details class="mt-fold"${open ? " open" : ""}><summary><span><b>${title}</b><small>${sub}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>` : "";
+      return `${mtTodayBlock(today, sortedItinerary)}${fold("Trip status", "Journey, weather & reminders", renderJourneyStage(today))}${fold("Spending & next plans", "Budget, recent payments, coming up", gridHtml)}${fold("Trip photo & stats", "Cover, length, places, members", cover + statsHtml)}${fold("More shortcuts", "Places, journal, print", quick)}`;
+    }
+    return `${renderJourneyStage(today)}${quick}${cover}${statsHtml}${gridHtml}`;
   }
 
   /* ---- drag-resizable itinerary columns ---- */
