@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.42.1";
+  const frontendVersion = "4.43.1";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -1036,6 +1036,25 @@
     if (!rule) { rule = document.createElement("style"); rule.id = "printLayoutRule"; document.head.appendChild(rule); }
     rule.textContent = `@page { size: A4 ${printPlanLayout()}; margin: 12mm; }`;
   }
+  function showExpensePrintSheet() {
+    const people = [...new Set([...visibleTripMembers().map((m) => m.name), ...state.data.expenses.map((e) => e.paidBy).filter(Boolean)])];
+    const who = state.printPerson || "";
+    const chip = (v, l) => `<button type="button" data-xp-person="${esc(v)}" class="${who === v ? "on" : ""}">${l}</button>`;
+    const seg = (attr, list, cur) => list.map(([v, l]) => `<button type="button" ${attr}="${v}" class="${cur === v ? "on" : ""}">${l}</button>`).join("");
+    showModal("Print expenses", `<div class="xp-sheet"><div class="xp-group"><span class="xp-label">Whose expenses</span><div class="xp-chips">${chip("", "Everyone")}${chip("__each", "Person-wise (each separately)")}${people.map((n) => chip(n, esc(n))).join("")}</div></div><div class="xp-line"><span>Text size</span><span class="xp-step"><button type="button" data-xp-size="-1" aria-label="Smaller">−</button><b>${printPlanScale()}pt</b><button type="button" data-xp-size="1" aria-label="Larger">＋</button></span></div><div class="xp-line"><span>Wrap long text</span><button type="button" class="xp-switch${printPlanWrap() ? " on" : ""}" data-xp-wrap>${printPlanWrap() ? "On" : "Off"}</button></div><div class="xp-line"><span>Page layout</span><span class="xp-seg">${seg("data-xp-layout", [["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]], printPlanLayout())}</span></div><div class="xp-line"><span>Alignment</span><span class="xp-seg">${seg("data-xp-align", [["left", "Left"], ["center", "Centre"], ["right", "Right"]], printPlanAlign())}</span></div><div class="xp-actions"><button type="button" class="primary" data-print="expenses" data-xp-go>▤ Print</button><button type="button" data-cancel>Cancel</button></div></div>`);
+  }
+  document.addEventListener("click", (e) => {
+    const go = e.target.closest("[data-xp-go]"); if (go) { e.preventDefault(); e.stopPropagation(); closeModal(); setTimeout(() => printReport("expenses"), 80); return; }
+    if (e.target.closest(".xp-sheet [data-cancel]")) { e.preventDefault(); e.stopPropagation(); closeModal(); return; }
+    const t = e.target.closest("[data-xp-person],[data-xp-size],[data-xp-wrap],[data-xp-layout],[data-xp-align]"); if (!t) return;
+    e.preventDefault(); e.stopPropagation(); const set = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+    if (t.hasAttribute("data-xp-person")) state.printPerson = t.dataset.xpPerson;
+    else if (t.dataset.xpSize) set(printWidthKey, String(Math.min(13, Math.max(7, printPlanScale() + Number(t.dataset.xpSize)))));
+    else if (t.hasAttribute("data-xp-wrap")) set(printWrapKey, printPlanWrap() ? "off" : "on");
+    else if (t.dataset.xpLayout) set(printLayoutKey, t.dataset.xpLayout);
+    else if (t.dataset.xpAlign) set(printAlignKey, t.dataset.xpAlign);
+    applyPrintPlanSettings(); printAreaDirty = true; showExpensePrintSheet();
+  }, true);
   function stepPrintWidth(direction) {
     const next = Math.min(13, Math.max(7, printPlanScale() + direction));
     try { localStorage.setItem(printWidthKey, String(next)); } catch {}
@@ -1931,7 +1950,8 @@
     if (!button || !$("#view").contains(button)) return;
     if (button.dataset.go) return setTab(button.dataset.go);
     if (button.dataset.add) return showAddModal(button.dataset.add);
-    if (button.dataset.print) return printReport(button.dataset.print);
+    if (button.dataset.print === "expenses" && !button.hasAttribute("data-xp-go")) return showExpensePrintSheet();
+    if (button.dataset.print) { if (button.hasAttribute("data-xp-go")) closeModal(); return printReport(button.dataset.print); }
     if (button.dataset.map) return openMap(button.dataset.map);
     if (button.hasAttribute("data-invite")) return showInvite();
     if (button.hasAttribute("data-all-trips")) return showAllTrips();
@@ -3829,7 +3849,12 @@
     const planTitle = state.printDay ? `Itinerary · ${displayDate(state.printDay, { weekday: "long", day: "numeric", month: "long" })}` : "Itinerary";
     const planSection = canViewItinerary() ? `<section class="print-plan"><h2>${esc(planTitle)}</h2><table class="print-plan-table"><colgroup>${printCols}</colgroup><thead><tr><th>Day</th><th>Time</th><th>Itinerary</th><th>Place</th><th>Remark</th><th class="print-tick">✓</th></tr></thead><tbody>${printedPlans || `<tr><td colspan="6">No itinerary items were added.</td></tr>`}</tbody></table></section>` : "";
     const experienceSection = canViewExperiences() ? `<section class="print-experiences"><h2>Trip experience notes</h2>${printedExperiences || `<p>No experience notes were added.</p>`}</section>` : "";
-    const expenseSection = canViewExpenses() ? `<section class="print-expenses"><h2>Expense statement</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div><div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table class="print-expense-table"><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div><h3>Detailed expense statement</h3><table class="print-expense-table"><thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${state.data.expenses.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label)}</td><td>${esc(expense.category)}</td><td>${esc(expense.paidBy)}</td><td>${money.format(expense.amount)}</td></tr>`).join("")}</tbody></table></section>` : "";
+    const xpWho = state.printPerson || "";
+    const xpSorted = [...state.data.expenses].sort((x, y) => `${x.date || ""}`.localeCompare(`${y.date || ""}`));
+    const xpTable = (rows, showPayer = true) => `<table class="print-expense-table"><thead><tr><th>Date</th><th>Expense</th><th>Category</th>${showPayer ? "<th>Paid by</th>" : ""}<th>Amount</th></tr></thead><tbody>${rows.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label || expense.category || "")}</td><td>${esc(expense.category || "")}</td>${showPayer ? `<td>${esc(expense.paidBy || "")}</td>` : ""}<td>${money.format(expense.amount)}</td></tr>`).join("") || `<tr><td colspan="${showPayer ? 5 : 4}">No expenses recorded.</td></tr>`}</tbody><tfoot><tr><td colspan="${showPayer ? 4 : 3}"><b>Total</b></td><td><b>${money.format(rows.reduce((s, e) => s + Number(e.amount || 0), 0))}</b></td></tr></tfoot></table>`;
+    const xpPeople = () => [...new Set([...visibleTripMembers().map((m) => m.name), ...xpSorted.map((e) => e.paidBy || "Not specified")])].filter((n) => xpSorted.some((e) => (e.paidBy || "Not specified") === n));
+    const xpDetail = () => xpWho === "__each" ? xpPeople().map((n) => `<div class="print-person-block"><h3>${esc(n)} · paid ${money.format(xpSorted.filter((e) => (e.paidBy || "Not specified") === n).reduce((s, e) => s + Number(e.amount || 0), 0))}</h3>${xpTable(xpSorted.filter((e) => (e.paidBy || "Not specified") === n), false)}</div>`).join("") : xpWho ? `<h3>Expenses paid by ${esc(xpWho)}</h3>${xpTable(xpSorted.filter((e) => (e.paidBy || "Not specified") === xpWho), false)}` : `<h3>Detailed expense statement</h3>${xpTable(xpSorted)}`;
+    const expenseSection = canViewExpenses() ? `<section class="print-expenses${xpWho ? " print-xp-person" : ""}"><h2>${xpWho && xpWho !== "__each" ? `Expense statement · ${esc(xpWho)}` : xpWho === "__each" ? "Expense statement · person-wise" : "Expense statement"}</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div><div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table class="print-expense-table"><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div>${xpDetail()}</section>` : "";
     $("#printArea").innerHTML = `${photo ? `<img loading="lazy" decoding="async" class="print-cover-photo" src="${esc(photo)}" alt="Trip cover photo">` : ""}<header><div><span class="kicker">MYTRIP · TRIP BOOK · FRONTEND v${frontendVersion}</span><h1>${esc(state.data.trip.name)}</h1><p>${displayDate(state.data.trip.startDate)}–${displayDate(state.data.trip.endDate)}${memberText}</p></div><b>${esc(state.data.trip.tripId)}</b></header>${planSection}${experienceSection}${expenseSection}`;
     printAreaDirty = false;
   }

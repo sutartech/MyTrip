@@ -2395,3 +2395,24 @@ html[data-theme=dark] body .mt-xrow-wrap{border-top-color:#26313A}
 html[data-theme=dark] body .mt-xcat{background:#1E3330;color:#7FD3C3}
 html[data-theme=dark] body .mt-xwhat small,html[data-theme=dark] body .mt-money-strip small,html[data-theme=dark] body .mt-x-label,html[data-theme=dark] body .mt-today-kicker{color:#A9B3BB}
 html[data-theme=dark] body .mt-tabbar .mt-plus b{border-color:#11181D}
+
+@media print{.print-expense-table td,.print-expense-table th{font-size:var(--print-plan-font,9px)!important;text-align:var(--print-plan-align,left)!important}
+body.print-plan-nowrap .print-expense-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.print-expense-table tfoot td{border-top:2px solid #333}
+body[data-print=expenses] .print-xp-person .print-traveller-totals{display:none}
+.print-person-block{break-inside:avoid-page;margin-bottom:14px}
+.print-person-block+.print-person-block{break-before:page}}
+.xp-sheet{display:grid;gap:14px}
+.xp-group{display:grid;gap:8px}
+.xp-label{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#5B6670}
+.xp-chips{display:flex;flex-wrap:wrap;gap:8px}
+.xp-chips button,.xp-seg button,.xp-step button,.xp-switch{min-height:40px;padding:0 14px;border-radius:999px;border:1px solid #E6E2D8;background:#fff;color:#1F2A33;font-weight:700;font-size:14px}
+.xp-chips button.on,.xp-seg button.on,.xp-switch.on{background:var(--calm-primary,#0F766E);color:#fff;border-color:transparent}
+.xp-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:700;color:#1F2A33}
+.xp-seg,.xp-step{display:flex;gap:6px;align-items:center}
+.xp-step button{width:40px;padding:0}
+.xp-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.xp-actions button{min-height:48px;border-radius:14px;font-weight:800}
+html[data-theme=dark] body .xp-line{color:#EEF1F2}
+html[data-theme=dark] body .xp-label{color:#A9B3BB}
+html[data-theme=dark] body .xp-chips button:not(.on),html[data-theme=dark] body .xp-seg button:not(.on),html[data-theme=dark] body .xp-step button,html[data-theme=dark] body .xp-switch:not(.on){background:#1B232A;border-color:#2A343C;color:#EEF1F2}
