@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.54.0";
+  const frontendVersion = "4.55.2";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -200,11 +200,11 @@
   function avatarSlot(person) {
     const name = (person && person.name) || "";
     const slot = `<b class="avatar-slot" data-avatar-key="${esc(avatarKey(person))}" data-avatar-name="${esc(name)}">${esc(initials(name))}</b>`;
-    return personIsPro(person) ? `<span class="pro-ring" title="MyTrip Pro member">${slot}<i aria-hidden="true">♛</i></span>` : slot;
+    return personIsPro(person) ? `<span class="pro-ring" title="MyTrip Pro member">${slot}<i aria-hidden="true">✦</i></span>` : slot;
   }
   function proMemberCard(traveller) {
     if (!personIsPro(traveller)) return "";
-    return `<div class="pro-member-card"><span class="pro-seal"><span>♛</span></span><span><small>MYTRIP PRO MEMBER</small><b>${esc(traveller.name || traveller.travellerId)}</b><em>${traveller.planExpires ? "Valid till " + esc(displayDate(traveller.planExpires)) : "Gift from Administrator · no end date"}</em></span></div>`;
+    return `<div class="pro-member-card"><span class="pro-seal" aria-hidden="true"><span>✦</span></span><span><small>MYTRIP PRO MEMBER</small><b>${esc(traveller.name || traveller.travellerId)}</b><em>${traveller.planExpires ? "Valid till " + esc(displayDate(traveller.planExpires)) : "Gift from Administrator · no end date"}</em></span></div>`;
   }
   function photoForSlot(slot) {
     const key = slot.dataset.avatarKey;
@@ -631,10 +631,28 @@
       const host = document.querySelector(sel); if (!host) return;
       let pill = host.querySelector(".plan-pill"); if (!pill) { pill = document.createElement("button"); pill.type = "button"; pill.className = cls; pill.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); showUpgradeSheet(); }); host.appendChild(pill); }
       const mobile = cls.includes("mobile");
-      if (pro) pill.innerHTML = '<span class="pro-coin" aria-hidden="true">♛</span>PRO'; else pill.textContent = mobile ? (state.proEnforced ? "FREE ↑" : "FREE") : state.proEnforced ? "FREE · Upgrade" : "FREE · all features open";
+      if (pro) pill.innerHTML = '<span class="pro-coin" aria-hidden="true">✦</span>PRO'; else pill.textContent = mobile ? (state.proEnforced ? "FREE ↑" : "FREE") : state.proEnforced ? "FREE · Upgrade" : "FREE · all features open";
       pill.setAttribute("aria-label", pro ? "MyTrip Pro plan" : "Free plan, see MyTrip Pro"); pill.classList.toggle("is-pro", pro);
     });
+    if (pro) { proShineOnce(); maybeProWelcome(); }
   }
+  /* v4.55.0 Pro badge set 3: one-time welcome + once-per-open shine */
+  function maybeProWelcome() {
+    try {
+      if (!state.plan || state.plan !== "pro" || isAdmin()) return;
+      const id = String((state.traveller && state.traveller.travellerId) || state.currentUser || ""); if (!id) return;
+      const key = "mytrip_pro_welcomed_" + id.toUpperCase(); if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, String(Date.now()));
+      const el = document.createElement("div"); el.className = "pro-welcome"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Welcome to MyTrip Pro");
+      el.innerHTML = `<div class="pro-welcome-card"><div class="pro-medal" aria-hidden="true"><i></i><b></b><span>✦</span><em></em></div><small>WELCOME</small><h2>You're a MyTrip Pro member</h2><p>A gift from your Administrator. Every Pro feature is now open for you.</p><button type="button">Start exploring</button></div>`;
+      document.body.appendChild(el); requestAnimationFrame(() => el.classList.add("show"));
+      const close = () => { el.classList.remove("show"); setTimeout(() => el.remove(), 260); };
+      el.querySelector("button").addEventListener("click", close); el.addEventListener("click", (e) => { if (e.target === el) close(); });
+      setTimeout(() => { try { el.querySelector("button").focus(); } catch {} }, 300);
+    } catch {}
+  }
+  let proShineDone = false;
+  function proShineOnce() { if (proShineDone) return; proShineDone = true; setTimeout(() => document.querySelectorAll(".plan-pill.is-pro").forEach((p) => { p.classList.remove("shine"); void p.offsetWidth; p.classList.add("shine"); }), 600); }
   function showUpgradeSheet(feature) {
     const pro = isPro(); const hit = PRO_FEATURES.find((f) => f[0] === feature);
     const lead = pro ? "You have MyTrip Pro. Every feature is unlocked." : !state.proEnforced ? "During launch, every Pro feature is free for everyone. Enjoy!" : hit ? `<b>${esc(hit[1])}</b> is a Pro feature.` : "Unlock everything MyTrip can do.";
