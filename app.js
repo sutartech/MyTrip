@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.55.5";
+  const frontendVersion = "4.40.0";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -154,7 +154,7 @@
   let activeRequests = 0;
   let quickFindVisibleResults = [];
   let printAreaDirty = true;
-  const labels = { overview: "Overview", itinerary: "Itinerary", experiences: "Experiences", photos: "Trip Photos", places: "Places & Map", expenses: "Expenses", people: "Travellers", checklist: "Checklist", print: "Print & Export", help: "Help & Feedback" };
+  const labels = { overview: "Overview", itinerary: "Itinerary", experiences: "Experiences", photos: "Trip Photos", places: "Places & Map", expenses: "Expenses", people: "Travellers", print: "Print & Export", help: "Help & Feedback" };
   const demoTrips = [
     { tripId: "GOA26", name: "Goa Escape", destination: "Goa", startDate: "2026-11-19", endDate: "2026-11-23", budget: 85000, spent: 32450, travellerCount: 6, assignedTravellerCount: 3, assignedTravellerIds: ["ANITA-101", "ROHAN-202", "MEERA-303"], enabled: true, createdBy: "Sarada" },
     { tripId: "KER27", name: "Kerala Backwaters", destination: "Alappuzha", startDate: "2027-01-14", endDate: "2027-01-18", budget: 72000, spent: 8400, travellerCount: 4, assignedTravellerCount: 1, assignedTravellerIds: ["ANITA-101"], enabled: true, createdBy: "Sarada" },
@@ -189,26 +189,9 @@
     if (person.role === "administrator" || person.isAdmin) return "ADMIN";
     return "";
   }
-  function personIsPro(person) {
-    if (!person) return false;
-    if (String(person.plan || "").toLowerCase() === "pro" && (!person.planExpires || new Date(person.planExpires + "T23:59:59") >= new Date())) return true;
-    const nm = String(person.name || person.lead || "").trim().toLowerCase();
-    if (nm && !isAdmin() && isPro() && nm === String(state.currentUser || "").trim().toLowerCase()) return true;
-    if (nm && !person.isAdmin && ((state.data && state.data.proNames) || []).includes(nm)) return true;
-    if (nm && Array.isArray(state.proAccountsCache) && state.proAccountsCache.includes(nm)) return true;
-    const list = (state.data && state.data.proMembers) || []; if (!list.length) return false;
-    let id = String(person.travellerId || "").toUpperCase();
-    if (!id && person.name && state.data) { const mm = (state.data.members || []).find((x) => String(x.name || "").trim().toLowerCase() === String(person.name).trim().toLowerCase() && x.travellerId); if (mm) id = String(mm.travellerId).toUpperCase(); }
-    return Boolean(id) && list.includes(id);
-  }
   function avatarSlot(person) {
     const name = (person && person.name) || "";
-    const slot = `<b class="avatar-slot" data-avatar-key="${esc(avatarKey(person))}" data-avatar-name="${esc(name)}">${esc(initials(name))}</b>`;
-    return personIsPro(person) ? `<span class="pro-ring" title="MyTrip Pro member">${slot}<i aria-hidden="true">✦</i></span>` : slot;
-  }
-  function proMemberCard(traveller) {
-    if (!personIsPro(traveller)) return "";
-    return `<div class="pro-member-card"><span class="pro-seal" aria-hidden="true"><span>✦</span></span><span><small>MYTRIP PRO MEMBER</small><b>${esc(traveller.name || traveller.travellerId)}</b><em>${traveller.planExpires ? "Valid till " + esc(displayDate(traveller.planExpires)) : "Gift from Administrator · no end date"}</em></span></div>`;
+    return `<b class="avatar-slot" data-avatar-key="${esc(avatarKey(person))}" data-avatar-name="${esc(name)}">${esc(initials(name))}</b>`;
   }
   function photoForSlot(slot) {
     const key = slot.dataset.avatarKey;
@@ -409,53 +392,8 @@
 
   async function api(action, payload = {}) {
     if (!apiUrlReady()) throw new Error("Connect the Google backend first.");
-    if (/^add/.test(action) && payload && payload.record && typeof payload.record === "object" && !payload.record.id) payload.record.id = uid();
-    const flightKey = /^add/.test(action) && payload && payload.record && payload.record.id ? action + ":" + payload.record.id : "";
-    if (flightKey && inFlightAdds.has(flightKey)) return inFlightAdds.get(flightKey);
-    if (QUEUEABLE.has(action) && navigator.onLine === false) return queueOffline(action, payload);
-    if (flightKey) { const p = requestAt(apiUrl, action, payload).finally(() => setTimeout(() => inFlightAdds.delete(flightKey), 4000)); inFlightAdds.set(flightKey, p); try { return await p; } catch (error) { if (/No internet|Failed to fetch|NetworkError|Load failed|aborted/i.test(String(error && error.message || ""))) return queueOffline(action, payload); throw error; } }
-    try { return await requestAt(apiUrl, action, payload); }
-    catch (error) {
-      if (QUEUEABLE.has(action) && /No internet|Failed to fetch|NetworkError|Load failed|aborted/i.test(String(error && error.message || ""))) return queueOffline(action, payload);
-      throw error;
-    }
+    return requestAt(apiUrl, action, payload);
   }
-  /* Offline queue (v4.47.0): plans/expenses added with no signal wait on this phone and sync automatically. */
-  const inFlightAdds = new Map();
-  const QUEUEABLE = new Set(["addChecklistItem", "updateChecklistItem", "deleteChecklistItem", "addExpense", "addPlan", "addExperience", "addPlace", "updateRecord", "deleteRecord"]);
-  const offlineQueueKey = "mytrip_offline_queue_v1";
-  function readOfflineQueue() { try { return JSON.parse(localStorage.getItem(offlineQueueKey) || "[]"); } catch { return []; } }
-  function writeOfflineQueue(q) { try { localStorage.setItem(offlineQueueKey, JSON.stringify(q)); } catch {} renderOfflineBanner(); }
-  function queueOffline(action, payload) {
-    const q = readOfflineQueue(); q.push({ action, payload, at: Date.now() }); writeOfflineQueue(q);
-    toast(`Saved on this phone · will sync when online (${q.length} waiting)`);
-    return { queued: true };
-  }
-  let flushingQueue = false;
-  async function flushOfflineQueue() {
-    if (flushingQueue || navigator.onLine === false || !apiUrlReady()) return;
-    let q = readOfflineQueue(); if (!q.length) return;
-    flushingQueue = true; let done = 0;
-    try {
-      while (q.length) {
-        try { await requestAt(apiUrl, q[0].action, q[0].payload); }
-        catch (error) { if (/No internet|Failed to fetch|NetworkError|Load failed|aborted/i.test(String(error && error.message || ""))) break; console.warn("Dropped queued change", q[0].action, error); }
-        q.shift(); done++; writeOfflineQueue(q);
-      }
-    } finally { flushingQueue = false; }
-    if (done) toast(`Back online · ${done} change${done > 1 ? "s" : ""} synced`);
-  }
-  function renderOfflineBanner() {
-    let el = document.getElementById("offlineBanner");
-    const n = readOfflineQueue().length; const off = navigator.onLine === false;
-    if (!n && !off) { if (el) el.remove(); return; }
-    if (!el) { el = document.createElement("div"); el.id = "offlineBanner"; el.className = "offline-banner"; el.setAttribute("role", "status"); document.body.appendChild(el); }
-    el.innerHTML = `<span>☁</span><div><b>${off ? "You're offline" : "Syncing…"}</b><small>${n ? `${n} change${n > 1 ? "s" : ""} saved on this phone · will sync automatically` : "New entries will be saved on this phone"}</small></div>`;
-  }
-  window.addEventListener("online", () => { renderOfflineBanner(); flushOfflineQueue(); });
-  window.addEventListener("offline", renderOfflineBanner);
-  setTimeout(() => { renderOfflineBanner(); flushOfflineQueue(); }, 2500);
-  setInterval(flushOfflineQueue, 30000);
 
   function stopIdleTimer() {
     clearTimeout(idleTimer);
@@ -613,10 +551,9 @@
     button.classList.toggle("hidden", scrollY < 520 || $("#dashboard").classList.contains("hidden"));
   }
 
-  function uniqById(list) { const seen = new Set(); return list.filter((x) => { const k = x && x.id != null && x.id !== "" ? String(x.id) : ""; if (!k) return true; if (seen.has(k)) return false; seen.add(k); return true; }); }
   function normalize(data) {
     if (data && data.profilePhotos) setProfilePhotos(data.profilePhotos);
-    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: uniqById(data.itinerary || []), experiences: uniqById(data.experiences || []), photos: data.photos || [], stickyDiary: data.stickyDiary || [], stickyNotes: data.stickyNotes || [], checklist: uniqById(data.checklist || []), expenses: uniqById(data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
+    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: data.itinerary || [], experiences: data.experiences || [], photos: data.photos || [], stickyDiary: data.stickyDiary || [], stickyNotes: data.stickyNotes || [], expenses: (data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
   }
 
   function isAdmin() { return state.accessRole === "administrator"; }
@@ -625,43 +562,6 @@
   function canViewPlaces() { return isAdmin() || state.permissions.viewPlaces !== false; }
   function canViewExpenses() { return isAdmin() || state.permissions.viewExpenses !== false; }
   function canViewTravellers() { return isAdmin() || state.permissions.viewTravellers !== false; }
-  const PRO_FEATURES = [["personPrint", "Person-wise expense print", "Print each traveller's expenses separately"], ["originalPhotos", "Original-quality photos", "Upload full-size photos up to 15 MB"], ["unlimitedTrips", "Unlimited trips & travellers", "No trip or group-size cap"], ["familyGroups", "Family groups", "Split expenses by family"], ["exportPlus", "PDF & Excel export", "Share clean reports with everyone"], ["themes", "Extra themes", "More colours and looks"]];
-  function isPro() { return isAdmin() || state.plan === "pro"; }
-  function proLocked(feature) { return Boolean(state.proEnforced) && !isPro(); }
-  function requirePro(feature) { if (!proLocked(feature)) return true; showUpgradeSheet(feature); return false; }
-  function renderPlanPill() {
-    const pro = isPro();
-    [[".sidebar .user > div", "plan-pill"], [".topbar .mobile-brand", "plan-pill plan-pill-mobile"]].forEach(([sel, cls]) => {
-      const host = document.querySelector(sel); if (!host) return;
-      let pill = host.querySelector(".plan-pill"); if (!pill) { pill = document.createElement("button"); pill.type = "button"; pill.className = cls; pill.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); showUpgradeSheet(); }); host.appendChild(pill); }
-      const mobile = cls.includes("mobile");
-      if (pro) pill.innerHTML = '<span class="pro-coin" aria-hidden="true">✦</span>PRO'; else pill.textContent = mobile ? (state.proEnforced ? "FREE ↑" : "FREE") : state.proEnforced ? "FREE · Upgrade" : "FREE · all features open";
-      pill.setAttribute("aria-label", pro ? "MyTrip Pro plan" : "Free plan, see MyTrip Pro"); pill.classList.toggle("is-pro", pro);
-    });
-    if (pro) { proShineOnce(); maybeProWelcome(); }
-  }
-  /* v4.55.0 Pro badge set 3: one-time welcome + once-per-open shine */
-  function maybeProWelcome() {
-    try {
-      if (!state.plan || state.plan !== "pro" || isAdmin()) return;
-      const id = String((state.traveller && state.traveller.travellerId) || state.currentUser || ""); if (!id) return;
-      const key = "mytrip_pro_welcomed_" + id.toUpperCase(); if (localStorage.getItem(key)) return;
-      localStorage.setItem(key, String(Date.now()));
-      const el = document.createElement("div"); el.className = "pro-welcome"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Welcome to MyTrip Pro");
-      el.innerHTML = `<div class="pro-welcome-card"><div class="pro-medal" aria-hidden="true"><i></i><b></b><span>✦</span><em></em></div><small>WELCOME</small><h2>You're a MyTrip Pro member</h2><p>A gift from your Administrator. Every Pro feature is now open for you.</p><button type="button">Start exploring</button></div>`;
-      document.body.appendChild(el); requestAnimationFrame(() => el.classList.add("show"));
-      const close = () => { el.classList.remove("show"); setTimeout(() => el.remove(), 260); };
-      el.querySelector("button").addEventListener("click", close); el.addEventListener("click", (e) => { if (e.target === el) close(); });
-      setTimeout(() => { try { el.querySelector("button").focus(); } catch {} }, 300);
-    } catch {}
-  }
-  let proShineDone = false;
-  function proShineOnce() { if (proShineDone) return; proShineDone = true; setTimeout(() => document.querySelectorAll(".plan-pill.is-pro").forEach((p) => { p.classList.remove("shine"); void p.offsetWidth; p.classList.add("shine"); }), 600); }
-  function showUpgradeSheet(feature) {
-    const pro = isPro(); const hit = PRO_FEATURES.find((f) => f[0] === feature);
-    const lead = pro ? "You have MyTrip Pro. Every feature is unlocked." : !state.proEnforced ? "During launch, every Pro feature is free for everyone. Enjoy!" : hit ? `<b>${esc(hit[1])}</b> is a Pro feature.` : "Unlock everything MyTrip can do.";
-    showModal(pro ? "MyTrip Pro" : "Upgrade to MyTrip Pro", `<div class="pro-sheet"><div class="pro-sheet-hero"><span class="pro-seal" aria-hidden="true"><span>✦</span></span><div><small>MYTRIP PRO</small><b>${pro ? "You're a Pro member" : "Travel together, beautifully"}</b></div></div><p class="pro-lead">${lead}</p><ul class="pro-list">${PRO_FEATURES.map((f) => `<li class="${f[0] === feature ? "hit" : ""}"><i>${pro || !state.proEnforced ? "✓" : "✦"}</i><span><b>${esc(f[1])}</b><small>${esc(f[2])}</small></span></li>`).join("")}</ul>${pro || !state.proEnforced ? "" : `<div class="pro-plans"><span><small>MONTHLY</small><b>₹99</b></span><span class="best"><small>YEARLY · BEST VALUE</small><b>₹499</b></span><span><small>TRIP PASS</small><b>₹149</b></span></div><p class="pro-note">Online payment is coming soon. For now, ask your trip administrator to switch your account to Pro.</p>`}<div class="form-actions"><button type="button" data-cancel>Close</button></div></div>`);
-  }
   function canPrintReports() { return isAdmin() || state.permissions.printReports !== false; }
   function stickyAccessLevel() {
     if (isAdmin()) return "edit";
@@ -758,7 +658,6 @@
     if (!state.accountUsername) state.accountUsername = travellerId || (state.accessRole === "administrator" ? "administrator" : "shared");
     state.authenticated = true;
     state.permissions = data.permissions || {};
-    state.plan = data.plan === "pro" ? "pro" : "free"; state.proEnforced = data.proEnforced === true; renderPlanPill();
     $("#accessScreen").classList.add("hidden"); $("#accountHub").classList.add("hidden"); $("#dashboard").classList.remove("hidden");
     loadStickyNotes(); setStickyControlsVisible(true); applyPrintPlanSettings(); applyTextScale(); startIdleTimer();
     setTab("overview"); hydrateShell(); updatePrintArea();
@@ -809,7 +708,7 @@
   function setTab(tab) {
     const allowed = { itinerary: canViewItinerary(), experiences: canViewExperiences(), photos: true, places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() };
     if (allowed[tab] === false) return toast("This feature is hidden for your Traveller ID by the Administrator", true);
-    state.tab = tab; persistSession(true); mtFadeView(); try { (document.scrollingElement || document.documentElement).scrollTo({ top: 0, behavior: "instant" in document.documentElement.style ? "instant" : "auto" }); } catch { try { window.scrollTo(0, 0); } catch {} } $("#crumbLabel").textContent = labels[tab];
+    state.tab = tab; persistSession(true); mtFadeView(); $("#crumbLabel").textContent = labels[tab];
     $$('[data-tab]').forEach((button) => {
       const active = button.dataset.tab === tab;
       button.classList.toggle("active", active);
@@ -931,43 +830,24 @@
     return `IN ${h ? `${h}H ` : ""}${m}M`;
   }
 
-  /* v4.50.0 polish: greeting strip — one glance answer to "where are we, what's next, what did we spend" */
-  function greetingStrip() {
-    try {
-      const t = state.data.trip || {}; const today = localDateKey(); const hr = new Date().getHours();
-      const hi = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
-      const who = String(state.currentUser || "").split(/\s+/)[0];
-      const s = String(t.startDate || "").slice(0, 10), e = String(t.endDate || "").slice(0, 10);
-      let when = "";
-      if (s && e) { const d0 = new Date(s + "T00:00"), d1 = new Date(e + "T00:00"), dt = new Date(today + "T00:00"); const total = Math.round((d1 - d0) / 864e5) + 1, n = Math.round((dt - d0) / 864e5) + 1;
-        when = n < 1 ? `${Math.round((d0 - dt) / 864e5)} day${Math.round((d0 - dt) / 864e5) === 1 ? "" : "s"} to go` : n > total ? "Trip completed" : `Day ${n} of ${total}`; }
-      const nowT = new Date().toTimeString().slice(0, 5);
-      const next = canViewItinerary() ? [...state.data.itinerary].filter((x) => `${x.date}${x.time || "99"}` >= `${today}${nowT}` && String(x.status || "").toLowerCase() !== "done").sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))[0] : null;
-      const spentToday = canViewExpenses() ? state.data.expenses.filter((x) => String(x.date || "").slice(0, 10) === today).reduce((a, x) => a + Number(x.amount || 0), 0) : 0;
-      const nextTxt = next ? `<button type="button" class="gs-chip" data-go="itinerary"><i>›</i><b>Next</b> ${esc(next.time || "")} ${esc(next.title || "")}${next.date !== today ? ` · ${esc(displayDate(next.date, { day: "numeric", month: "short" }))}` : ""}</button>` : "";
-      const spentTxt = canViewExpenses() ? `<button type="button" class="gs-chip" data-go="expenses"><i>₹</i><b>Today</b> ${money.format(Math.round(spentToday))}</button>` : "";
-      return `<section class="greeting-strip"><div><small>${esc(when || t.destination || "")}</small><h2>${hi}${who ? ", " + esc(who) : ""}</h2></div><div class="gs-chips">${nextTxt}${spentTxt}<button type="button" class="gs-chip gs-share" data-share-day><i>↗</i>Share day</button></div></section>`;
-    } catch (error) { return ""; }
-  }
-  document.addEventListener("click", (e) => { const g = e.target.closest(".gs-chip[data-go]"); if (!g) return; e.preventDefault(); setTab(g.dataset.go); }, true);
   function renderJourneyStage(today) {
     const trip = state.data.trip;
     const stage = tripOverviewStage(today);
     const itinerary = [...state.data.itinerary].sort((a, b) => `${a.date || ""}${a.time || ""}`.localeCompare(`${b.date || ""}${b.time || ""}`));
-    const activeSticky = stickyHiddenForMe() ? [] : stickyNotes.filter((note) => !note.completed);
-    const reminder = stickyHiddenForMe() ? null : importantStickyForToday(today);
+    const activeSticky = stickyNotes.filter((note) => !note.completed);
+    const reminder = importantStickyForToday(today);
     const destination = esc(trip.destination || trip.name || "your destination");
     if (stage === "preparation") {
       const daysToGo = Math.max(0, daysBetween(today, trip.startDate));
       const plannedDays = new Set(itinerary.map((item) => item.date).filter(Boolean)).size;
       const placesPlanned = state.data.places.filter((place) => String(place.plannedDay || "").toLowerCase() !== "unplanned").length;
-      return `<section class="journey-stage preparation"><div class="journey-stage-hero${heroCover().cls}"${heroCover().style}><div><span class="journey-stage-kicker">◇ TRIP PREPARATION</span><h2>${daysToGo === 1 ? "Tomorrow is the journey" : `${daysToGo} days to go`}</h2><p><b>${displayDate(trip.startDate, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b> · ${destination}</p></div><span class="journey-stage-badge">GET READY</span></div><div class="journey-prep-grid">${canViewItinerary() ? `<article><i>▦</i><small>PLANNED DAYS</small><strong>${plannedDays}</strong><span>${itinerary.length} itinerary entries</span></article>` : ""}${canViewPlaces() ? `<article><i>⌖</i><small>PLACES READY</small><strong>${placesPlanned}</strong><span>${state.data.places.length} places saved</span></article>` : ""}<article><i>📌</i><small>ACTIVE REMINDERS</small><strong>${activeSticky.length}</strong><span>${reminder ? esc(reminder.title) : "Nothing needs attention"}</span></article><article><i>▧</i><small>TRIP PHOTOS</small><strong>${state.data.photos.length}</strong><span>Gallery ready for memories</span></article></div></section>`;
+      return `<section class="journey-stage preparation"><div class="journey-stage-hero"><div><span class="journey-stage-kicker">◇ TRIP PREPARATION</span><h2>${daysToGo === 1 ? "Tomorrow is the journey" : `${daysToGo} days to go`}</h2><p><b>${displayDate(trip.startDate, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b> · ${destination}</p></div><span class="journey-stage-badge">GET READY</span></div><div class="journey-prep-grid">${canViewItinerary() ? `<article><i>▦</i><small>PLANNED DAYS</small><strong>${plannedDays}</strong><span>${itinerary.length} itinerary entries</span></article>` : ""}${canViewPlaces() ? `<article><i>⌖</i><small>PLACES READY</small><strong>${placesPlanned}</strong><span>${state.data.places.length} places saved</span></article>` : ""}<article><i>📌</i><small>ACTIVE REMINDERS</small><strong>${activeSticky.length}</strong><span>${reminder ? esc(reminder.title) : "Nothing needs attention"}</span></article><article><i>▧</i><small>TRIP PHOTOS</small><strong>${state.data.photos.length}</strong><span>Gallery ready for memories</span></article></div></section>`;
     }
 
     if (stage === "completed") {
       const daysSince = Math.max(0, daysBetween(trip.endDate, today));
       const completedCopy = daysSince === 0 ? "Completed today" : (daysSince === 1 ? "Completed yesterday" : `Completed ${daysSince} days ago`);
-      return `<section class="journey-stage completed"><div class="journey-stage-hero${heroCover().cls}"${heroCover().style}><div><span class="journey-stage-kicker">✓ TRIP COMPLETED</span><h2>Keep the journey alive</h2><p><b>${completedCopy}</b> · ${destination}</p></div><span class="journey-stage-badge">MEMORIES</span></div><div class="journey-prep-grid">${canViewExpenses() ? `<article><i>₹</i><small>TOTAL SPENDING</small><strong>${money.format(spent())}</strong><span>${state.data.expenses.length} expense entries</span></article>` : ""}${canViewExperiences() ? `<article><i>✍</i><small>EXPERIENCES</small><strong>${state.data.experiences.length}</strong><span>Diary memories recorded</span></article>` : ""}<article><i>▧</i><small>TRIP PHOTOS</small><strong>${state.data.photos.length}</strong><span>Photos in the gallery</span></article>${canViewPlaces() ? `<article><i>⌖</i><small>PLACES VISITED</small><strong>${state.data.places.length}</strong><span>Saved trip places</span></article>` : ""}</div></section>`;
+      return `<section class="journey-stage completed"><div class="journey-stage-hero"><div><span class="journey-stage-kicker">✓ TRIP COMPLETED</span><h2>Keep the journey alive</h2><p><b>${completedCopy}</b> · ${destination}</p></div><span class="journey-stage-badge">MEMORIES</span></div><div class="journey-prep-grid">${canViewExpenses() ? `<article><i>₹</i><small>TOTAL SPENDING</small><strong>${money.format(spent())}</strong><span>${state.data.expenses.length} expense entries</span></article>` : ""}${canViewExperiences() ? `<article><i>✍</i><small>EXPERIENCES</small><strong>${state.data.experiences.length}</strong><span>Diary memories recorded</span></article>` : ""}<article><i>▧</i><small>TRIP PHOTOS</small><strong>${state.data.photos.length}</strong><span>Photos in the gallery</span></article>${canViewPlaces() ? `<article><i>⌖</i><small>PLACES VISITED</small><strong>${state.data.places.length}</strong><span>Saved trip places</span></article>` : ""}</div></section>`;
     }
 
     const now = new Date();
@@ -982,37 +862,9 @@
     const todaySpent = todayExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const journeyList = visibleItems.map((item) => `<article class="journey-plan-item ${next && item.id === next.id ? "next" : ""}"><time>${item.time ? esc(displayTime(item.time)) : "Any time"}</time><div><b>${esc(item.title || "Trip plan")}</b><span>${item.place ? `⌖ ${esc(item.place)}` : "Place not added"}</span></div>${item.place ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">Navigate ↗</a>` : ""}</article>`).join("");
     const reminderCard = reminder ? `<article class="journey-reminder"><small>${esc(reminder.type)} · ${esc(stickyDueText(reminder))}</small><b>${esc(reminder.title)}</b><p>${esc(reminder.body || "No additional details")}</p><button data-open-sticky>Open sticky notes →</button></article>` : `<article class="journey-reminder clear"><small>REMINDERS</small><b>Nothing urgent</b><p>No active sticky note needs attention right now.</p>${canWriteStickyNotes() ? `<button data-open-sticky>Add a reminder →</button>` : ""}</article>`;
-    return `<section class="journey-stage active"><div class="journey-stage-hero${heroCover().cls}"${heroCover().style}><div><span class="journey-stage-kicker">◆ DAY ${tripDay} OF ${totalDays}</span><h2>Today’s Journey</h2><p><b>${displayDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b> · ${destination}</p></div><span class="journey-stage-badge">LIVE TODAY</span></div><div class="journey-live-grid"><div class="journey-main"><header><div><small>${next ? `UP NEXT${next.time ? ` · ${journeyCountdown(itineraryTimeMinutes(next.time) - nowMinutes)}` : ""}` : (todayItems.length ? "TODAY’S PLAN" : "OPEN DAY")}</small><h3>${next ? esc(next.title || "Next plan") : (todayItems.length ? "Today’s scheduled plans are complete" : "No itinerary planned for today")}</h3><p>${next ? `${next.time ? `${esc(displayTime(next.time))} · ` : ""}${next.place ? `⌖ ${esc(next.place)}` : "Location not added"}` : "Use this free time for a spontaneous discovery or add a plan."}</p></div>${next && next.place ? `<a class="journey-navigate" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(next.place)}" target="_blank" rel="noreferrer">⌖ Navigate</a>` : ""}</header><div class="journey-plan-list">${journeyList || `<div class="journey-empty"><i>☀</i><b>Make today memorable</b><span>Add a plan, visit a saved place, or record an experience.</span></div>`}</div></div><aside class="journey-side">${canViewExpenses() ? `<article class="journey-metric"><small>TODAY’S SPENDING</small><strong>${money.format(todaySpent)}</strong><span>${todayExpenses.length} ${todayExpenses.length === 1 ? "payment" : "payments"} recorded</span></article>` : ""}${reminderCard}</aside></div></section>`;
+    return `<section class="journey-stage active"><div class="journey-stage-hero"><div><span class="journey-stage-kicker">◆ DAY ${tripDay} OF ${totalDays}</span><h2>Today’s Journey</h2><p><b>${displayDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b> · ${destination}</p></div><span class="journey-stage-badge">LIVE TODAY</span></div><div class="journey-live-grid"><div class="journey-main"><header><div><small>${next ? `UP NEXT${next.time ? ` · ${journeyCountdown(itineraryTimeMinutes(next.time) - nowMinutes)}` : ""}` : (todayItems.length ? "TODAY’S PLAN" : "OPEN DAY")}</small><h3>${next ? esc(next.title || "Next plan") : (todayItems.length ? "Today’s scheduled plans are complete" : "No itinerary planned for today")}</h3><p>${next ? `${next.time ? `${esc(displayTime(next.time))} · ` : ""}${next.place ? `⌖ ${esc(next.place)}` : "Location not added"}` : "Use this free time for a spontaneous discovery or add a plan."}</p></div>${next && next.place ? `<a class="journey-navigate" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(next.place)}" target="_blank" rel="noreferrer">⌖ Navigate</a>` : ""}</header><div class="journey-plan-list">${journeyList || `<div class="journey-empty"><i>☀</i><b>Make today memorable</b><span>Add a plan, visit a saved place, or record an experience.</span></div>`}</div></div><aside class="journey-side">${canViewExpenses() ? `<article class="journey-metric"><small>TODAY’S SPENDING</small><strong>${money.format(todaySpent)}</strong><span>${todayExpenses.length} ${todayExpenses.length === 1 ? "payment" : "payments"} recorded</span></article>` : ""}${reminderCard}</aside></div></section>`;
   }
 
-  function mtIsPhone() { return window.matchMedia("(max-width: 760px)").matches; }
-  function mtTodayBlock(today, sorted) {
-    const nowHM = new Date().toTimeString().slice(0, 5);
-    const todays = sorted.filter((item) => String(item.date || "") === today);
-    const open = todays.filter((item) => String(item.status || "") !== "Done");
-    const nextIdx = open.findIndex((item) => !item.time || String(item.time) >= nowHM);
-    const list = (nextIdx > 0 ? open.slice(nextIdx - 1) : open).slice(0, 3);
-    const doneCount = todays.length - open.length;
-    const canEdit = canViewItinerary() && (isAdmin() || canAdd("plan"));
-    const rows = list.map((item, k) => {
-      const tag = nextIdx >= 0 && item === open[nextIdx] ? "NEXT" : (nextIdx > 0 && k === 0 ? "NOW" : "");
-      return `<div class="mt-today-row${tag === "NEXT" ? " is-next" : ""}">${canEdit ? `<button type="button" class="mt-today-tick" data-mt-done="${esc(item.id)}" aria-label="Mark done">✓</button>` : ""}<span class="mt-today-time">${item.time ? esc(displayTime(item.time)) : "Any time"}</span><span class="mt-today-what"><b>${esc(item.title)}</b>${item.place ? `<small>${esc(item.place)}</small>` : ""}</span>${tag ? `<em>${tag}</em>` : ""}</div>`;
-    }).join("");
-    const plan = canViewItinerary() ? `<div class="mt-today-plan"><div class="mt-today-head"><span>TODAY'S PLAN</span><button type="button" data-go="itinerary">All →</button></div>${rows || `<p class="mt-today-empty">${todays.length ? "All done for today ✓" : "Nothing planned today"}</p>`}${doneCount ? `<p class="mt-today-meta">${doneCount} of ${todays.length} done</p>` : ""}</div>` : "";
-    const spendToday = state.data.expenses.filter((e) => String(e.date || "") === today).reduce((s, e) => s + Number(e.amount || 0), 0);
-    const spend = canViewExpenses() ? `<button type="button" class="mt-today-spend" data-go="expenses"><span>SPENT TODAY</span><b>${money.format(spendToday)}</b><small>Trip total ${money.format(spent())}</small></button>` : "";
-    const notes = (typeof stickyNotes !== "undefined" ? stickyNotes : []).filter((n) => !n.completed).length;
-    const chip = notes ? `<button type="button" class="mt-today-chip" data-mt-sticky>📌 ${notes} note${notes > 1 ? "s" : ""}</button>` : "";
-    const adds = `${canViewExpenses() && canAdd("expense") ? `<button type="button" class="mt-today-add primary" data-mt-add="expense">＋ Expense</button>` : ""}${canViewItinerary() && canAdd("plan") ? `<button type="button" class="mt-today-add" data-mt-add="plan">＋ Plan</button>` : ""}`;
-    return `<section class="mt-today" aria-label="Today"><div class="mt-today-top"><div><span class="mt-today-kicker">${esc(displayDate(today, { weekday: "long", day: "numeric", month: "short" }))}</span><h2>Today</h2></div></div>${adds ? `<div class="mt-today-adds">${adds}</div>` : ""}${spend}${plan}</section>`;
-  }
-  document.addEventListener("click", (event) => {
-    const add = event.target.closest("[data-mt-add]"); if (add) { showAddModal(add.dataset.mtAdd); return; }
-    const done = event.target.closest("[data-mt-done]"); if (done) { done.disabled = true; done.closest(".mt-today-row")?.classList.add("leaving"); setTimeout(() => togglePlanDone(done.dataset.mtDone), 180); return; }
-    if (event.target.closest("[data-mt-sticky]") && typeof openStickyPanel === "function") openStickyPanel();
-  });
-  let mtPhoneWas = mtIsPhone();
-  addEventListener("resize", () => { const p = mtIsPhone(); if (p !== mtPhoneWas) { mtPhoneWas = p; if (state.data && state.tab === "overview") render(); } });
   function renderOverview() {
     const budget = Number(state.data.trip.budget || 0), total = spent(), percent = budget ? Math.min(100, Math.round(total / budget * 100)) : 0;
     const today = localDateKey();
@@ -1037,14 +889,7 @@
     const itineraryPanelTitle = stage === "completed" ? ["JOURNEY ARCHIVE", "Latest itinerary"] : (stage === "active" ? ["REST OF THE TRIP", "Coming up next"] : ["WHAT’S NEXT", "Upcoming itinerary"]);
     const itineraryPanel = canViewItinerary() ? `<article class="panel itinerary-overview">${panelHead(itineraryPanelTitle[0], itineraryPanelTitle[1], "itinerary")}<div class="timeline">${upcoming.map((item) => `<div class="timeline-row"><span class="date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b></span><time>${displayTime(item.time)}</time><span><h3>${esc(item.title)}</h3><p>⌖ ${esc(item.place)}</p></span><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}" target="_blank" rel="noreferrer">Map ↗</a></div>`).join("") || `<p class="empty-overview">${stage === "completed" ? "No itinerary was recorded for this trip." : "No future plans added yet."}</p>`}</div></article>` : `<article class="panel feature-access-summary"><span class="kicker">YOUR ACCESS</span><h2>Trip overview</h2><p>The Administrator has selected which trip sections are available to this Traveller ID. Use the visible menu items to continue.</p></article>`;
     const expensePanels = canViewExpenses() ? `<div class="overview-side"><article class="panel spending-panel">${panelHead("TRIP EXPENSES", "Spending summary", "expenses")}<div class="spending-summary"><div class="donut" style="background:conic-gradient(var(--coral) ${percent}%,#e9edef 0)"><b>${percent}%</b></div><div class="spending-total"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? `${Math.round(total / budget * 100)}% of the trip budget used` : "No budget set"}</span></div></div><div class="spending-breakdown"><span><small>TRIP BUDGET</small><b>${money.format(budget)}</b></span><span class="${balance < 0 ? "over-budget" : ""}"><small>${balance < 0 ? "OVER BUDGET" : "BALANCE LEFT"}</small><b>${money.format(Math.abs(balance))}</b></span></div><div class="progress" aria-label="${percent}% of budget used"><i style="width:${percent}%"></i></div></article><article class="panel recent-expenses-panel">${panelHead("LATEST PAYMENTS", "Recent spending", "expenses")}<div>${recentExpenses.map((expense) => `<div class="expense-mini overview-expense"><i>₹</i><span><b>${esc(expense.label)}</b><small>${esc(expense.category || "Expense")} · ${displayDate(expense.date, { day: "numeric", month: "short" })} · Paid by ${esc(expense.paidBy)}</small></span><strong>${money.format(expense.amount)}</strong></div>`).join("") || `<p class="empty-overview">No expenses recorded yet.</p>`}</div></article></div>` : "";
-    const statsHtml = `<section class="stats"><article class="stat"><i>◫</i><div><small>TRIP LENGTH</small><strong>${nights()} nights</strong><span>${displayDate(state.data.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(state.data.trip.endDate, { day: "numeric", month: "short" })}</span></div></article>${expenseStat}${placeStat}${peopleStat}${notesStat}</section>`;
-    const gridHtml = `<section class="main-grid overview-grid ${canViewExpenses() ? "" : "no-expenses"}">${itineraryPanel}${expensePanels}</section>`;
-    const quick = `<section class="quick-actions overview-primary-actions" aria-label="Quick actions">${planQuickAction}${expenseQuickAction}${placeQuickAction}${peopleQuickAction}${experienceQuickAction}${printQuickAction}</section>`;
-    if (mtIsPhone() && stage === "active") {
-      const fold = (title, sub, body, open) => body ? `<details class="mt-fold"${open ? " open" : ""}><summary><span><b>${title}</b><small>${sub}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>` : "";
-      return `${mtTodayBlock(today, sortedItinerary)}${fold("Trip status", "Journey, weather & reminders", renderJourneyStage(today))}${fold("Spending & next plans", "Budget, recent payments, coming up", gridHtml)}${fold("Trip photo & stats", "Cover, length, places, members", cover + statsHtml)}${fold("More shortcuts", "Places, journal, print", quick)}`;
-    }
-    return `${renderJourneyStage(today)}${quick}${cover}${statsHtml}${gridHtml}`;
+    return `${renderJourneyStage(today)}<section class="quick-actions overview-primary-actions" aria-label="Quick actions">${planQuickAction}${expenseQuickAction}${placeQuickAction}${peopleQuickAction}${experienceQuickAction}${printQuickAction}</section>${cover}<section class="stats"><article class="stat"><i>◫</i><div><small>TRIP LENGTH</small><strong>${nights()} nights</strong><span>${displayDate(state.data.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(state.data.trip.endDate, { day: "numeric", month: "short" })}</span></div></article>${expenseStat}${placeStat}${peopleStat}${notesStat}</section><section class="main-grid overview-grid ${canViewExpenses() ? "" : "no-expenses"}">${itineraryPanel}${expensePanels}</section>`;
   }
 
   /* ---- drag-resizable itinerary columns ---- */
@@ -1156,298 +1001,6 @@
     if (!rule) { rule = document.createElement("style"); rule.id = "printLayoutRule"; document.head.appendChild(rule); }
     rule.textContent = `@page { size: A4 ${printPlanLayout()}; margin: 12mm; }`;
   }
-  document.addEventListener("click", async (e) => {
-    if (e.target.closest("#modal .pro-sheet [data-cancel], #proRulesForm [data-cancel], #travellerPlanForm [data-cancel]")) { e.preventDefault(); e.stopPropagation(); return closeModal(); }
-    const pf = e.target.closest("[data-pro-feature]"); if (pf) { e.preventDefault(); return showUpgradeSheet(pf.dataset.proFeature); }
-    const ctx = state.planCtx; const ap = e.target.closest("[data-account-plan]"); const rt = e.target.closest("#proRulesToggle");
-    if (!ctx || (!ap && !rt)) return; e.preventDefault(); e.stopPropagation();
-    const auth = () => adminAuth(ctx.administratorSecret);
-    if (rt) {
-      let on = false; try { if (!ctx.demoMode) on = (await api("getPlanSettings", auth())).proEnforced === true; } catch (error) { return toast(error.message, true); }
-      showModal("Free & Pro rules", `<form class="modal-form" id="proRulesForm"><div class="security-note traveller-note"><i>◆</i><p><b>Launch mode (Off):</b> every traveller gets every feature free.<br><b>On:</b> Pro features are locked for Free travellers and show an Upgrade screen. Administrators always have everything.</p></div><label class="pro-switch-row"><span>Lock Pro features for Free travellers</span><select name="enabled"><option value="false" ${on ? "" : "selected"}>Off · everything free</option><option value="true" ${on ? "selected" : ""}>On · lock Pro features</option></select></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save</button></div></form>`);
-      $("#proRulesForm").addEventListener("submit", async (ev) => { ev.preventDefault(); const enabled = new FormData(ev.target).get("enabled") === "true";
-        try { if (!ctx.demoMode) await api("setProEnforced", { ...auth(), enabled }); toast(enabled ? "Pro features are now locked for Free travellers" : "Launch mode: everything free"); loadTravellerAccounts(ctx.administratorSecret, ctx.trips, ctx.demoMode); } catch (error) { toast(error.message, true); } });
-      return;
-    }
-    const t = (ctx.travellers || []).find((x) => x.travellerId === ap.dataset.accountPlan); if (!t) return;
-    const cur = t.planSaved || t.plan || "free";
-    showModal("Traveller plan", `<form class="modal-form" id="travellerPlanForm"><div class="profile-id-banner"><span>TRAVELLER USERNAME</span><b>${esc(t.travellerId)}</b><small>${esc(t.name)}</small></div><label>Plan<select name="plan"><option value="free" ${cur === "pro" ? "" : "selected"}>Free</option><option value="pro" ${cur === "pro" ? "selected" : ""}>✦ Pro</option></select></label><label>Pro valid till <small>(optional — leave empty for no expiry)</small><input type="date" name="planExpires" value="${esc(t.planExpires || "")}"></label><p class="form-help">After the expiry date the account returns to Free automatically. Their trips and data are never deleted.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save plan</button></div></form>`);
-    $("#travellerPlanForm").addEventListener("submit", async (ev) => { ev.preventDefault(); const fd = new FormData(ev.target); const plan = fd.get("plan"); const planExpires = fd.get("planExpires") || "";
-      try { if (ctx.demoMode) { t.plan = t.planSaved = plan; t.planExpires = plan === "pro" ? planExpires : ""; renderTravellerAccounts(ctx.travellers, ctx.trips, ctx.administratorSecret, true); } else { await api("setTravellerPlan", { ...auth(), travellerId: t.travellerId, plan, planExpires }); loadTravellerAccounts(ctx.administratorSecret, ctx.trips, ctx.demoMode); } toast(plan === "pro" ? `${t.name} is now Pro` : `${t.name} is now Free`); } catch (error) { toast(error.message, true); } });
-  }, true);
-  const pwField = (name, label) => `<label>${label}<span class="pw-wrap"><input name="${name}" type="password" minlength="6" required autocomplete="new-password"><button type="button" class="pw-eye" data-pw-eye aria-label="Show password">👁</button></span></label>`;
-  document.addEventListener("click", async (e) => {
-    const eye = e.target.closest("[data-pw-eye]"); if (eye) { e.preventDefault(); const inp = eye.parentElement.querySelector("input"); inp.type = inp.type === "password" ? "text" : "password"; return; }
-    if (e.target.closest("#myPwForm [data-cancel], #ownerPwForm [data-cancel]")) { e.preventDefault(); e.stopPropagation(); return closeModal(); }
-    const ctx = state.pwCtx; const mine = e.target.closest("[data-change-my-pw]"); const own = e.target.closest("[data-owner-reset-pw]");
-    if (!ctx || (!mine && !own)) return; e.preventDefault(); e.stopPropagation();
-    const me = ctx.traveller.travellerId;
-    const check = (fd, a, b2) => { const p = String(fd.get(a) || ""); if (p.length < 6) throw new Error("Password must be at least 6 characters."); if (p !== String(fd.get(b2) || "")) throw new Error("The two new passwords do not match."); return p; };
-    if (mine) {
-      showModal("Change my password", `<form class="modal-form" id="myPwForm"><div class="profile-id-banner"><span>USERNAME</span><b>${esc(me)}</b></div><label>Current password<span class="pw-wrap"><input name="current" type="password" required autocomplete="current-password"><button type="button" class="pw-eye" data-pw-eye aria-label="Show password">👁</button></span></label>${pwField("p1", "New password")}${pwField("p2", "Repeat new password")}<p class="form-help">At least 6 characters. You will use it next time you sign in on any device.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save password</button></div></form>`);
-      $("#myPwForm").addEventListener("submit", async (ev) => { ev.preventDefault(); const fd = new FormData(ev.target);
-        try { const p = check(fd, "p1", "p2"); if (!ctx.demoMode) await api("changeMyPassword", { username: me, travellerId: me, currentPassword: fd.get("current"), newPassword: p }); ctx.pin = p; state.pin = p; closeModal(); toast("Password changed. Use the new one next time."); } catch (error) { toast(error.message, true); } });
-      return;
-    }
-    let list; try { list = ctx.demoMode ? { ownedTrips: 1, travellers: [{ travellerId: "DEMO2", name: "Demo traveller", trips: ["Demo trip"] }] } : await api("listTripOwnerTravellers", { username: me, travellerId: me, password: ctx.pin, pin: ctx.pin }); } catch (error) { return toast(error.message, true); }
-    if (!list.ownedTrips) return toast("Only the creator of a trip can reset its travellers' passwords. You have not created any trip yet.", true);
-    if (!list.travellers.length) return toast("No other travellers are assigned to the trips you created.", true);
-    showModal("Reset a traveller's password", `<form class="modal-form" id="ownerPwForm"><div class="security-note traveller-note"><i>◆</i><p>As the <b>trip creator</b>, you can set a new password for travellers in your own trips. Tell them the new password personally.</p></div><label>Traveller<select name="target">${list.travellers.map((t) => `<option value="${esc(t.travellerId)}">${esc(t.name)} · ${esc(t.travellerId)} — ${esc(t.trips.join(", "))}</option>`).join("")}</select></label>${pwField("p1", "New password")}${pwField("p2", "Repeat new password")}<div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Reset password</button></div></form>`);
-    $("#ownerPwForm").addEventListener("submit", async (ev) => { ev.preventDefault(); const fd = new FormData(ev.target);
-      try { const p = check(fd, "p1", "p2"); if (!ctx.demoMode) await api("tripOwnerResetPin", { username: me, travellerId: me, password: ctx.pin, pin: ctx.pin, targetTravellerId: fd.get("target"), newPassword: p }); closeModal(); toast(`Password reset for ${fd.get("target")}`); } catch (error) { toast(error.message, true); } });
-  }, true);
-  /* ---- v4.48.0: checklist · receipts · CSV ---- */
-  const ckDone = (i) => String(i.done).toUpperCase() === "TRUE";
-  function renderChecklist() {
-    const items = state.data.checklist || (state.data.checklist = []);
-    const me = String(state.currentUser || ""); const f = state.ckFilter || "all";
-    const done = items.filter(ckDone).length; const pct = items.length ? Math.round(done / items.length * 100) : 0;
-    const shown = items.filter((i) => f === "open" ? !ckDone(i) : f === "mine" ? String(i.assignee || "") === me || !i.assignee : true)
-      .sort((a, b) => (ckDone(a) - ckDone(b)) || String(a.day || "9").localeCompare(String(b.day || "9")) || String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
-    const people = [...new Set(visibleTripMembers().map((m) => String(m.name || "").trim()).filter(Boolean))];
-    const chip = (k, l) => `<button type="button" class="ck-chip${f === k ? " is-on" : ""}" data-ck-filter="${k}">${l}</button>`;
-    const rows = shown.map((i) => `<li class="ck-row${ckDone(i) ? " is-done" : ""}"><button type="button" class="ck-box" data-ck-toggle="${esc(i.id)}" aria-label="${ckDone(i) ? "Mark not done" : "Mark done"}">${ckDone(i) ? "✓" : ""}</button><span class="ck-text"><b>${esc(i.text)}</b><small>${esc(i.assignee || "Everyone")}${ckDone(i) && i.doneBy ? ` · done by ${esc(i.doneBy)}` : ""}</small></span>${i.day ? `<em class="ck-day">${esc(displayDate(i.day, { day: "numeric", month: "short" }))}</em>` : ""}${isAdmin() || String(i.createdBy || "") === me ? `<button type="button" class="ck-del" data-ck-del="${esc(i.id)}" aria-label="Delete">✕</button>` : ""}</li>`).join("");
-    return `${heading("TRAVEL TOGETHER", "Checklist", "Packing and to-dos for everyone in this trip.")}
-      <section class="ck-wrap"><div class="ck-progress"><b>${done} of ${items.length} done</b><span><i style="width:${pct}%"></i></span></div>
-      <form id="ckAddForm" class="ck-add"><input name="text" placeholder="Add an item — e.g. Power bank" maxlength="200" required><select name="assignee"><option value="">Everyone</option>${people.map((p) => `<option>${esc(p)}</option>`).join("")}</select><input name="day" type="date" aria-label="Day (optional)"><button type="submit">＋ Add</button></form>
-      <div class="ck-chips">${chip("all", "All")}${chip("open", "To do")}${chip("mine", "Mine")}</div>
-      ${rows ? `<ul class="ck-list">${rows}</ul>` : `<p class="ck-empty">Nothing here yet. Add the first item above.</p>`}</section>`;
-  }
-  function receiptBlock(id) {
-    const e = (state.data.expenses || []).find((x) => String(x.id) === String(id)); if (!e) return "";
-    const can = canEditRecords("Expenses");
-    return `<div class="receipt-block" data-receipt-block="${esc(id)}"><span class="kicker">RECEIPT</span>${e.receiptUrl ? `<a href="${esc(e.receiptUrl)}" target="_blank" rel="noopener"><img src="${esc(e.receiptUrl)}" alt="Receipt photo" referrerpolicy="no-referrer" loading="lazy"></a>` : `<p class="receipt-empty">🧾 No receipt photo yet</p>`}${can ? `<div class="receipt-actions"><label>📷 Camera<input type="file" accept="image/*" capture="environment" data-receipt-file="${esc(id)}" hidden></label><label>🖼 Gallery<input type="file" accept="image/*" data-receipt-file="${esc(id)}" hidden></label>${e.receiptUrl ? `<button type="button" data-receipt-remove="${esc(id)}">Remove</button>` : ""}</div>` : ""}</div>`;
-  }
-  function injectReceiptBlock(id) {
-    setTimeout(() => { const host = document.querySelector("#modal form, #modal .modal-body, #modal .modal-card"); if (!host || host.querySelector("[data-receipt-block]")) return; const html = receiptBlock(id); if (!html) return; const act = host.querySelector(".form-actions"); if (act) act.insertAdjacentHTML("beforebegin", html); else host.insertAdjacentHTML("beforeend", html); }, 0);
-  }
-  function refreshReceiptBlock(id) { const el = document.querySelector(`[data-receipt-block="${CSS.escape(String(id))}"]`); if (el) el.outerHTML = receiptBlock(id); render(); }
-  function csvDownload(kind) {
-    const q = (v) => { const s = String(v == null ? "" : v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-    let head, rows;
-    if (kind === "expenses") { head = ["Date", "Description", "Category", "Paid by", "Amount", "Notes", "Receipt"]; rows = [...state.data.expenses].sort((a, b) => String(a.date).localeCompare(String(b.date))).map((e) => [e.date, e.label, e.category, e.paidBy, Number(e.amount || 0), e.notes, e.receiptUrl]); }
-    else if (kind === "itinerary") { head = ["Date", "Time", "Title", "Place", "Notes", "Status"]; rows = [...state.data.itinerary].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).map((i) => [i.date, i.time, i.title, i.place, i.notes, i.status]); }
-    else { head = ["Item", "For", "Day", "Done", "Done by"]; rows = (state.data.checklist || []).map((i) => [i.text, i.assignee || "Everyone", i.day, ckDone(i) ? "Yes" : "No", i.doneBy]); }
-    const csv = "\ufeff" + [head, ...rows].map((r) => r.map(q).join(",")).join("\r\n");
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    a.download = `${String((state.data.trip || {}).name || "MyTrip").replace(/[^A-Za-z0-9]+/g, "-")}-${kind}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
-    toast(`${rows.length} rows downloaded`);
-  }
-  document.addEventListener("click", async (e) => {
-    const t = e.target.closest("[data-ck-filter],[data-ck-toggle],[data-ck-del],[data-receipt-open],[data-receipt-remove],[data-csv]"); if (!t || !state.data) return;
-    e.preventDefault(); e.stopPropagation();
-    const list = state.data.checklist || (state.data.checklist = []);
-    try {
-      if (t.dataset.ckFilter) { state.ckFilter = t.dataset.ckFilter; return render(); }
-      if (t.dataset.ckToggle) { const i = list.find((x) => String(x.id) === t.dataset.ckToggle); if (!i) return; const nd = !ckDone(i); i.done = nd ? "TRUE" : "FALSE"; i.doneBy = nd ? String(state.currentUser || "") : ""; render(); try { navigator.vibrate && navigator.vibrate(8); } catch {} if (!state.demoMode) await api("updateChecklistItem", authPayload({ id: i.id, record: { done: i.done, doneBy: i.doneBy } })); return; }
-      if (t.dataset.ckDel) { const k = list.findIndex((x) => String(x.id) === t.dataset.ckDel); if (k < 0) return; const [gone] = list.splice(k, 1); render(); if (!state.demoMode) await api("deleteChecklistItem", authPayload({ id: gone.id })); return toast("Item deleted"); }
-      if (t.dataset.receiptOpen) { showModal("Receipt", `<div class="modal-form">${receiptBlock(t.dataset.receiptOpen)}<div class="form-actions"><button type="button" data-cancel onclick="this.closest('.modal')&&0">Close</button></div></div>`); const c = document.querySelector("#modal [data-cancel]"); if (c) c.addEventListener("click", closeModal); return; }
-      if (t.dataset.receiptRemove) { const id = t.dataset.receiptRemove; if (!state.demoMode) await api("removeExpenseReceipt", authPayload({ id })); const x = state.data.expenses.find((r) => String(r.id) === id); if (x) x.receiptUrl = ""; refreshReceiptBlock(id); return toast("Receipt removed"); }
-      if (t.dataset.csv) return csvDownload(t.dataset.csv);
-    } catch (error) { toast(error.message, true); }
-  }, true);
-  document.addEventListener("submit", async (e) => {
-    if (!e.target || e.target.id !== "ckAddForm") return; e.preventDefault(); e.stopPropagation();
-    const fd = new FormData(e.target); const text = String(fd.get("text") || "").trim(); if (!text) return;
-    const rec = { id: "CHK-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text, assignee: String(fd.get("assignee") || ""), day: String(fd.get("day") || ""), done: "FALSE", doneBy: "", createdBy: String(state.currentUser || ""), createdAt: new Date().toISOString() };
-    (state.data.checklist || (state.data.checklist = [])).push(rec); render(); setTimeout(() => { const i = document.querySelector("#ckAddForm input[name=text]"); if (i) i.focus(); }, 30);
-    try { if (!state.demoMode) await api("addChecklistItem", authPayload({ record: rec })); } catch (error) { toast(error.message, true); }
-  }, true);
-  document.addEventListener("change", async (e) => {
-    const inp = e.target.closest && e.target.closest("[data-receipt-file]"); if (!inp || !inp.files || !inp.files[0]) return;
-    const id = inp.dataset.receiptFile; const block = inp.closest("[data-receipt-block]"); if (block) block.classList.add("is-busy");
-    try {
-      let file = await shrinkPhoto(inp.files[0], 1600, 700000);
-      const x = state.data.expenses.find((r) => String(r.id) === String(id));
-      if (state.demoMode) { if (x) x.receiptUrl = URL.createObjectURL(file); }
-      else { const res = await api("uploadExpenseReceipt", authPayload({ id, file: { name: file.name || "receipt.jpg", type: file.type || "image/jpeg", data: await fileToBase64(file) } })); if (x) x.receiptUrl = (res && res.receiptUrl) || x.receiptUrl; }
-      refreshReceiptBlock(id); toast("Receipt saved");
-    } catch (error) { if (block) block.classList.remove("is-busy"); toast(error.message, true); }
-  });
-  /* ---- v4.49.0: re-split · currency · join link ---- */
-  function shareUnits() { const g = splitGroups(); return g.length ? g : visibleTripMembers().map((m) => [String(m.name || "").trim()]).filter((x) => x[0]); }
-  function unitLabel(g) { return g.length > 1 ? g.join(" + ") : g[0]; }
-  function openResplit() {
-    if (!isAdmin()) return toast("Administrator access required", true);
-    const units = shareUnits(); const exps = [...state.data.expenses].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    if (!exps.length) return toast("No expenses yet", true);
-    const days = [...new Set(exps.map((e) => String(e.date || "").slice(0, 10)).filter(Boolean))];
-    showModal("Re-split past expenses", `<form class="modal-form" id="resplitForm"><span class="kicker">APPLY TO</span><div class="rs-scope"><label><input type="radio" name="scope" value="all" checked><span>Whole trip</span></label><label><input type="radio" name="scope" value="day"><span>One day</span></label><label><input type="radio" name="scope" value="pick"><span>Pick expenses</span></label></div><label class="rs-day hidden">Day<select name="day">${days.map((d) => `<option value="${esc(d)}">${esc(displayDate(d, { weekday: "short", day: "numeric", month: "short" }))}</option>`).join("")}</select></label><div class="rs-pick hidden">${exps.map((e) => `<label><input type="checkbox" name="pick" value="${esc(e.id)}"><span>${esc(displayDate(e.date, { day: "numeric", month: "short" }))} · ${esc(e.label || e.category)} · <b>${money.format(Number(e.amount || 0))}</b></span></label>`).join("")}</div><span class="kicker">SHARED BY</span><div class="rs-units">${units.map((g, k) => `<label><span>${esc(unitLabel(g))}</span><input type="checkbox" name="unit" value="${k}" checked></label>`).join("")}</div><p class="rs-preview form-help"></p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Update expenses</button></div></form>`);
-    const form = $("#resplitForm");
-    const pickIds = () => { const fd = new FormData(form); const sc = fd.get("scope"); return sc === "day" ? exps.filter((e) => String(e.date).slice(0, 10) === fd.get("day")).map((e) => String(e.id)) : sc === "pick" ? fd.getAll("pick").map(String) : exps.map((e) => String(e.id)); };
-    const value = () => { const on = new FormData(form).getAll("unit").map(Number); return on.length === units.length ? "" : on.flatMap((k) => units[k]).join("|"); };
-    const upd = () => { const fd = new FormData(form); form.querySelector(".rs-day").classList.toggle("hidden", fd.get("scope") !== "day"); form.querySelector(".rs-pick").classList.toggle("hidden", fd.get("scope") !== "pick"); const ids = pickIds(); const n = fd.getAll("unit").length; const sum = exps.filter((e) => ids.includes(String(e.id))).reduce((s, e) => s + Number(e.amount || 0), 0); form.querySelector(".rs-preview").innerHTML = n ? `<b>${ids.length} expense${ids.length === 1 ? "" : "s"}</b> (${money.format(sum)}) will be shared by <b>${n}</b> of ${units.length} · about ${money.format(Math.round(sum / n))} each. Settle up recalculates automatically.` : "Choose at least one share."; };
-    form.addEventListener("change", upd); upd();
-    const cx = form.querySelector("[data-cancel]"); if (cx) cx.addEventListener("click", closeModal);
-    form.addEventListener("submit", async (ev) => { ev.preventDefault(); const ids = pickIds(); if (!ids.length) return toast("Choose at least one expense", true); if (!new FormData(form).getAll("unit").length) return toast("Choose at least one share", true); const v = value();
-      try { if (!state.demoMode) await api("resplitExpenses", authPayload({ ids, sharedBy: v })); state.data.expenses.forEach((e) => { if (ids.includes(String(e.id))) e.sharedBy = v; }); closeModal(); render(); toast(`${ids.length} expense${ids.length === 1 ? "" : "s"} re-split`); } catch (error) { toast(error.message, true); } });
-  }
-  function openCurrencySetup() {
-    if (!isAdmin()) return toast("Administrator access required", true);
-    const t = state.data.trip;
-    showModal("Second currency", `<form class="modal-form" id="currencyForm"><p class="form-help">For foreign trips. Travellers can then enter amounts in this currency; MyTrip saves the ₹ value with the rate locked to each expense.</p><label>Currency code<select name="altCurrency"><option value="">None — ₹ only</option>${["USD", "EUR", "GBP", "THB", "AED", "SGD", "MYR", "LKR", "NPR", "BTN", "IDR", "VND", "JPY", "AUD"].map((c) => `<option ${String(t.altCurrency || "") === c ? "selected" : ""}>${c}</option>`).join("")}</select></label><label>1 unit = how many ₹?<input name="altRate" type="number" step="0.0001" min="0" value="${esc(t.altRate || "")}" placeholder="e.g. 2.43"></label><p class="form-help">Use your card or exchange rate. Each expense can still change it.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save</button></div></form>`);
-    const cx = document.querySelector("#currencyForm [data-cancel]"); if (cx) cx.addEventListener("click", closeModal);
-    $("#currencyForm").addEventListener("submit", async (ev) => { ev.preventDefault(); const fd = new FormData(ev.target); const trip = { altCurrency: String(fd.get("altCurrency") || ""), altRate: String(fd.get("altRate") || "") };
-      if (trip.altCurrency && !(Number(trip.altRate) > 0)) return toast("Enter the ₹ rate for 1 " + trip.altCurrency, true);
-      try { if (!state.demoMode) await api("updateTrip", authPayload({ trip })); Object.assign(state.data.trip, trip); closeModal(); render(); toast(trip.altCurrency ? `${trip.altCurrency} turned on for this trip` : "Back to ₹ only"); } catch (error) { toast(error.message, true); } });
-  }
-  function injectCurrencyBlock(form) {
-    const t = (state.data && state.data.trip) || {}; const cur = String(t.altCurrency || ""); if (!cur || !form || form.querySelector(".fx-block")) return;
-    const amt = form.querySelector('input[name="amount"]'); if (!amt) return;
-    const ex = (state.data.expenses || []).find((e) => form.dataset.recordId && String(e.id) === form.dataset.recordId) || {};
-    const on = String(ex.currency || "") === cur && Number(ex.foreignAmount) > 0;
-    const wrap = document.createElement("div"); wrap.className = "fx-block";
-    wrap.innerHTML = `<div class="fx-toggle"><label><input type="radio" name="fxMode" value="inr" ${on ? "" : "checked"}><span>₹ INR</span></label><label><input type="radio" name="fxMode" value="alt" ${on ? "checked" : ""}><span>${esc(cur)}</span></label></div><div class="fx-fields ${on ? "" : "hidden"}"><label>${esc(cur)} amount<input name="foreignAmount" type="number" inputmode="decimal" step="0.01" min="0" value="${on ? esc(ex.foreignAmount) : ""}"></label><label>Rate ₹<input name="fxRate" type="number" step="0.0001" min="0" value="${esc(on ? ex.fxRate : t.altRate || "")}"></label><input type="hidden" name="currency" value="${on ? esc(cur) : ""}"><p class="fx-result"></p></div>`;
-    const host = amt.closest("label") || amt; host.insertAdjacentElement("afterend", wrap);
-    const calc = () => { const alt = wrap.querySelector('input[name="fxMode"]:checked').value === "alt"; wrap.querySelector(".fx-fields").classList.toggle("hidden", !alt); amt.readOnly = alt; wrap.querySelector('input[name="currency"]').value = alt ? cur : "";
-      if (!alt) { wrap.querySelector('input[name="foreignAmount"]').value = ""; wrap.querySelector(".fx-result").textContent = ""; return; }
-      const f = Number(wrap.querySelector('input[name="foreignAmount"]').value || 0), r = Number(wrap.querySelector('input[name="fxRate"]').value || 0);
-      if (f > 0 && r > 0) { amt.value = (Math.round(f * r * 100) / 100).toString(); wrap.querySelector(".fx-result").innerHTML = `≈ <b>${money.format(f * r)}</b> · rate locked to this expense`; } else wrap.querySelector(".fx-result").textContent = "Enter amount and rate";
-    };
-    wrap.addEventListener("input", calc); wrap.addEventListener("change", calc); calc();
-  }
-  new MutationObserver(() => { document.querySelectorAll('#modal form[data-form="expense"], #modal form#planPaymentForm').forEach(injectCurrencyBlock); }).observe(document.getElementById("modal") || document.body, { childList: true, subtree: true });
-  async function loadJoinAdmin() {
-    const box = document.getElementById("joinAdmin"); if (!box) return;
-    let d; try { d = state.demoMode ? { invite: {}, requests: [] } : await api("listJoinRequests", authPayload({})); } catch (error) { box.innerHTML = `<span class="kicker">JOIN BY LINK</span><p class="form-help">Update the backend to v4.22.0 to use join links.</p>`; return; }
-    const inv = d.invite || {}; const p = new URLSearchParams({ join: inv.inviteCode || "" }); if (!validApiUrl(config.API_URL) && apiUrlReady()) p.set("api", apiUrl);
-    const link = `${location.origin}${location.pathname}?${p.toString()}`;
-    const req = (d.requests || []).map((r) => `<li><span><b>${esc(r.name)}</b><small>${esc(r.travellerId)}${r.phone ? " · " + esc(r.phone) : ""}</small></span><button type="button" data-join-ok="${esc(r.id)}">Allow</button><button type="button" class="ghost" data-join-no="${esc(r.id)}" aria-label="Reject">✕</button></li>`).join("");
-    box.innerHTML = `<span class="kicker">JOIN BY LINK · NO PASSWORD TO SHARE</span>${inv.inviteCode ? `<div class="copy-field"><input value="${esc(link)}" readonly><button type="button" data-join-copy="${esc(link)}">Copy</button></div><div class="join-row"><a class="join-wa" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Join our trip "${state.data.trip.name}" on MyTrip: ${link}`)}">✆ Send on WhatsApp</a><button type="button" data-join-off>Switch off</button></div><small>New people can ${inv.inviteRole === "Viewer" ? "view" : "view and add"} · expires ${esc(String(inv.inviteExpires || "").slice(0, 10) || "—")} · you approve each one</small>` : `<p class="form-help">Create a link anyone can open to request to join. They set their own password; you approve them.</p><div class="join-row"><select id="joinRole"><option value="Editor">Can view + add</option><option value="Viewer">View only</option></select><button type="button" data-join-create>Create link</button></div>`}${req ? `<span class="kicker">WAITING FOR YOU</span><ul class="join-list">${req}</ul>` : ""}`;
-  }
-  document.addEventListener("click", async (e) => {
-    const t = e.target.closest("[data-resplit],[data-currency-setup],[data-join-create],[data-join-off],[data-join-copy],[data-join-ok],[data-join-no]"); if (!t) return;
-    e.preventDefault(); e.stopPropagation();
-    if (t.matches("[data-resplit]")) return openResplit();
-    if (t.matches("[data-currency-setup]")) return openCurrencySetup();
-    if (t.dataset.joinCopy) { try { await navigator.clipboard.writeText(t.dataset.joinCopy); } catch {} return toast("Join link copied"); }
-    try {
-      if (t.matches("[data-join-create]")) await api("createTripInvite", authPayload({ role: ($("#joinRole") || {}).value || "Editor" }));
-      else if (t.matches("[data-join-off]")) await api("disableTripInvite", authPayload({}));
-      else if (t.dataset.joinOk) { const r = await api("approveJoinRequest", authPayload({ id: t.dataset.joinOk })); toast(`${(r && r.travellerId) || "Traveller"} added to this trip`); }
-      else if (t.dataset.joinNo) { await api("rejectJoinRequest", authPayload({ id: t.dataset.joinNo })); toast("Request rejected"); }
-      loadJoinAdmin();
-    } catch (error) { toast(error.message, true); }
-  }, true);
-  async function showJoinByInvite(code) {
-    let info; try { info = await api("getInviteInfo", { code }); } catch (error) { return toast(error.message, true); }
-    showModal(`Join ${info.tripName || "this trip"}`, `<form class="modal-form" id="joinForm"><p class="form-help">${esc(info.destination || "")}${info.startDate ? " · " + esc(displayDate(info.startDate)) : ""}. Fill this once. The Administrator will approve you, then sign in with your username and password.</p><label>Your name<input name="name" required maxlength="80" autocomplete="name"></label><label>Username <small>(optional — we'll make one)</small><input name="username" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,39}" autocomplete="username"></label><label>Phone <small>(optional)</small><input name="phone" type="tel" maxlength="30" autocomplete="tel"></label>${pwField("p1", "Choose a password")}${pwField("p2", "Repeat password")}<div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Request to join</button></div></form>`);
-    const c = document.querySelector("#joinForm [data-cancel]"); if (c) c.addEventListener("click", closeModal);
-    $("#joinForm").addEventListener("submit", async (ev) => { ev.preventDefault(); const fd = new FormData(ev.target); const p = String(fd.get("p1") || "");
-      if (p.length < 6) return toast("Password must be at least 6 characters.", true); if (p !== String(fd.get("p2") || "")) return toast("The two passwords do not match.", true);
-      const btn = ev.target.querySelector("button[type=submit]"); btn.disabled = true; btn.textContent = "Sending…";
-      try { const r = await api("joinTripByInvite", { code, name: fd.get("name"), username: fd.get("username"), phone: fd.get("phone"), password: p });
-        showModal("Request sent ✓", `<div class="modal-form"><p>Your username is <b>${esc(r.travellerId)}</b>. Please note it down.</p><p class="form-help">You can sign in after the Administrator approves you for <b>${esc(r.tripName || "the trip")}</b>.</p><div class="form-actions"><button type="button" data-cancel>OK</button></div></div>`); const ok = document.querySelector("#modal [data-cancel]"); if (ok) ok.addEventListener("click", closeModal);
-        history.replaceState(null, "", location.pathname);
-      } catch (error) { btn.disabled = false; btn.textContent = "Request to join"; toast(error.message, true); } });
-  }
-  /* ---- v4.51.0: change history + backups (admin) ---- */
-  function agoText(iso) { const s = (Date.now() - new Date(iso).getTime()) / 1000; if (!(s >= 0)) return ""; if (s < 60) return "just now"; if (s < 3600) return Math.floor(s / 60) + " min ago"; if (s < 86400) return Math.floor(s / 3600) + " h ago"; return displayDate(String(iso).slice(0, 10), { day: "numeric", month: "short" }) + " " + new Date(iso).toTimeString().slice(0, 5); }
-  async function openHistory() {
-    showModal("Change history", `<div class="modal-form"><p class="form-help">Loading…</p></div>`);
-    let rows; try { rows = state.demoMode ? [{ details: "Added Expenses — Dinner · ₹4280", createdBy: "Sarada", createdAt: new Date().toISOString(), action: "addExpense" }] : await api("listActivity", authPayload({ limit: 200 })); } catch (error) { return showModal("Change history", `<div class="modal-form"><p class="form-help">${esc(/Unknown action/i.test(error.message) ? "Update the backend to v4.23.0 to see history." : error.message)}</p><div class="form-actions"><button type="button" data-hx-close>Close</button></div></div>`); }
-    const icon = (a) => /^delete|^remove|^reject|^archive/.test(a) ? ["✕", "hx-del"] : /^add|^upload|^create|^approve/.test(a) ? ["＋", "hx-add"] : ["✎", "hx-edit"];
-    const list = (rows || []).map((r) => { const [g, c] = icon(String(r.action || "")); return `<li><i class="${c}">${g}</i><span><b>${esc(r.details || r.action)}</b><small>${esc(r.createdBy || "—")} · ${esc(agoText(r.createdAt))}</small></span></li>`; }).join("");
-    showModal("Change history", `<div class="modal-form"><p class="form-help">Latest ${(rows || []).length} changes in this trip. Only the Administrator sees this.</p>${list ? `<ul class="hx-list">${list}</ul>` : `<p class="form-help">No changes recorded yet.</p>`}<div class="form-actions"><button type="button" data-hx-close>Close</button></div></div>`);
-  }
-  async function openBackups() {
-    showModal("Backups", `<div class="modal-form"><p class="form-help">Loading…</p></div>`);
-    let d; try { d = state.demoMode ? { nightly: true, folderUrl: "#", backups: [] } : await api("listBackups", authPayload({})); } catch (error) { return showModal("Backups", `<div class="modal-form"><p class="form-help">${esc(/Unknown action/i.test(error.message) ? "Update the backend to v4.23.0 and press Run All to turn on backups." : error.message)}</p><div class="form-actions"><button type="button" data-hx-close>Close</button></div></div>`); }
-    const items = (d.backups || []).map((f) => `<li><i class="hx-add">▤</i><span><b>${esc(f.name)}</b><small>${esc(agoText(f.createdAt))}</small></span><a href="${esc(f.url)}" target="_blank" rel="noopener">Open</a></li>`).join("");
-    showModal("Backups", `<div class="modal-form"><div class="bk-status ${d.nightly ? "on" : "off"}"><b>${d.nightly ? "● Nightly backup is ON" : "○ Nightly backup is OFF"}</b><small>${d.nightly ? "A full copy of the Sheet is saved every night around 2 AM. The latest 14 are kept." : "Press Run All in Apps Script once to switch it on."}</small></div>${items ? `<ul class="hx-list">${items}</ul>` : `<p class="form-help">No backups yet.</p>`}<p class="form-help"><b>To restore:</b> open a backup, check it, then in Apps Script set it as the MyTrip spreadsheet (or copy the rows you need back). Your live data is never overwritten automatically.</p><div class="form-actions"><a class="ghost-link" href="${esc(d.folderUrl || "#")}" target="_blank" rel="noopener">Open folder</a><button type="button" data-backup-now>Back up now</button><button type="button" data-hx-close>Close</button></div></div>`);
-  }
-  document.addEventListener("click", async (e) => {
-    const t = e.target.closest("[data-history],[data-backups],[data-backup-now],[data-hx-close]"); if (!t) return;
-    e.preventDefault(); e.stopPropagation();
-    if (t.matches("[data-hx-close]")) return closeModal();
-    if (!isAdmin()) return toast("Administrator access required", true);
-    if (t.matches("[data-history]")) return openHistory();
-    if (t.matches("[data-backups]")) return openBackups();
-    t.disabled = true; t.textContent = "Backing up…";
-    try { const r = state.demoMode ? { name: "Demo" } : await api("backupNow", authPayload({})); toast(`Backup saved · ${r.name}`); openBackups(); } catch (error) { t.disabled = false; t.textContent = "Back up now"; toast(error.message, true); }
-  }, true);
-  /* ---- v4.52.0 part 4: undo · cover · sync pill · share day ---- */
-  function heroCover() {
-    const u = String(((state.data || {}).trip || {}).photoUrl || "").trim();
-    if (!/^https:\/\//.test(u)) return { cls: "", style: "" };
-    return { cls: " has-cover", style: ` style="--hero-img:url('${u.replace(/['"()\\]/g, "")}')"` };
-  }
-  let syncPillTimer = 0;
-  function syncPill(mode) {
-    let el = document.getElementById("syncPill");
-    if (!mode) { if (el) el.remove(); return; }
-    if (!el) { el = document.createElement("div"); el.id = "syncPill"; el.className = "sync-pill"; el.setAttribute("role", "status"); document.body.appendChild(el); }
-    el.dataset.mode = mode;
-    el.innerHTML = mode === "refreshing" ? "<i></i>Updating…" : mode === "done" ? "✓ Up to date" : "☁ Offline · saved copy";
-    clearTimeout(syncPillTimer); if (mode === "done") syncPillTimer = setTimeout(() => syncPill(""), 1600);
-  }
-  const pendingDeletes = new Map();
-  function undoableDelete(sheet, collection, id, label) {
-    const list = state.data[collection] || []; const index = list.findIndex((x) => String(x.id) === String(id));
-    if (index < 0) return;
-    const [item] = list.splice(index, 1);
-    hydrateShell(); render(); updatePrintArea();
-    try { navigator.vibrate && navigator.vibrate(10); } catch {}
-    const key = sheet + ":" + id;
-    const commit = async () => { pendingDeletes.delete(key); hideUndoBar(key); if (state.demoMode) return; try { await api("deleteRecord", authPayload({ sheet, id })); } catch (error) { (state.data[collection] || []).splice(Math.min(index, (state.data[collection] || []).length), 0, item); hydrateShell(); render(); toast(error.message, true); } };
-    const timer = setTimeout(commit, 5000);
-    pendingDeletes.set(key, { timer, commit, payload: authPayload({ sheet, id }) });
-    showUndoBar(key, label, () => { clearTimeout(timer); pendingDeletes.delete(key); const arr = state.data[collection] || (state.data[collection] = []); arr.splice(Math.min(index, arr.length), 0, item); hydrateShell(); render(); updatePrintArea(); toast("Restored"); });
-  }
-  function showUndoBar(key, label, onUndo) {
-    let el = document.getElementById("undoBar");
-    if (!el) { el = document.createElement("div"); el.id = "undoBar"; el.className = "undo-bar"; el.setAttribute("role", "status"); document.body.appendChild(el); }
-    el.dataset.key = key; el.innerHTML = `<span>${esc(label)}</span><button type="button">Undo</button><i></i>`;
-    el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
-    el.querySelector("button").onclick = () => { onUndo(); el.classList.remove("show"); };
-  }
-  function hideUndoBar(key) { const el = document.getElementById("undoBar"); if (el && el.dataset.key === key) el.classList.remove("show"); }
-  window.addEventListener("pagehide", () => {
-    if (!pendingDeletes.size) return;
-    const q = readOfflineQueue(); pendingDeletes.forEach((p) => { clearTimeout(p.timer); q.push({ action: "deleteRecord", payload: p.payload, at: Date.now() }); }); pendingDeletes.clear(); writeOfflineQueue(q);
-  });
-  async function shareDayImage() {
-    try {
-      const t = state.data.trip || {}; const today = localDateKey();
-      const plans = canViewItinerary() ? state.data.itinerary.filter((x) => String(x.date).slice(0, 10) === today).sort((a, b) => String(a.time).localeCompare(String(b.time))).slice(0, 6) : [];
-      const spentToday = canViewExpenses() ? state.data.expenses.filter((x) => String(x.date || "").slice(0, 10) === today).reduce((a, x) => a + Number(x.amount || 0), 0) : 0;
-      const W = 1080, H = 1350, c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
-      const grad = g.createLinearGradient(0, 0, 0, H); grad.addColorStop(0, "#0F6E6A"); grad.addColorStop(1, "#0A3F3D"); g.fillStyle = grad; g.fillRect(0, 0, W, H);
-      const F = (w, s) => `${w} ${s}px system-ui, -apple-system, "Segoe UI", sans-serif`;
-      g.fillStyle = "rgba(255,255,255,.75)"; g.font = F(800, 30); g.fillText(("MYTRIP · " + displayDate(today, { weekday: "long", day: "numeric", month: "long" })).toUpperCase(), 80, 130);
-      g.fillStyle = "#fff"; g.font = F(800, 84); const title = String(t.name || t.destination || "Our trip"); g.fillText(title.length > 20 ? title.slice(0, 19) + "…" : title, 80, 240);
-      g.font = F(600, 38); g.fillStyle = "rgba(255,255,255,.85)"; g.fillText(String(t.destination || ""), 80, 300);
-      let y = 420; g.fillStyle = "rgba(255,255,255,.12)"; g.beginPath(); g.roundRect ? g.roundRect(60, y - 60, W - 120, Math.max(160, plans.length * 110 + 60), 36) : g.rect(60, y - 60, W - 120, Math.max(160, plans.length * 110 + 60)); g.fill();
-      if (!plans.length) { g.fillStyle = "#fff"; g.font = F(600, 40); g.fillText("A free day — enjoy!", 110, y + 20); y += 120; }
-      plans.forEach((p) => { g.fillStyle = "#9FE3D6"; g.font = F(800, 34); g.fillText(String(p.time || "—").slice(0, 5), 110, y); g.fillStyle = "#fff"; g.font = F(700, 40); const s = String(p.title || ""); g.fillText(s.length > 30 ? s.slice(0, 29) + "…" : s, 260, y); if (p.place) { g.fillStyle = "rgba(255,255,255,.7)"; g.font = F(500, 30); const pl = String(p.place); g.fillText(pl.length > 38 ? pl.slice(0, 37) + "…" : pl, 260, y + 42); } y += 110; });
-      if (canViewExpenses()) { g.fillStyle = "rgba(255,255,255,.75)"; g.font = F(800, 30); g.fillText("SPENT TODAY", 80, H - 200); g.fillStyle = "#fff"; g.font = F(800, 72); g.fillText(money.format(Math.round(spentToday)), 80, H - 120); }
-      g.fillStyle = "rgba(255,255,255,.55)"; g.font = F(700, 28); g.textAlign = "right"; g.fillText("made with MyTrip", W - 80, H - 70);
-      const blob = await new Promise((r) => c.toBlob(r, "image/png")); const file = new File([blob], `MyTrip-${today}.png`, { type: "image/png" });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: title }); return; }
-      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); toast("Day card downloaded");
-    } catch (error) { if (error && error.name === "AbortError") return; toast("Could not create the image on this device", true); }
-  }
-  document.addEventListener("click", (e) => { if (e.target.closest("[data-share-day]")) { e.preventDefault(); e.stopPropagation(); shareDayImage(); } }, true);
-  function showExpensePrintSheet() {
-    const people = [...new Set([...visibleTripMembers().map((m) => m.name), ...state.data.expenses.map((e) => e.paidBy).filter(Boolean)])];
-    const who = state.printPerson || "";
-    const xpLock = proLocked("personPrint");
-    const chip = (v, l) => `<button type="button" data-xp-person="${esc(v)}" class="${who === v ? "on" : ""}${v && xpLock ? " locked" : ""}">${v && xpLock ? "🔒 " : ""}${l}</button>`;
-    const seg = (attr, list, cur) => list.map(([v, l]) => `<button type="button" ${attr}="${v}" class="${cur === v ? "on" : ""}">${l}</button>`).join("");
-    showModal("Print expenses", `<div class="xp-sheet"><div class="xp-group"><span class="xp-label">Whose expenses</span><div class="xp-chips">${chip("", "Everyone")}${chip("__each", "Person-wise (each separately)")}${people.map((n) => chip(n, esc(n))).join("")}</div></div><div class="xp-line"><span>Text size</span><span class="xp-step"><button type="button" data-xp-size="-1" aria-label="Smaller">−</button><b>${printPlanScale()}pt</b><button type="button" data-xp-size="1" aria-label="Larger">＋</button></span></div><div class="xp-line"><span>Wrap long text</span><button type="button" class="xp-switch${printPlanWrap() ? " on" : ""}" data-xp-wrap>${printPlanWrap() ? "On" : "Off"}</button></div><div class="xp-line"><span>Page layout</span><span class="xp-seg">${seg("data-xp-layout", [["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]], printPlanLayout())}</span></div><div class="xp-line"><span>Alignment</span><span class="xp-seg">${seg("data-xp-align", [["left", "Left"], ["center", "Centre"], ["right", "Right"]], printPlanAlign())}</span></div><div class="xp-actions"><button type="button" class="primary" data-print="expenses" data-xp-go>▤ Print</button><button type="button" data-cancel>Cancel</button></div></div>`);
-  }
-  document.addEventListener("click", (e) => {
-    const go = e.target.closest("[data-xp-go]"); if (go) { e.preventDefault(); e.stopPropagation(); closeModal(); setTimeout(() => printReport("expenses"), 80); return; }
-    if (e.target.closest(".xp-sheet [data-cancel]")) { e.preventDefault(); e.stopPropagation(); closeModal(); return; }
-    const t = e.target.closest("[data-xp-person],[data-xp-size],[data-xp-wrap],[data-xp-layout],[data-xp-align]"); if (!t) return;
-    e.preventDefault(); e.stopPropagation(); const set = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
-    if (t.hasAttribute("data-xp-person")) { if (t.dataset.xpPerson && !requirePro("personPrint")) return; state.printPerson = t.dataset.xpPerson; }
-    else if (t.dataset.xpSize) set(printWidthKey, String(Math.min(13, Math.max(7, printPlanScale() + Number(t.dataset.xpSize)))));
-    else if (t.hasAttribute("data-xp-wrap")) set(printWrapKey, printPlanWrap() ? "off" : "on");
-    else if (t.dataset.xpLayout) set(printLayoutKey, t.dataset.xpLayout);
-    else if (t.dataset.xpAlign) set(printAlignKey, t.dataset.xpAlign);
-    applyPrintPlanSettings(); printAreaDirty = true; showExpensePrintSheet();
-  }, true);
   function stepPrintWidth(direction) {
     const next = Math.min(13, Math.max(7, printPlanScale() + direction));
     try { localStorage.setItem(printWidthKey, String(next)); } catch {}
@@ -1463,8 +1016,6 @@
 
   async function deletePlanRow(id) {
     if (!isAdmin()) return toast("Administrator access is required to delete an itinerary row", true);
-    state.planRowDeleteId = "";
-    return undoableDelete("Itinerary", "itinerary", id, "Itinerary row deleted");
     try {
       if (!state.demoMode) await api("deleteRecord", authPayload({ sheet: "Itinerary", id }));
       state.data.itinerary = state.data.itinerary.filter((row) => String(row.id) !== String(id));
@@ -1732,14 +1283,7 @@
     const shareCount = units.filter((u) => u.shares).length;
     if (!units.length || !total || !shareCount) return { people: [], transfers: [], share: 0, total, shareCount: 0 };
     const share = total / shareCount;
-    const sharing = units.filter((u) => u.shares); units.forEach((u) => { u.owed = 0; });
-    state.data.expenses.forEach((e) => {
-      const amt = Number(e.amount || 0); if (!amt) return;
-      const sb = String(e.sharedBy || "").split("|").map((s) => s.trim().toLowerCase()).filter(Boolean);
-      let us = sb.length ? sharing.filter((u) => u.members.some((m) => sb.includes(m.toLowerCase()))) : sharing;
-      if (!us.length) us = sharing; us.forEach((u) => { u.owed += amt / us.length; });
-    });
-    units.forEach((u) => { u.net = Math.round((u.paid - u.owed) * 100) / 100; });
+    units.forEach((u) => { u.net = Math.round((u.paid - (u.shares ? share : 0)) * 100) / 100; });
     const owe = units.filter((u) => u.net < -0.5).map((u) => ({ ...u, left: -u.net })).sort((a, b) => b.left - a.left);
     const get = units.filter((u) => u.net > 0.5).map((u) => ({ ...u, left: u.net })).sort((a, b) => b.left - a.left);
     const transfers = [];
@@ -1778,57 +1322,14 @@
     const plan = settleUpPlan();
     if (!plan.total) return "";
     const forced = String((state.data.trip || {}).settleVisible).toUpperCase() === "TRUE";
-    if (!settleShown()) return isAdmin() ? `<section class="settle-collapsed"><div><b>Settle up is hidden</b><small>Travellers will see who owes whom after the trip ends.</small></div><div class="settle-collapsed-actions"><button type="button" data-split-members>Choose who shares</button><button type="button" data-resplit>Re-split past expenses</button><button type="button" data-currency-setup>Currency</button><button type="button" class="settle-show" data-settle-toggle="show">Show now</button></div></section>` : "";
+    if (!settleShown()) return isAdmin() ? `<section class="settle-collapsed"><div><b>Settle up is hidden</b><small>Travellers will see who owes whom after the trip ends.</small></div><div class="settle-collapsed-actions"><button type="button" data-split-members>Choose who shares</button><button type="button" class="settle-show" data-settle-toggle="show">Show now</button></div></section>` : "";
     const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.lead })}<b>${esc(p.name)}</b></span><small>${p.members.length > 1 ? `${p.members.map(esc).join(" + ")} · ` : ""}Paid ${money.format(p.paid)}${p.shares ? "" : " · not sharing"}</small><strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong></div>`).join("");
-    const moves = plan.transfers.length ? plan.transfers.map((t) => `<li><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong><a class="settle-remind" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`MyTrip · ${(state.data.trip || {}).name || "Trip"}: ${t.from} pays ${t.to} ${money.format(t.amount)} to settle up. Thank you!`)}">✆ Remind</a></li>`).join("") : `<li class="settle-done"><b>All settled</b><span>Every share is paid equally.</span></li>`;
-    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>${state.data.expenses.some((e) => String(e.sharedBy || "").trim()) ? `Shared across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · some expenses re-split` : `Split equally across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · ${money.format(Math.round(plan.share))} each`}</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button><button type="button" class="ghost-button" data-resplit>Re-split</button><button type="button" class="ghost-button" data-currency-setup>Currency</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div></section>`;
+    const moves = plan.transfers.length ? plan.transfers.map((t) => `<li><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong></li>`).join("") : `<li class="settle-done"><b>All settled</b><span>Every share is paid equally.</span></li>`;
+    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>Split equally across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · ${money.format(Math.round(plan.share))} each</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div></section>`;
   }
 
-  function mtDefaultDate() {
-    const t = new Date(), today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-    const s = String(state.data.trip.startDate || ""), e = String(state.data.trip.endDate || "");
-    return (!s || today >= s) && (!e || today <= e) ? today : (s || today);
-  }
-  function mtExpenseSheet() {
-    let last = {}; try { last = JSON.parse(localStorage.getItem("mytrip_last_expense") || "{}") || {}; } catch {}
-    const cats = ["Food", "Travel", "Local travel", "Stay", "Activities", "Shopping", "Other"];
-    const cat = cats.includes(last.category) ? last.category : "Food";
-    const payers = visibleTripMembers(); const list = payers.length ? payers : [{ name: state.currentUser }];
-    const payer = list.some((m) => m.name === last.paidBy) ? last.paidBy : (list.some((m) => m.name === state.currentUser) ? state.currentUser : list[0].name);
-    return `<form class="modal-form mt-xsheet" data-form="expense"><label class="mt-x-amount"><span>₹</span><input name="amount" type="number" inputmode="decimal" min="1" step="0.01" placeholder="0" required autofocus></label><div class="mt-x-group"><span class="mt-x-label">Category</span><div class="mt-x-chips">${cats.map((c) => `<label><input type="radio" name="category" value="${c}"${c === cat ? " checked" : ""}><span>${c}</span></label>`).join("")}</div></div><div class="mt-x-group"><span class="mt-x-label">Paid by</span><div class="mt-x-chips mt-x-payers">${list.map((m) => `<label><input type="radio" name="paidBy" value="${esc(m.name)}"${m.name === payer ? " checked" : ""}><span>${avatarSlot(m)}${esc(m.name)}</span></label>`).join("")}</div></div><label class="mt-x-field">What for? <small>(optional)</small><input name="label" placeholder="e.g. Lunch, auto, tickets" maxlength="120"></label><label class="mt-x-field">Date<input name="date" type="date" value="${esc(mtDefaultDate())}" required></label><div class="mt-x-actions"><button type="submit" class="mt-x-save">Save</button><button type="submit" class="mt-x-again" data-again>Save &amp; add another</button><button type="button" class="mt-x-cancel" data-cancel>Cancel</button></div></form>`;
-  }
-  function mtMoneyMobile() {
-    const budget = Number(state.data.trip.budget || 0), total = spent();
-    const d = (off) => { const t = new Date(); t.setDate(t.getDate() - off); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
-    const today = d(0), yday = d(1), f = state.mtExpFilter || "all";
-    const all = [...state.data.expenses].sort((x, y) => `${y.date || ""}${y.id || ""}`.localeCompare(`${x.date || ""}${x.id || ""}`));
-    const sum = (arr) => arr.reduce((s, e) => s + Number(e.amount || 0), 0);
-    const todaySum = sum(all.filter((e) => String(e.date) === today));
-    const shown = f === "today" ? all.filter((e) => String(e.date) === today) : f === "yday" ? all.filter((e) => String(e.date) === yday) : all;
-    const canEdit = canEditRecords("Expenses"), canDel = isAdmin();
-    const groups = []; shown.forEach((e) => { const k = String(e.date || ""); let g = groups[groups.length - 1]; if (!g || g.k !== k) groups.push(g = { k, items: [] }); g.items.push(e); });
-    const list = groups.map((g) => `<div class="mt-xday"><div class="mt-xday-head"><b>${g.k === today ? "Today" : g.k === yday ? "Yesterday" : esc(displayDate(g.k, { weekday: "short", day: "numeric", month: "short" }))}</b><span>${money.format(sum(g.items))}</span></div>${g.items.map((e) => `<div class="mt-xrow-wrap">${canDel ? `<button type="button" class="mt-xrow-del" data-delete-expense="${esc(e.id)}">Delete</button>` : ""}<button type="button" class="mt-xrow"${canEdit ? ` data-edit data-sheet="Expenses" data-id="${esc(e.id)}"` : ` data-view-expense="${esc(e.id)}"`}><i class="mt-xcat">${esc(String(e.category || "Other").slice(0, 1))}</i><span class="mt-xwhat"><b>${esc(e.label || e.category || "Expense")}</b><small class="mt-xmeta"><span class="mt-xpayer">${avatarSlot({ name: e.paidBy || "" })}</span><span class="mt-xmeta-text">${esc(e.paidBy || "Not specified")} · ${esc(e.category || "Other")}${e.receiptUrl ? " · 🧾" : ""}${e.currency && Number(e.foreignAmount) > 0 ? ` · ${esc(e.currency)} ${Number(e.foreignAmount).toLocaleString("en-IN")}` : ""}</span></small></span><strong>${money.format(e.amount)}</strong></button></div>`).join("")}</div>`).join("");
-    const chips = [["today", "Today"], ["yday", "Yesterday"], ["all", "All"]].map(([k, l]) => `<button type="button" data-mt-xfilter="${k}" class="${f === k ? "on" : ""}">${l}</button>`).join("");
-    const travellerCards = expenseTotalsByTraveller().map((row) => `<article class="traveller-expense-card"><i>${avatarSlot(row)}</i><div><b>${esc(row.name)}</b><small>${row.count} ${row.count === 1 ? "payment" : "payments"}</small></div><strong>${money.format(row.total)}</strong></article>`).join("");
-    const fold = (t, s, body) => `<details class="mt-fold"><summary><span><b>${t}</b><small>${s}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>`;
-    const left = budget - total;
-    return `<section class="mt-money"><div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button>` : ""}<div class="mt-xfilters">${chips}</div><div class="mt-xlist">${list || `<p class="mt-today-empty">${f === "all" ? "No expenses yet. Tap ＋ to add the first one." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", `<div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No payments yet.</p>`}</div>`)}${fold("Settle up", "Who owes whom", renderSettleUp())}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
-  }
-  document.addEventListener("click", (event) => { const c = event.target.closest("[data-mt-xfilter]"); if (c) { state.mtExpFilter = c.dataset.mtXfilter; render(); } });
-  (() => {
-    let timer = 0, long = false;
-    document.addEventListener("pointerdown", (e) => { const p = e.target.closest("[data-mt-plus]"); if (!p) return; long = false; clearTimeout(timer); timer = setTimeout(() => { long = true; if (canViewItinerary() && canAdd("plan")) { navigator.vibrate && navigator.vibrate(15); showAddModal("plan"); } }, 520); });
-    ["pointerup", "pointercancel", "pointerleave"].forEach((t) => document.addEventListener(t, () => clearTimeout(timer)));
-    document.addEventListener("click", (e) => { const p = e.target.closest("[data-mt-plus]"); if (!p) return; e.preventDefault(); if (long) { long = false; return; } if (canViewExpenses() && canAdd("expense")) showAddModal("expense"); else if (canViewItinerary() && canAdd("plan")) showAddModal("plan"); });
-    document.addEventListener("contextmenu", (e) => { if (e.target.closest("[data-mt-plus]")) e.preventDefault(); });
-    let sx = 0, sy = 0, row = null;
-    document.addEventListener("touchstart", (e) => { const r = e.target.closest(".mt-xrow"); document.querySelectorAll(".mt-xrow-wrap.swiped").forEach((w) => { if (!r || w !== r.parentElement) w.classList.remove("swiped"); }); if (!r || !r.parentElement.querySelector(".mt-xrow-del")) { row = null; return; } row = r; sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
-    document.addEventListener("touchend", (e) => { if (!row) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy); if (dy < 30 && dx < -50) row.parentElement.classList.add("swiped"); else if (dy < 30 && dx > 40) row.parentElement.classList.remove("swiped"); row = null; }, { passive: true });
-    document.addEventListener("click", (e) => { const r = e.target.closest(".mt-xrow"); if (r && r.parentElement.classList.contains("swiped")) { e.stopPropagation(); e.preventDefault(); r.parentElement.classList.remove("swiped"); } }, true);
-  })();
   function renderExpenses() {
     if (!canViewExpenses()) return `<section class="feature-locked"><i>₹</i><h2>Expenses hidden</h2><p>The Administrator has not enabled this feature for your Traveller ID.</p></section>`;
-    if (mtIsPhone()) return mtMoneyMobile();
     const budget = Number(state.data.trip.budget || 0), total = spent();
     const travellerTotals = expenseTotalsByTraveller();
     const travellerCards = travellerTotals.map((row) => {
@@ -1839,7 +1340,7 @@
       if (String(state.expenseRowEditId) === String(expense.id)) return renderExpenseRowEditor(expense);
       const editActions = canEditRecords("Expenses") ? `<button class="row-edit" data-row-edit-expense="${esc(expense.id)}">Row edit</button><button data-edit data-sheet="Expenses" data-id="${esc(expense.id)}">Edit</button>` : "";
       const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
-      return `<div class="expense-row"><span class="expense-description"><i>₹</i><b>${esc(expense.label)}</b></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${expense.receiptUrl || canEditRecords("Expenses") ? `<button class="receipt-btn${expense.receiptUrl ? " has" : ""}" data-receipt-open="${esc(expense.id)}" title="${expense.receiptUrl ? "View receipt" : "Add receipt photo"}">🧾</button>` : ""}${editActions}${deleteAction}</span></div>`;
+      return `<div class="expense-row"><span class="expense-description"><i>₹</i><b>${esc(expense.label)}</b></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${editActions}${deleteAction}</span></div>`;
     }).join("");
     return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderSpendChart(total, budget)}<section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>Detailed expense statement</h2><p>Use Row edit for a quick change or Edit for every field.</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu()}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div><div class="expense-table expense-action-table"><div class="expense-table-header"><span>DESCRIPTION</span><span>DATE</span><span>CATEGORY</span><span>PAID BY</span><span>AMOUNT</span><span>ACTIONS</span></div>${rows || `<div class="expense-empty-row"><b>No expenses recorded</b><p>Add the first trip payment.</p></div>`}</div></section>`;
   }
@@ -1851,8 +1352,7 @@
     return `<form class="expense-row expense-row-editing" data-expense-row-form="${esc(expense.id)}"><label><small>DESCRIPTION</small><input name="label" maxlength="180" value="${esc(expense.label)}" required></label><label><small>DATE</small><input name="date" type="date" value="${esc(expense.date)}" required></label><label><small>CATEGORY</small><select name="category">${categories.map((category) => `<option ${category === expense.category ? "selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label><small>PAID BY</small><select name="paidBy" required>${payers.map((payer) => `<option ${payer === expense.paidBy ? "selected" : ""}>${esc(payer)}</option>`).join("")}</select></label><label><small>AMOUNT</small><input name="amount" type="number" min="0.01" step="0.01" value="${esc(expense.amount)}" required></label><span class="expense-row-actions editing"><button class="save" type="submit">Save row</button><button type="button" data-cancel-expense-row>Cancel</button></span></form>`;
   }
 
-  function showExpenseDetails(id) { const r = showExpenseDetailsInner(id); injectReceiptBlock(id); return r; }
-  function showExpenseDetailsInner(id) {
+  function showExpenseDetails(id) {
     const expense = state.data.expenses.find((item) => String(item.id) === String(id));
     if (!expense) return toast("Expense not found", true);
     showModal("Expense details", `<div class="expense-view-card"><span class="expense-view-icon">₹</span><div><small>EXPENSE</small><h3>${esc(expense.label)}</h3><p>${esc(expense.notes || "No additional note")}</p></div><dl><div><dt>DATE</dt><dd>${displayDate(expense.date)}</dd></div><div><dt>CATEGORY</dt><dd>${esc(expense.category || "Other")}</dd></div><div><dt>PAID BY</dt><dd>${esc(expense.paidBy || "Not specified")}</dd></div><div><dt>AMOUNT</dt><dd>${money.format(expense.amount)}</dd></div></dl><div class="form-actions"><button id="closeExpenseView" type="button">Close</button>${canEditRecords("Expenses") ? `<button id="editExpenseFromView" type="button">Edit expense</button>` : ""}</div></div>`);
@@ -1906,7 +1406,7 @@
     const planCard = canViewItinerary() || canViewExperiences() ? `<article class="print-card"><i>▦</i><h3>Itinerary & experiences</h3><p>Print the plan and experience notes currently available to you.</p><button data-print="plan">Print itinerary →</button></article>` : "";
     const itineraryCard = canViewItinerary() ? `<article class="print-card"><i>▦</i><h3>Itinerary only</h3><p>A clean day-by-day table with a tick column — carry it before the trip for easy management.</p><button data-print="itinerary">Print itinerary →</button></article>` : "";
     const expenseCard = canViewExpenses() ? `<article class="print-card"><i>₹</i><h3>Expenses only</h3><p>Budget summary and every expense entry.</p><button data-print="expenses">Print expenses →</button></article>` : "";
-    return `${heading("READY FOR PAPER", "Print and export", "Create a clean A4 copy or save allowed reports as PDF.")}<div class="print-grid">${itineraryCard}${planCard}${expenseCard}${isAdmin() ? `<article class="print-card"><i>⟲</i><h3>History &amp; backups</h3><p>Who added, changed or deleted what — and nightly copies of the whole Sheet.</p><div class="csv-buttons"><button data-history>Change history</button><button data-backups>Backups</button></div></article>` : ""}<article class="print-card"><i>⇩</i><h3>Excel / CSV</h3><p>Download a spreadsheet that opens in Excel or Google Sheets.</p><div class="csv-buttons">${canViewExpenses() ? `<button data-csv="expenses">Expenses ⇩</button>` : ""}${canViewItinerary() ? `<button data-csv="itinerary">Itinerary ⇩</button>` : ""}<button data-csv="checklist">Checklist ⇩</button></div></article><article class="print-card"><i>▤</i><h3>Available trip book</h3><p>Only the sections enabled by the Administrator are included.</p><button data-print="full">Print available sections →</button></article></div>`;
+    return `${heading("READY FOR PAPER", "Print and export", "Create a clean A4 copy or save allowed reports as PDF.")}<div class="print-grid">${itineraryCard}${planCard}${expenseCard}<article class="print-card"><i>▤</i><h3>Available trip book</h3><p>Only the sections enabled by the Administrator are included.</p><button data-print="full">Print available sections →</button></article></div>`;
   }
 
   function skeletonView() {
@@ -1919,8 +1419,6 @@
     { group: "Getting started", go: "overview", items: [
       ["How do I sign in?", "Use your Traveller ID and password from the Administrator. For one shared trip, use the Trip ID and trip password."],
       ["How do I switch trips?", "Tap All trips (admin) or My trips (traveller) at the top, or in ⋯ More on mobile, then choose a trip."],
-      ["How can a new person join?", "Administrator: Invite › Create link and send it on WhatsApp. They fill name and password; you tap Allow. The link expires after the trip."],
-      ["How do I change my password?", "Open My trips and tap ⚿ Change my password. A trip creator can also reset travellers in their own trips."],
       ["What is on Overview?", "Days to go or today's plan, trip progress, what's next and the pinned sticky note."]] },
     { group: "Itinerary", go: "itinerary", items: [
       ["How do I add a plan?", "Tap ＋ (bottom right on mobile) or Add plan. Enter day, time, what and an optional remark, then Save."],
@@ -1932,30 +1430,16 @@
     { group: "Expenses & settle up", go: "expenses", items: [
       ["How do I add an expense?", "Open Expenses and tap ＋. Choose Paid by carefully. It must match the traveller's name."],
       ["Who shares the cost?", "The Administrator taps Choose who shares. Each person can be Own share, Same family as someone, or Not sharing."],
-      ["Someone skipped a day — how do I fix the split?", "Administrator: in Settle up tap Re-split past expenses. Choose Whole trip, One day or Pick expenses, untick who did not share, check the preview and tap Update."],
-      ["Can I add a receipt photo?", "Yes. Open the expense and tap 📷 Camera or 🖼 Gallery in the Receipt box. It is saved small in Drive. Rows with a bill show 🧾."],
-      ["How do I enter a foreign currency?", "Administrator: Settle up › Currency, pick the currency and the ₹ rate. Then in Add expense choose that currency; MyTrip saves the ₹ value with the rate locked."],
-      ["What if there is no signal?", "Keep adding. Entries are saved on the phone with an amber You're offline note and sync by themselves when signal returns."],
-      ["How do I remind someone to pay?", "In Settle up tap ✆ Remind next to a payment. WhatsApp opens with a ready message."],
       ["When is Settle up shown?", "The Administrator decides. It can stay hidden until the journey ends, then show who pays whom."]] },
     { group: "Sticky notes", go: "overview", items: [
       ["What is the pinned sticky note?", "A shared note on Overview that every traveller on the trip can read."],
       ["Who can edit it?", "The Administrator, and any traveller the Administrator allows. Type directly in the note and tap Save."],
-      ["Can the sticky note be hidden?", "Yes. Administrator: open the sticky panel and tap 🙈 Hide for travellers. Tap 👁 Show to travellers to bring it back."],
       ["Why don't I see my change?", "Always tap Save before leaving. Then pull to refresh or tap Refresh data on the other device."]] },
     { group: "Photos & travellers", go: "people", items: [
       ["How do I add my photo?", "Tap your name or picture, then Change photo. Admins can set anyone's photo."],
       ["How do I add trip photos?", "Open Trip photos and tap Upload. The Administrator can turn uploads on or off."],
-      ["Why can't I choose Original photo?", "The Administrator sets photo quality and the number of photos for each traveller: Traveller chooses, Compressed only or Original only."],
       ["Why is a feature missing for me?", "The Administrator can hide features for each Traveller ID. Ask them to turn it on."]] },
-    { group: "Checklist", go: "checklist", items: [
-      ["How does the checklist work?", "Open Checklist (⋯ More on mobile). Add an item, choose who it is for and a day if needed, then tick it when done. Everyone sees it."],
-      ["Who can delete an item?", "The person who added it, or the Administrator."]] },
     { group: "Print & settings", go: "print", items: [
-      ["Is my data backed up?", "Yes, once the Administrator presses Run All. A full copy of the Sheet is saved every night in Drive › MyTrip Backups (latest 14 kept). Print & export › Backups shows them and has Back up now."],
-      ["Can I see who changed something?", "Administrator: Print & export › Change history lists every add, edit and delete with the person and time."],
-      ["How do I download Excel?", "Open Print & export and tap Expenses, Itinerary or Checklist in the Excel / CSV card. It opens in Excel or Google Sheets."],
-      ["How do I print expenses person-wise?", "Print & export › Print expenses, choose a person, font size, layout and alignment, then Print."],
       ["How do I print the itinerary?", "Open Print & export, choose wrap, layout and alignment, then Print or Save as PDF."],
       ["How do I make text bigger?", "Use A− / A+ at the top, or in ⋯ More on mobile. Your choice is remembered."],
       ["Why was I signed out?", "The Administrator can set auto sign-out after 5 min, 30 min, 1 hr or 2 hr without use."]] }
@@ -2269,18 +1753,9 @@
     const stops = cats.map(([, v], i) => { const from = acc / total * 100; acc += v; return `${SPEND_COLORS[i % SPEND_COLORS.length]} ${from.toFixed(2)}% ${(acc / total * 100).toFixed(2)}%`; }).join(",");
     const used = budget ? Math.round(total / budget * 100) : 0;
     const legend = cats.map(([k, v], i) => `<li><i style="background:${SPEND_COLORS[i % SPEND_COLORS.length]}"></i><span>${esc(k)}</span><b>${money.format(Math.round(v))}</b><small>${Math.round(v / total * 100)}%</small></li>`).join("");
-    return `<section class="spend-chart"><div class="spend-ring" style="background:conic-gradient(${stops})"><div><b>${budget ? used + "%" : money.format(Math.round(total))}</b><small>${budget ? "OF BUDGET" : "SPENT"}</small></div></div><div class="spend-legend"><span class="kicker">WHERE THE MONEY WENT</span><ul>${legend}</ul></div>${spendByDay()}</section>`;
+    return `<section class="spend-chart"><div class="spend-ring" style="background:conic-gradient(${stops})"><div><b>${budget ? used + "%" : money.format(Math.round(total))}</b><small>${budget ? "OF BUDGET" : "SPENT"}</small></div></div><div class="spend-legend"><span class="kicker">WHERE THE MONEY WENT</span><ul>${legend}</ul></div></section>`;
   }
 
-  function spendByDay() {
-    const m = new Map();
-    state.data.expenses.forEach((e) => { const d = String(e.date || "").slice(0, 10); if (d) m.set(d, (m.get(d) || 0) + Number(e.amount || 0)); });
-    const days = [...m.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).slice(-14);
-    if (days.length < 2) return "";
-    const max = Math.max(...days.map(([, v]) => v)) || 1; const top = days.reduce((a, b) => b[1] > a[1] ? b : a)[0];
-    const bars = days.map(([d, v]) => `<li title="${esc(d)} · ${money.format(Math.round(v))}" class="${d === top ? "is-top" : ""}"><i style="height:${Math.max(6, Math.round(v / max * 100))}%"></i><small>${esc(d.slice(8, 10))}</small></li>`).join("");
-    return `<div class="spend-days"><span class="kicker">BY DAY · avg ${money.format(Math.round(days.reduce((s, [, v]) => s + v, 0) / days.length))}</span><ul>${bars}</ul></div>`;
-  }
   /* Quick add: "Wed 10am backwater cruise at Poovar" (v4.37.0) */
   function quickAddBar() {
     return `<form class="quick-add" data-quick-add><span class="quick-add-ico">＋</span><input name="q" autocomplete="off" placeholder="Quick add: Wed 10am backwater cruise at Poovar" aria-label="Quick add a plan"><button type="submit">Add</button><small class="quick-add-hint" id="quickAddHint">Type a day, time and what. Paste several lines to add many.</small></form>`;
@@ -2363,11 +1838,11 @@
   }
   function renderInner() {
     if (!state.data) { try { hideTabbar(); } catch (error) {} return; }
-    const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, checklist: renderChecklist, print: renderPrint, help: renderHelp };
-    $("#view").innerHTML = accessNotice() + (state.tab === "overview" ? greetingStrip() + rateReminder() + weatherSlot() : "") + renderers[state.tab]();
+    const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, print: renderPrint, help: renderHelp };
+    $("#view").innerHTML = accessNotice() + (state.tab === "overview" ? rateReminder() + weatherSlot() : "") + renderers[state.tab]();
     maybeWelcome(); if (state.tab === "overview") loadWeather();
     if (state.tab === "itinerary" && planMapOpen()) { try { initPlanMap(); } catch (error) {} }
-    try { applyLineIcons(); } catch {} try { updateTabbar(); } catch {}
+    try { applyLineIcons(); updateTabbar(); } catch (error) {}
     if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
     const printMenu = $(".plan-print-menu");
     if (printMenu) printMenu.addEventListener("toggle", () => { state.printMenuOpen = printMenu.open; });
@@ -2378,8 +1853,7 @@
     if (!button || !$("#view").contains(button)) return;
     if (button.dataset.go) return setTab(button.dataset.go);
     if (button.dataset.add) return showAddModal(button.dataset.add);
-    if (button.dataset.print === "expenses" && !button.hasAttribute("data-xp-go")) { if (proLocked("personPrint")) state.printPerson = ""; return showExpensePrintSheet(); }
-    if (button.dataset.print) { if (button.hasAttribute("data-xp-go")) closeModal(); return printReport(button.dataset.print); }
+    if (button.dataset.print) return printReport(button.dataset.print);
     if (button.dataset.map) return openMap(button.dataset.map);
     if (button.hasAttribute("data-invite")) return showInvite();
     if (button.hasAttribute("data-all-trips")) return showAllTrips();
@@ -2786,19 +2260,7 @@
     if (notify) toast("Sticky button moved back to the right edge");
   }
 
-  function stickyHiddenForTrip() { return String(((state.data && state.data.trip) || {}).stickyHidden).toUpperCase() === "TRUE"; }
-  function stickyHiddenForMe() { return !isAdmin() && stickyHiddenForTrip(); }
-  async function toggleStickyHidden() {
-    if (!isAdmin()) return toast("Administrator access required", true);
-    const hide = !stickyHiddenForTrip(); const value = hide ? "TRUE" : "FALSE";
-    try {
-      if (!state.demoMode) await api("updateTrip", authPayload({ trip: { stickyHidden: value } }));
-      state.data.trip.stickyHidden = value; renderStickyNotes(); render();
-      toast(hide ? "Sticky note hidden for all travellers in this trip" : "Sticky note shown to all travellers again");
-    } catch (error) { toast(error.message, true); }
-  }
   function setStickyControlsVisible(visible) {
-    visible = visible && !stickyHiddenForMe();
     makeStickyTabDraggable();
     const tab = $("#stickyEdgeTab");
     tab.classList.toggle("draggable", isAdmin());
@@ -2809,7 +2271,6 @@
   }
 
   function openStickyPanel() {
-    if (stickyHiddenForMe()) return toast("The Administrator has hidden the sticky note for this trip");
     const panel = $("#stickyPanel");
     clearTimeout(openStickyPanel.hideTimer);
     panel.classList.remove("hidden");
@@ -2868,8 +2329,6 @@
 
   function renderStickyNotes() {
     if (!$("#stickyActiveList")) return;
-    if (stickyHiddenForMe()) { $("#stickyEdgeTab").classList.add("hidden"); const layer = $("#floatingStickyLayer"); if (layer) { layer.innerHTML = ""; layer.classList.add("hidden"); } closeStickyPanel(); return; }
-    if ($("#stickyHideToggle")) { $("#stickyHideToggle").classList.toggle("hidden", !isAdmin()); $("#stickyHideToggle").textContent = stickyHiddenForTrip() ? "👁 Show to travellers" : "🙈 Hide for travellers"; $("#stickyHideToggle").classList.toggle("is-on", stickyHiddenForTrip()); }
     const active = stickyNotes.filter((note) => !note.completed);
     const remoteCompleted = state.data ? (state.data.stickyDiary || []).map((note, index) => normaliseSticky({ ...note, body: note.details, completed: true }, index)) : [];
     const remoteIds = new Set(remoteCompleted.map((note) => String(note.id)));
@@ -3333,17 +2792,16 @@
       } else {
         const payload = { tripId, username: state.accountUsername, password: pin, pin, ...(traveller ? { travellerId: traveller.travellerId } : {}) };
         const cached = readCachedTrip(tripId);
-        if (cached && cached.meta && cached.meta.role === role && (traveller ? String(cached.meta.travellerId || "") === String(traveller.travellerId) && cached.meta.loginMode === "personal" : !cached.meta.travellerId && (cached.meta.loginMode || "admin") === "admin")) {
+        if (cached && !traveller && cached.meta && cached.meta.role === role && !cached.meta.travellerId && (cached.meta.loginMode || "admin") === "admin") {
           closeModal();
           await openTrip(cached.data, pin, false, cached.meta.name, cached.meta.role, cached.meta.travellerId || "", cached.meta.loginMode || "admin");
-          syncPill("refreshing");
+          toast("Showing your saved copy · refreshing…");
           api("getTrip", payload).then((fresh) => {
-            if (!fresh || !fresh.trip || String(fresh.trip.tripId) !== String(tripId)) return syncPill("");
+            if (!fresh || !fresh.trip || String(fresh.trip.tripId) !== String(tripId)) return;
             state.data = normalize(fresh); state.permissions = fresh.permissions || {};
             cacheTripBundle(fresh, cached.meta);
-            const y = window.scrollY; loadStickyNotes(); hydrateShell(); render(); updatePrintArea(); stickyRefreshAt = Date.now(); try { window.scrollTo(0, y); } catch {}
-            syncPill("done");
-          }).catch(() => syncPill(navigator.onLine === false ? "offline" : ""));
+            loadStickyNotes(); hydrateShell(); render(); updatePrintArea(); stickyRefreshAt = Date.now();
+          }).catch(() => {});
           return;
         }
         showSkeleton();
@@ -3481,7 +2939,6 @@
   }
 
   function renderMyTrips(trips, pin, traveller, demoMode) {
-    state.pwCtx = { pin, traveller, demoMode };
     loadProfilePhotos();
     const quota = travellerTripQuotaInfo(traveller);
     const canCreateTrips = quota.enabled;
@@ -3496,7 +2953,7 @@
       details.push(`${featureCount}/7 access options available`);
       return `<article class="trip-library-card"><i>♙</i><div><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>${details.join(" · ")}</small></div><button data-open-my-trip="${esc(trip.tripId)}" type="button">Open →</button></article>`;
     }).join("");
-    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero traveller"><div><span>MY TRAVEL DASHBOARD</span><h1>Every permitted trip</h1><p>Signed in as <b>${esc(traveller.travellerId)}</b>. Open a trip to view and manage every feature allowed by the Administrator.</p></div><strong>${trips.length} ${trips.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="self-profile-card"><i class="avatar-edit" data-photo-upload="${esc(traveller.travellerId)}" title="Change my photo">${avatarSlot(traveller)}<em>📷</em></i><div><span>USERNAME · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b class="${canCreateAnotherTrip ? "trip-creation-allowed" : ""}">${travellerTripQuotaLabel(quota)}</b></div>${proMemberCard(traveller)}<div class="pw-tools"><button type="button" class="secondary-action" data-change-my-pw>⚿ Change my password</button><button type="button" class="secondary-action" data-owner-reset-pw>♙ Reset traveller password</button></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this account</h3></div>${canCreateAnotherTrip ? `<button id="createTravellerTrip" type="button">＋ Create trip (${quota.remaining} left)</button>` : ""}</div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>${canCreateAnotherTrip ? "Create a new trip using the button above." : `Ask the Administrator to assign trips or increase the creation limit for username ${esc(traveller.travellerId)}.`}</p></div>`}</div><p class="global-access-note">♙ ${canCreateTrips ? (canCreateAnotherTrip ? `The Global Administrator allows up to ${quota.limit} created ${quota.limit === 1 ? "trip" : "trips"}; ${quota.remaining} ${quota.remaining === 1 ? "slot remains" : "slots remain"}.` : `Your creation limit is ${quota.limit}; existing trips are preserved, but no new trip can be created until the Administrator increases the limit.`) : "Trip creation is disabled. This account still shows every active trip assigned now or in the future."}</p></div></section>`;
+    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero traveller"><div><span>MY TRAVEL DASHBOARD</span><h1>Every permitted trip</h1><p>Signed in as <b>${esc(traveller.travellerId)}</b>. Open a trip to view and manage every feature allowed by the Administrator.</p></div><strong>${trips.length} ${trips.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="self-profile-card"><i class="avatar-edit" data-photo-upload="${esc(traveller.travellerId)}" title="Change my photo">${avatarSlot(traveller)}<em>📷</em></i><div><span>USERNAME · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b class="${canCreateAnotherTrip ? "trip-creation-allowed" : ""}">${travellerTripQuotaLabel(quota)}</b></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this account</h3></div>${canCreateAnotherTrip ? `<button id="createTravellerTrip" type="button">＋ Create trip (${quota.remaining} left)</button>` : ""}</div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>${canCreateAnotherTrip ? "Create a new trip using the button above." : `Ask the Administrator to assign trips or increase the creation limit for username ${esc(traveller.travellerId)}.`}</p></div>`}</div><p class="global-access-note">♙ ${canCreateTrips ? (canCreateAnotherTrip ? `The Global Administrator allows up to ${quota.limit} created ${quota.limit === 1 ? "trip" : "trips"}; ${quota.remaining} ${quota.remaining === 1 ? "slot remains" : "slots remain"}.` : `Your creation limit is ${quota.limit}; existing trips are preserved, but no new trip can be created until the Administrator increases the limit.`) : "Trip creation is disabled. This account still shows every active trip assigned now or in the future."}</p></div></section>`;
 
     showAccountHub("traveller", `TRAVELLER · ${traveller.travellerId}`);
     $$('[data-open-my-trip]').forEach((button) => button.addEventListener("click", () => openListedTrip(button.dataset.openMyTrip, pin, demoMode, "traveller", traveller)));
@@ -3549,8 +3006,7 @@
   }
 
   function renderTravellerAccounts(travellers, trips, administratorSecret, demoMode) {
-    state.planCtx = { travellers, trips, administratorSecret, demoMode };
-    showModal("Traveller profiles", `<div class="traveller-manager"><div class="all-trips-summary"><span><small>PERMANENT TRAVELLER DIRECTORY</small><b>${travellers.length} profiles</b></span><span class="summary-actions"><button id="backToAllTrips" class="secondary-action" type="button">← All trips</button><button id="proRulesToggle" type="button" class="secondary-action">Pro rules…</button><button id="createTravellerAccount" type="button">＋ Add traveller</button></span></div><p class="directory-note">Use <b>Trip limit</b> to cap, increase, reduce or disable how many trips a traveller may create. Assigned trips do not consume this limit.</p><div class="account-list">${travellers.map((traveller) => `<article class="account-card ${traveller.active ? "" : "inactive"}"><span class="account-avatar${isAdmin() || state.administratorSecret ? " avatar-edit" : ""}"${isAdmin() || state.administratorSecret ? ` data-photo-upload="${esc(traveller.travellerId)}" title="Change ${esc(traveller.name)}'s photo"` : ""}>${avatarSlot(traveller)}${isAdmin() || state.administratorSecret ? "<em>📷</em>" : ""}</span><div class="account-profile"><span>${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email].filter(Boolean).map(esc).join(" · ") || "Contact details not added"}</p><small>${[traveller.city, traveller.emergencyContact ? `Emergency: ${traveller.emergencyContact}` : ""].filter(Boolean).map(esc).join(" · ") || "City and emergency contact not added"}</small><div class="account-trip-status ${Number(traveller.tripCount || 0) ? "assigned" : "unassigned"}">${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned ${Number(traveller.tripCount) === 1 ? "trip" : "trips"}: ${(traveller.tripIds || []).map(esc).join(", ")}` : "NO TRIP ASSIGNED"}</div></div><div class="account-actions"><button data-view-account="${esc(traveller.travellerId)}">View profile</button><button data-account-trips="${esc(traveller.travellerId)}">Assign trips</button><button class="pin-account-control" data-edit-account-login="${esc(traveller.travellerId)}">✎ Edit login</button><button class="plan-account-control${traveller.plan === "pro" ? " is-pro" : ""}" data-account-plan="${esc(traveller.travellerId)}">${traveller.plan === "pro" ? `<span class="pro-coin" aria-hidden="true">✦</span>PRO MEMBER` : "Free · tap to give Pro"}${traveller.plan === "pro" && traveller.planExpires ? ` · till ${esc(traveller.planExpires)}` : ""}</button><button class="global-profile-control" data-toggle-account="${esc(traveller.travellerId)}" data-active="${Boolean(traveller.active)}">${traveller.active ? "Disable everywhere" : "Enable profile"}</button><button class="delete-profile-control" data-delete-account="${esc(traveller.travellerId)}">Delete profile</button></div></article>`).join("") || `<div class="empty-trips"><b>No traveller profiles</b><p>Add a traveller profile now. A trip does not need to be assigned.</p></div>`}</div></div>`);
+    showModal("Traveller profiles", `<div class="traveller-manager"><div class="all-trips-summary"><span><small>PERMANENT TRAVELLER DIRECTORY</small><b>${travellers.length} profiles</b></span><span class="summary-actions"><button id="backToAllTrips" class="secondary-action" type="button">← All trips</button><button id="createTravellerAccount" type="button">＋ Add traveller</button></span></div><p class="directory-note">Use <b>Trip limit</b> to cap, increase, reduce or disable how many trips a traveller may create. Assigned trips do not consume this limit.</p><div class="account-list">${travellers.map((traveller) => `<article class="account-card ${traveller.active ? "" : "inactive"}"><span class="account-avatar${isAdmin() || state.administratorSecret ? " avatar-edit" : ""}"${isAdmin() || state.administratorSecret ? ` data-photo-upload="${esc(traveller.travellerId)}" title="Change ${esc(traveller.name)}'s photo"` : ""}>${avatarSlot(traveller)}${isAdmin() || state.administratorSecret ? "<em>📷</em>" : ""}</span><div class="account-profile"><span>${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email].filter(Boolean).map(esc).join(" · ") || "Contact details not added"}</p><small>${[traveller.city, traveller.emergencyContact ? `Emergency: ${traveller.emergencyContact}` : ""].filter(Boolean).map(esc).join(" · ") || "City and emergency contact not added"}</small><div class="account-trip-status ${Number(traveller.tripCount || 0) ? "assigned" : "unassigned"}">${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned ${Number(traveller.tripCount) === 1 ? "trip" : "trips"}: ${(traveller.tripIds || []).map(esc).join(", ")}` : "NO TRIP ASSIGNED"}</div></div><div class="account-actions"><button data-view-account="${esc(traveller.travellerId)}">View profile</button><button data-account-trips="${esc(traveller.travellerId)}">Assign trips</button><button class="pin-account-control" data-edit-account-login="${esc(traveller.travellerId)}">✎ Edit login</button><button class="global-profile-control" data-toggle-account="${esc(traveller.travellerId)}" data-active="${Boolean(traveller.active)}">${traveller.active ? "Disable everywhere" : "Enable profile"}</button><button class="delete-profile-control" data-delete-account="${esc(traveller.travellerId)}">Delete profile</button></div></article>`).join("") || `<div class="empty-trips"><b>No traveller profiles</b><p>Add a traveller profile now. A trip does not need to be assigned.</p></div>`}</div></div>`);
     travellers.forEach((traveller) => {
       const viewButton = $$('[data-view-account]').find((button) => button.dataset.viewAccount === traveller.travellerId);
       const card = viewButton?.closest(".account-card");
@@ -3919,7 +3375,7 @@
       : (String(assignment.canWriteStickyNotes).toUpperCase() === "TRUE" ? "edit" : "view");
     showModal("Control traveller access", `<form class="modal-form" id="featureAccessForm"><div class="profile-id-banner"><span>TRAVELLER ID</span><b>${esc(member.travellerId)}</b><small>${esc(member.name)}</small></div><div class="security-note"><i>◆</i><p>Choose exactly what this personal Traveller ID can see or write in <b>${esc(state.data.trip.name)}</b>. Sticky writing is off until the Administrator enables it. Shared trip-PIN users remain view-only for sticky notes.</p></div><div class="feature-access-list">${options.map(([permission, field, label, help]) => `<label class="feature-access-option"><input type="checkbox" name="${permission}" ${assignmentAllows(assignment, field) ? "checked" : ""}><span><b>${label}</b><small>${help}</small></span><em>ALLOW</em></label>`).join("")}</div><div class="feature-access-actions"><button type="button" id="allowAllFeatures">Allow all</button><button type="button" id="hideAllFeatures">Hide all</button></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save access</button></div></form>`);
     const form = $("#featureAccessForm");
-    form.querySelector(".feature-access-actions").insertAdjacentHTML("beforebegin", `<label class="sticky-level-control"><span><b>Pinned sticky notes</b><small>Everyone sees the pinned board. Choose whether this traveller may edit it.</small></span><select name="stickyAccess">${stickyLevels.map((level) => `<option value="${level}" ${currentStickyLevel === level ? "selected" : ""}>${stickyAccessLabel(level)}</option>`).join("")}</select></label><label class="photo-limit-control"><span><b>Maximum photos this traveller may add</b><small>${currentPhotoCount} currently stored · enter 0 to disable photo addition for this traveller · maximum 50</small></span><input name="photoLimit" type="number" min="0" max="50" step="1" value="${currentPhotoLimit}" required></label><label class="photo-limit-control"><span><b>Photo quality for this traveller</b><small>Compressed ≈ 1 MB (fast, saves Drive space) · Original = full size up to 15 MB</small></span><select name="photoQuality">${[["choice", "Traveller chooses"], ["compressed", "Compressed only"], ["original", "Original only"]].map(([v, l]) => `<option value="${v}" ${(String(assignment.photoQuality || "choice").toLowerCase()) === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>`);
+    form.querySelector(".feature-access-actions").insertAdjacentHTML("beforebegin", `<label class="sticky-level-control"><span><b>Pinned sticky notes</b><small>Everyone sees the pinned board. Choose whether this traveller may edit it.</small></span><select name="stickyAccess">${stickyLevels.map((level) => `<option value="${level}" ${currentStickyLevel === level ? "selected" : ""}>${stickyAccessLabel(level)}</option>`).join("")}</select></label><label class="photo-limit-control"><span><b>Maximum photos this traveller may add</b><small>${currentPhotoCount} currently stored · enter 0 to disable photo addition for this traveller · maximum 50</small></span><input name="photoLimit" type="number" min="0" max="50" step="1" value="${currentPhotoLimit}" required></label>`);
     $("#allowAllFeatures").addEventListener("click", () => $$('input[type="checkbox"]', form).forEach((input) => { input.checked = true; }));
     $("#hideAllFeatures").addEventListener("click", () => $$('input[type="checkbox"]', form).forEach((input) => { input.checked = false; }));
     form.addEventListener("submit", async (event) => {
@@ -3933,9 +3389,9 @@
         if (!state.demoMode) {
           const result = await api("setTravellerFeatureAccess", authPayload({ travellerId: member.travellerId, permissions }));
           saved = result.permissions || permissions;
-          await api("setTravellerPhotoLimit", authPayload({ travellerId: member.travellerId, limit: photoLimit, quality: form.elements.photoQuality.value }));
+          await api("setTravellerPhotoLimit", authPayload({ travellerId: member.travellerId, limit: photoLimit }));
         }
-        assignment.photoLimit = photoLimit; assignment.photoQuality = form.elements.photoQuality.value;
+        assignment.photoLimit = photoLimit;
         const fieldByPermission = Object.fromEntries(options.map(([permission, field]) => [permission, field]));
         Object.entries(saved).forEach(([permission, allowed]) => { if (fieldByPermission[permission]) assignment[fieldByPermission[permission]] = allowed ? "TRUE" : "FALSE"; });
         assignment.stickyNoteAccess = permissions.stickyAccess;
@@ -3958,8 +3414,7 @@
   /* Shrink big phone photos before upload (keeps them sharp: max 2048px, JPEG ~85%). */
   const photoOriginalMax = 15728640;
   function keepOriginalPref(value) { try { if (typeof value === "boolean") localStorage.setItem("mytrip_photo_original", value ? "1" : "0"); return localStorage.getItem("mytrip_photo_original") !== "0"; } catch { return true; } }
-  function adminPhotoQuality() { if (isAdmin()) return "choice"; const q = String((state.permissions || {}).photoQuality || "choice").toLowerCase(); return q === "compressed" || q === "original" ? q : "choice"; }
-  function originalToggle() { const aq = adminPhotoQuality(); if (aq !== "choice") return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><input type="hidden" name="photoQuality" value="${aq === "original" ? "original" : "smaller"}"><p class="pq-fixed">${aq === "original" ? "<b>Original quality</b> · set by the Administrator (up to 15 MB)" : "<b>Compressed</b> · about 1 MB · set by the Administrator"}</p></fieldset>`; if (proLocked("originalPhotos")) return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><label><input type="radio" name="photoQuality" value="smaller" checked><span><b>Smaller</b><small>About 1 MB · faster, saves space</small></span></label><button type="button" class="pro-inline" data-pro-feature="originalPhotos">🔒 Original quality is a Pro feature</button></fieldset>`; const o = keepOriginalPref(); return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><label><input type="radio" name="photoQuality" value="original" ${o ? "checked" : ""}><span><b>Original</b><small>Full size, up to 15 MB · best for printing</small></span></label><label><input type="radio" name="photoQuality" value="smaller" ${o ? "" : "checked"}><span><b>Smaller</b><small>About 1 MB · faster, saves space</small></span></label></fieldset>`; }
+  function originalToggle() { const o = keepOriginalPref(); return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><label><input type="radio" name="photoQuality" value="original" ${o ? "checked" : ""}><span><b>Original</b><small>Full size, up to 15 MB · best for printing</small></span></label><label><input type="radio" name="photoQuality" value="smaller" ${o ? "" : "checked"}><span><b>Smaller</b><small>About 1 MB · faster, saves space</small></span></label></fieldset>`; }
   const mtFileCache = new WeakMap();
   document.addEventListener("change", (e) => {
     const input = e.target;
@@ -4046,7 +3501,7 @@
       try {
         if (!file) throw new Error("Choose a photo from this device.");
         submit.disabled = true; submit.textContent = "Preparing photo…";
-        file = await preparePhoto(file, (adminPhotoQuality() === "original" || !proLocked("originalPhotos")) && (form.querySelector('input[name="photoQuality"]:checked, input[type="hidden"][name="photoQuality"]') || {}).value !== "smaller");
+        file = await preparePhoto(file, (form.querySelector('input[name="photoQuality"]:checked') || {}).value !== "smaller");
         submit.textContent = "Uploading…";
         validateGalleryPhotoFile(file);
         submit.disabled = true; submit.textContent = replacing ? "Replacing…" : "Uploading…";
@@ -4112,7 +3567,7 @@
         let file = form.elements.photoFile.files[0];
         const photoUrl = String(form.elements.photoUrl.value || "").trim();
         if (!file && !photoUrl) return toast("Choose a photo file or enter a public photo link", true);
-        if (file) { try { toast("Preparing photo…"); file = await preparePhoto(file, (form.querySelector('input[name="photoQuality"]:checked, input[type="hidden"][name="photoQuality"]') || {}).value !== "smaller"); } catch (error) { return toast(error.message, true); } }
+        if (file) { try { toast("Preparing photo…"); file = await preparePhoto(file, (form.querySelector('input[name="photoQuality"]:checked') || {}).value !== "smaller"); } catch (error) { return toast(error.message, true); } }
         if (file && file.size > photoOriginalMax) return toast("This photo is too large. Try another one.", true);
         if (file && !["image/jpeg", "image/png", "image/webp"].includes(file.type)) return toast("Choose a JPEG, PNG or WebP photo", true);
         if (photoUrl && !/^https:\/\//i.test(photoUrl)) return toast("Trip photo link must start with https://", true);
@@ -4165,32 +3620,22 @@
       showModal("Add experience note", `<form class="modal-form" data-form="experience"><div class="security-note traveller-note"><i>✍</i><p>This note will appear below the itinerary and in the printed trip book with the writer’s name.</p></div><div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(state.data.trip.startDate)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" placeholder="e.g. Padmanabhaswamy Temple"></label></div><label>Experience note<textarea name="note" rows="5" maxlength="4000" placeholder="What happened? What did you enjoy, learn or want to remember?" required></textarea></label><label>Written by<input name="writer" list="experienceWriterNames" maxlength="80" value="${esc(writer)}" placeholder="Enter the writer’s name" required><datalist id="experienceWriterNames">${writerNames.map((name) => `<option value="${esc(name)}"></option>`).join("")}</datalist></label>${actions}</form>`);
     }
     if (type === "place") showModal("Save a place", `<form class="modal-form" data-form="place"><label>Place name<input name="name" placeholder="e.g. Dudhsagar Falls" required></label><label>Area or address<input name="area" placeholder="Goa" required></label><div class="form-row"><label>Category<select name="category"><option>Beach</option><option>Food</option><option>Culture</option><option>Nature</option><option>Shopping</option><option>Stay</option></select></label><label>Plan for<select name="plannedDay"><option>Unplanned</option><option>Day 1</option><option>Day 2</option><option>Day 3</option><option>Day 4</option><option>Day 5</option></select></label></div>${actions}</form>`);
-    if (type === "expense" && mtIsPhone()) { showModal("Add expense", mtExpenseSheet()); }
-    else if (type === "expense") { const payers = visibleTripMembers(); showModal("Add an expense", `<form class="modal-form" data-form="expense"><label>What was it for?<input name="label" placeholder="e.g. Dinner at Fisherman’s Wharf" required></label><div class="form-row"><label>Amount (₹)<input name="amount" type="number" min="1" step="0.01" required></label><label>Date<input name="date" type="date" value="${esc(mtDefaultDate())}" required></label></div><div class="form-row"><label>Category<select name="category"><option>Food</option><option>Stay</option><option>Travel</option><option>Local travel</option><option>Activities</option><option>Shopping</option><option>Other</option></select></label><label>Paid by<select name="paidBy">${(payers.length ? payers : [{ name: state.currentUser }]).map((member) => `<option>${esc(member.name)}</option>`).join("")}</select></label></div>${actions}</form>`); }
+    if (type === "expense") { const payers = visibleTripMembers(); showModal("Add an expense", `<form class="modal-form" data-form="expense"><label>What was it for?<input name="label" placeholder="e.g. Dinner at Fisherman’s Wharf" required></label><div class="form-row"><label>Amount (₹)<input name="amount" type="number" min="1" step="0.01" required></label><label>Date<input name="date" type="date" value="${esc(state.data.trip.startDate)}" required></label></div><div class="form-row"><label>Category<select name="category"><option>Food</option><option>Stay</option><option>Travel</option><option>Local travel</option><option>Activities</option><option>Shopping</option><option>Other</option></select></label><label>Paid by<select name="paidBy">${(payers.length ? payers : [{ name: state.currentUser }]).map((member) => `<option>${esc(member.name)}</option>`).join("")}</select></label></div>${actions}</form>`); }
     if (type === "traveller") showModal("Add a traveller", `<form class="modal-form" data-form="member"><label>Name<input name="name" placeholder="Traveller’s name" required></label><label>Access role<select name="role"><option>Editor</option><option>Viewer</option></select></label>${actions}</form>`);
     const form = $('[data-form]'); if (form) form.addEventListener("submit", saveForm); const cancel = $('[data-cancel]'); if (cancel) cancel.addEventListener("click", closeModal);
   }
 
   async function saveForm(event) {
     event.preventDefault();
-    const form = event.currentTarget;
-    if (form.dataset.saving === "1") return;
-    form.dataset.saving = "1"; form.querySelectorAll("button[type=submit]").forEach((b) => { b.disabled = true; });
-    try { return await saveFormInner(event, form); }
-    finally { if (form.isConnected) { form.dataset.saving = ""; form.querySelectorAll("button[type=submit]").forEach((b) => { b.disabled = false; }); } }
-  }
-  async function saveFormInner(event, form) {
-    const type = form.dataset.form, values = Object.fromEntries(new FormData(form).entries());
+    const form = event.currentTarget, type = form.dataset.form, values = Object.fromEntries(new FormData(form).entries());
     if (!canAdd(type)) return toast("Global Administrator access required for this action", true);
-    const record = { id: uid(), ...values }; if (type === "expense") { record.amount = Number(record.amount); if (!String(record.label || "").trim()) record.label = record.category || "Expense"; }
-    const again = type === "expense" && event.submitter && event.submitter.hasAttribute("data-again");
+    const record = { id: uid(), ...values }; if (type === "expense") record.amount = Number(record.amount);
     if (type === "plan") { record.cost = Number(record.cost) > 0 ? Number(record.cost) : ""; record.sortOrder = nextPlanSortOrder(record.date); }
     record.createdBy = type === "experience" ? values.writer : state.currentUser;
     const collection = { plan: "itinerary", place: "places", expense: "expenses", experience: "experiences", member: "members" }[type];
     try {
       if (!state.demoMode) await api(`add${type[0].toUpperCase()}${type.slice(1)}`, authPayload({ record }));
-      state.data[collection].push(record); closeModal(); render(); hydrateShell(); updatePrintArea(); if (type === "expense") { try { localStorage.setItem("mytrip_last_expense", JSON.stringify({ paidBy: record.paidBy, category: record.category })); } catch {} if (again) setTimeout(() => showAddModal("expense"), 60); }
-      toast(type === "experience" ? `Experience note saved · Written by ${values.writer}` : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`);
+      state.data[collection].push(record); closeModal(); render(); hydrateShell(); updatePrintArea(); toast(type === "experience" ? `Experience note saved · Written by ${values.writer}` : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`);
     } catch (error) { toast(error.message, true); }
   }
 
@@ -4199,9 +3644,8 @@
     const inviteParams = new URLSearchParams({ trip: state.data.trip.tripId });
     if (!validApiUrl(config.API_URL) && apiUrlReady()) inviteParams.set("api", apiUrl);
     const link = `${location.origin}${location.pathname}?${inviteParams.toString()}`;
-    showModal("Invite your travel group", `<div class="join-admin" id="joinAdmin"><span class="kicker">JOIN BY LINK · NO PASSWORD TO SHARE</span><p class="form-help">Loading…</p></div><div class="invite-box"><p>Share this link and only this trip’s Traveller PIN. Never share the global Administrator password/PIN.</p><div class="copy-field"><input id="inviteLink" value="${esc(link)}" readonly><button id="copyInvite">Copy</button></div><div class="pin-box"><span>TRIP CODE<b>${esc(state.data.trip.tripId)}</b></span><span>TRAVELLER PIN<b>••••</b></span></div><small>The Traveller PIN is different for each trip and is not displayed after creation.</small></div>`);
+    showModal("Invite your travel group", `<div class="invite-box"><p>Share this link and only this trip’s Traveller PIN. Never share the global Administrator password/PIN.</p><div class="copy-field"><input id="inviteLink" value="${esc(link)}" readonly><button id="copyInvite">Copy</button></div><div class="pin-box"><span>TRIP CODE<b>${esc(state.data.trip.tripId)}</b></span><span>TRAVELLER PIN<b>••••</b></span></div><small>The Traveller PIN is different for each trip and is not displayed after creation.</small></div>`);
     $("#copyInvite").addEventListener("click", async () => { try { await navigator.clipboard.writeText(link); } catch {} toast("Invite link copied"); });
-    loadJoinAdmin();
   }
 
   function showSecurity() {
@@ -4245,8 +3689,7 @@
     } catch (error) { toast(error.message, true); }
   }
 
-  function showEditRecord(sheet, id) { const r = showEditRecordInner(sheet, id); if (sheet === "Expenses") injectReceiptBlock(id); return r; }
-  function showEditRecordInner(sheet, id) {
+  function showEditRecord(sheet, id) {
     if (!canEditRecords(sheet)) return toast("The Administrator has hidden this feature for your Traveller ID", true);
     const collection = { Itinerary: "itinerary", ExperienceNotes: "experiences", Places: "places", Expenses: "expenses" }[sheet];
     const record = collection && state.data[collection].find((item) => String(item.id) === String(id));
@@ -4270,7 +3713,6 @@
   async function deleteItem(sheet, id) {
     if (!isAdmin()) return toast("Global Administrator access required to delete records", true);
     const collection = { Itinerary: "itinerary", ExperienceNotes: "experiences", Places: "places", Expenses: "expenses", Members: "members" }[sheet];
-    if (sheet !== "Members") { if (sheet === "Expenses" && String(state.expenseRowEditId) === String(id)) state.expenseRowEditId = ""; return undoableDelete(sheet, collection, id, { Itinerary: "Itinerary row deleted", ExperienceNotes: "Note deleted", Places: "Place deleted", Expenses: "Expense deleted" }[sheet] || "Deleted"); }
     try {
       if (!state.demoMode) await api("deleteRecord", authPayload({ sheet, id }));
       state.data[collection] = state.data[collection].filter((item) => String(item.id) !== String(id));
@@ -4306,12 +3748,7 @@
     const planTitle = state.printDay ? `Itinerary · ${displayDate(state.printDay, { weekday: "long", day: "numeric", month: "long" })}` : "Itinerary";
     const planSection = canViewItinerary() ? `<section class="print-plan"><h2>${esc(planTitle)}</h2><table class="print-plan-table"><colgroup>${printCols}</colgroup><thead><tr><th>Day</th><th>Time</th><th>Itinerary</th><th>Place</th><th>Remark</th><th class="print-tick">✓</th></tr></thead><tbody>${printedPlans || `<tr><td colspan="6">No itinerary items were added.</td></tr>`}</tbody></table></section>` : "";
     const experienceSection = canViewExperiences() ? `<section class="print-experiences"><h2>Trip experience notes</h2>${printedExperiences || `<p>No experience notes were added.</p>`}</section>` : "";
-    const xpWho = state.printPerson || "";
-    const xpSorted = [...state.data.expenses].sort((x, y) => `${x.date || ""}`.localeCompare(`${y.date || ""}`));
-    const xpTable = (rows, showPayer = true) => `<table class="print-expense-table"><thead><tr><th>Date</th><th>Expense</th><th>Category</th>${showPayer ? "<th>Paid by</th>" : ""}<th>Amount</th></tr></thead><tbody>${rows.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label || expense.category || "")}</td><td>${esc(expense.category || "")}</td>${showPayer ? `<td>${esc(expense.paidBy || "")}</td>` : ""}<td>${money.format(expense.amount)}</td></tr>`).join("") || `<tr><td colspan="${showPayer ? 5 : 4}">No expenses recorded.</td></tr>`}</tbody><tfoot><tr><td colspan="${showPayer ? 4 : 3}"><b>Total</b></td><td><b>${money.format(rows.reduce((s, e) => s + Number(e.amount || 0), 0))}</b></td></tr></tfoot></table>`;
-    const xpPeople = () => [...new Set([...visibleTripMembers().map((m) => m.name), ...xpSorted.map((e) => e.paidBy || "Not specified")])].filter((n) => xpSorted.some((e) => (e.paidBy || "Not specified") === n));
-    const xpDetail = () => xpWho === "__each" ? xpPeople().map((n) => `<div class="print-person-block"><h3>${esc(n)} · paid ${money.format(xpSorted.filter((e) => (e.paidBy || "Not specified") === n).reduce((s, e) => s + Number(e.amount || 0), 0))}</h3>${xpTable(xpSorted.filter((e) => (e.paidBy || "Not specified") === n), false)}</div>`).join("") : xpWho ? `<h3>Expenses paid by ${esc(xpWho)}</h3>${xpTable(xpSorted.filter((e) => (e.paidBy || "Not specified") === xpWho), false)}` : `<h3>Detailed expense statement</h3>${xpTable(xpSorted)}`;
-    const expenseSection = canViewExpenses() ? `<section class="print-expenses${xpWho ? " print-xp-person" : ""}"><h2>${xpWho && xpWho !== "__each" ? `Expense statement · ${esc(xpWho)}` : xpWho === "__each" ? "Expense statement · person-wise" : "Expense statement"}</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div><div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table class="print-expense-table"><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div>${xpDetail()}</section>` : "";
+    const expenseSection = canViewExpenses() ? `<section class="print-expenses"><h2>Expense statement</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div><div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table class="print-expense-table"><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div><h3>Detailed expense statement</h3><table class="print-expense-table"><thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Paid by</th><th>Amount</th></tr></thead><tbody>${state.data.expenses.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label)}</td><td>${esc(expense.category)}</td><td>${esc(expense.paidBy)}</td><td>${money.format(expense.amount)}</td></tr>`).join("")}</tbody></table></section>` : "";
     $("#printArea").innerHTML = `${photo ? `<img loading="lazy" decoding="async" class="print-cover-photo" src="${esc(photo)}" alt="Trip cover photo">` : ""}<header><div><span class="kicker">MYTRIP · TRIP BOOK · FRONTEND v${frontendVersion}</span><h1>${esc(state.data.trip.name)}</h1><p>${displayDate(state.data.trip.startDate)}–${displayDate(state.data.trip.endDate)}${memberText}</p></div><b>${esc(state.data.trip.tripId)}</b></header>${planSection}${experienceSection}${expenseSection}`;
     printAreaDirty = false;
   }
@@ -4383,7 +3820,7 @@
   });
   $("#closeModal").addEventListener("click", closeModal); $("#modal").addEventListener("mousedown", (event) => { if (event.target === event.currentTarget) closeModal(); });
 
-  const mtIcons = { checklist: '<rect x="4" y="4" width="16" height="16" rx="4"></rect><path d="M8.5 12.2l2.4 2.4 4.6-5"></path>', help: '<circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.5 2.5 0 1 1 3.3 2.4c-.5.2-.8.7-.8 1.2V14"></path><path d="M12 17.2v.1"></path>', feedback: '<path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"></path>',
+  const mtIcons = { help: '<circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.5 2.5 0 1 1 3.3 2.4c-.5.2-.8.7-.8 1.2V14"></path><path d="M12 17.2v.1"></path>', feedback: '<path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"></path>',
     overview: '<path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/>',
     itinerary: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
     experiences: '<path d="M4 20h4l10-10-4-4L4 16z"/><path d="M13 7l4 4"/>',
@@ -4398,8 +3835,8 @@
   };
   function mtIcon(name) { return `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${mtIcons[name] || ""}</svg>`; }
   function applyLineIcons() {
-    $$("#mainNav [data-tab]").forEach((button) => { const i = button.querySelector("i"); if (i && !i.dataset.lined) { i.innerHTML = mtIcon(button.dataset.tab); i.dataset.lined = "1"; i.classList.add("mt-line-icon"); } });
-    $$("#mtTabbar [data-icon]").forEach((i) => { if (!i.dataset.lined) { i.innerHTML = mtIcon(i.dataset.icon); i.dataset.lined = "1"; } });
+    $("#mainNav [data-tab]").forEach((button) => { const i = button.querySelector("i"); if (i && !i.dataset.lined) { i.innerHTML = mtIcon(button.dataset.tab); i.dataset.lined = "1"; i.classList.add("mt-line-icon"); } });
+    $("#mtTabbar [data-icon]").forEach((i) => { if (!i.dataset.lined) { i.innerHTML = mtIcon(i.dataset.icon); i.dataset.lined = "1"; } });
   }
   const mtAllowed = () => ({ itinerary: canViewItinerary(), experiences: canViewExperiences(), photos: true, places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() });
   function hideTabbar() { const bar = $("#mtTabbar"), fab = $("#mtFab"); if (bar) bar.hidden = true; if (fab) fab.hidden = true; document.body.classList.remove("mt-has-tabbar"); }
@@ -4412,15 +3849,14 @@
     const sidePhotos = $('#mainNav [data-tab="photos"]'); if (sidePhotos) allowed.photos = !sidePhotos.hidden && getComputedStyle(sidePhotos).display !== "none";
     const addType = state.tab === "expenses" ? (allowed.expenses ? "expense" : "") : state.tab === "places" ? (allowed.places ? "place" : "") : state.tab === "experiences" ? (allowed.experiences ? "experience" : "") : (state.tab === "overview" || state.tab === "itinerary") && allowed.itinerary ? "plan" : "";
     fab.dataset.add = addType; fab.hidden = !addType || !state.data;
-    const plus = bar.querySelector("[data-mt-plus]"); if (plus) plus.hidden = !((allowed.expenses && canAdd("expense")) || (allowed.itinerary && canAdd("plan")));
     bar.hidden = !state.data;
     document.body.classList.toggle("mt-has-tabbar", Boolean(state.data));
-    const inMore = ["experiences", "photos", "places", "people", "checklist", "print"].includes(state.tab);
+    const inMore = ["experiences", "photos", "places", "people", "print"].includes(state.tab);
     bar.querySelector("[data-mt-more]").classList.toggle("active", inMore);
   }
   function openMoreSheet() {
     const allowed = mtAllowed();
-    const items = [["experiences", "Experiences"], ["photos", "Trip photos"], ["places", "Places & map"], ["people", "Travellers"], ["checklist", "Checklist"], ["print", "Print & export"], ["help", "Help & feedback"]]
+    const items = [["experiences", "Experiences"], ["photos", "Trip photos"], ["places", "Places & map"], ["people", "Travellers"], ["print", "Print & export"], ["help", "Help & feedback"]]
       .filter(([tab]) => allowed[tab] !== false).map(([tab, label]) => `<button type="button" class="mt-more-row" data-mt-go="${tab}">${mtIcon(tab)}<span>${label}</span><em>›</em></button>`).join("");
     const trips = state.travellerId && !isAdmin() ? `<button type="button" class="mt-more-row" data-mt-action="mytrips">${mtIcon("trips")}<span>My trips</span><em>›</em></button>` : (isAdmin() ? `<button type="button" class="mt-more-row" data-mt-action="alltrips">${mtIcon("trips")}<span>All trips</span><em>›</em></button>` : "");
     const size = $("#textSizeValue") ? $("#textSizeValue").textContent : "100%";
@@ -4453,7 +3889,6 @@
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshStickyNotes(); });
   $("#addStickyNote").addEventListener("click", () => showStickyEditor());
   if ($("#stickyAccessButton")) $("#stickyAccessButton").addEventListener("click", showStickyBoardAccess);
-  if ($("#stickyHideToggle")) $("#stickyHideToggle").addEventListener("click", toggleStickyHidden);
   if ($("#stickyRecallButton")) $("#stickyRecallButton").addEventListener("click", recallPinnedStickyNotes);
   if ($("#stickyScreenToggle")) $("#stickyScreenToggle").addEventListener("click", () => setPinnedOnScreen(!pinnedOnScreen()));
   if ($("#stickyRefreshButton")) $("#stickyRefreshButton").addEventListener("click", () => refreshStickyNotes(true));
@@ -4508,7 +3943,6 @@
   document.addEventListener("visibilitychange", () => { if (!document.hidden) updateHeaderDateTime(); });
   restoreSavedAccountLogin();
   if (!new URLSearchParams(location.search).get("trip")) setTimeout(() => { resumeSession(); }, 0);
-  if (inviteQuery.get("join")) setTimeout(() => showJoinByInvite(inviteQuery.get("join")), 700);
   const scheduleBackgroundTask = (task) => "requestIdleCallback" in window ? requestIdleCallback(task, { timeout: 1500 }) : setTimeout(task, 40);
   if (apiUrlReady()) scheduleBackgroundTask(() => ensureCurrentBackend().catch(() => {}));
   /* Self-healing update: registers the worker, forces an update check, and
