@@ -2535,7 +2535,7 @@ html body .gs-chip b{font-weight:800;color:#5B6574;font-size:12px;letter-spacing
 
 /* v4.52.0 part 4 */
 html body .journey-stage-hero.has-cover{position:relative;isolation:isolate;overflow:hidden;color:#fff;min-height:220px;background:#0F3B39}
-html body .journey-stage-hero.has-cover::before{content:"";position:absolute;inset:0;z-index:-2;background:var(--hero-img) center/cover no-repeat;transform:scale(1.02)}
+html body .journey-stage-hero-img{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;transform:scale(1.02)}
 html body .journey-stage-hero.has-cover::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(8,20,24,.15) 0%,rgba(8,20,24,.55) 55%,rgba(8,20,24,.82) 100%)}
 html body .journey-stage-hero.has-cover h2,html body .journey-stage-hero.has-cover p,html body .journey-stage-hero.has-cover b,html body .journey-stage-hero.has-cover span{color:#fff!important;text-shadow:0 1px 12px rgba(0,0,0,.35)}
 html body .journey-stage-hero.has-cover .journey-stage-badge{background:rgba(255,255,255,.18)!important;border-color:rgba(255,255,255,.35)!important;backdrop-filter:blur(8px)}
