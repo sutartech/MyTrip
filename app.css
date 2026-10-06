@@ -2671,22 +2671,22 @@ html body .sidebar-signout:hover{background:rgba(255,255,255,.16)!important}
   html body .sidebar nav button.active{background-image:linear-gradient(135deg,#ff8a65,#ff6657)!important}
   html body .sidebar nav i{background:rgba(255,255,255,.1)!important}
 }
-html body .access-screen{background:radial-gradient(circle at 8% 12%,rgba(255,138,101,.24),transparent 32%),radial-gradient(circle at 92% 10%,rgba(40,180,156,.22),transparent 30%),radial-gradient(circle at 85% 90%,rgba(122,90,200,.2),transparent 32%),linear-gradient(150deg,#0F3B4A 0%,#132C45 55%,#0B4A48 100%)!important}
-html body .access-art{background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,0) 60%)!important}
-html body .access-art:after{content:""!important;display:block!important;position:absolute;width:480px;height:480px;border:70px solid rgba(255,255,255,.08)!important;border-radius:50%;right:-160px;bottom:-190px}
-html body .access-art:before{content:""!important;display:block!important;position:absolute;width:260px;height:260px;background:radial-gradient(circle,rgba(255,138,101,.4),transparent 70%)!important;border-radius:50%;left:-60px;top:-60px}
-html body .access-copy h1,html body .access-art h1{color:#fff!important;-webkit-text-fill-color:#fff!important;text-shadow:0 10px 30px rgba(0,0,0,.22)!important}
-html body .access-copy p,html body .access-art p{color:rgba(255,255,255,.76)!important}
-html body .access-copy>span,html body .access-art .kicker{color:#ffb199!important}
+html body .access-screen,html body .access-shell{background:radial-gradient(circle at 8% 12%,rgba(255,138,101,.24),transparent 32%),radial-gradient(circle at 92% 10%,rgba(40,180,156,.22),transparent 30%),radial-gradient(circle at 85% 90%,rgba(122,90,200,.2),transparent 32%),linear-gradient(150deg,#0F3B4A 0%,#132C45 55%,#0B4A48 100%)!important}
+html body .access-art,html body .access-shell>.access-art{background:linear-gradient(160deg,rgba(255,255,255,.1),rgba(255,255,255,0) 60%)!important;color:#fff!important}
+html body .access-art:after,html body .access-shell>.access-art:after{content:""!important;display:block!important;position:absolute!important;width:480px!important;height:480px!important;border:70px solid rgba(255,255,255,.08)!important;border-radius:50%!important;right:-160px!important;bottom:-190px!important;top:auto!important;left:auto!important;background:none!important}
+html body .access-art:before,html body .access-shell>.access-art:before{content:""!important;display:block!important;position:absolute!important;width:260px!important;height:260px!important;background:radial-gradient(circle,rgba(255,138,101,.4),transparent 70%)!important;border-radius:50%!important;left:-60px!important;top:-60px!important;right:auto!important;bottom:auto!important;border:0!important}
+html body .access-copy h1,html body .access-art h1,html body .access-art .brand,html body .access-shell .access-copy h1{color:#fff!important;-webkit-text-fill-color:#fff!important;background:none!important;text-shadow:0 10px 30px rgba(0,0,0,.22)!important}
+html body .access-copy p,html body .access-art p,html body .access-shell .access-copy p{color:rgba(255,255,255,.76)!important;text-shadow:none!important}
+html body .access-copy>span,html body .access-art .kicker,html body .access-shell .access-copy>span{color:#ffb199!important}
 html body .feature-chips b{background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.24)!important;color:#fff!important}
-html body .access-art>.brand{color:#fff!important}
-html body .access-art>.brand i{background:linear-gradient(145deg,#ff8a65,#e8674e)!important;border-color:rgba(255,255,255,.32)!important;box-shadow:0 10px 25px rgba(232,103,78,.38)!important}
-html body .access-panel{background:transparent!important}
-html body .access-card{background:rgba(255,255,255,.97)!important;border-radius:24px!important;box-shadow:0 30px 70px rgba(8,20,30,.4)!important}
-html body .access-card h2{color:var(--navy)!important}
+html body .access-art>.brand,html body .access-shell>.access-art>.brand{color:#fff!important}
+html body .access-art>.brand i,html body .access-shell>.access-art>.brand i{background-image:linear-gradient(145deg,#ff8a65,#e8674e)!important;background-color:transparent!important;border-color:rgba(255,255,255,.32)!important;box-shadow:0 10px 25px rgba(232,103,78,.38)!important;color:#fff!important}
+html body .access-panel,html body .access-shell>.access-panel{background:#fff!important}
+html body .access-card,html body .access-shell .access-card{background:transparent!important;box-shadow:none!important}
+html body .access-card h2,html body .access-shell .access-card h2{color:var(--navy)!important}
 @media(max-width:760px){
   html body .mobile-logo{color:#fff!important}
-  html body .mobile-logo i{background:linear-gradient(145deg,#ff8a65,#e8674e)!important}
+  html body .mobile-logo i{background-image:linear-gradient(145deg,#ff8a65,#e8674e)!important;background-color:transparent!important}
 }
 
 /* ---- Settlement recording (Settle Up panel) ---- */
@@ -2723,3 +2723,8 @@ html body .settle-undo:hover{background:#FADDD7}
 .note-h-green{background:#BBF7D0;padding:0 2px;border-radius:3px}
 .note-h-pink{background:#FBCFE8;padding:0 2px;border-radius:3px}
 .experience-private-badge{margin-left:8px;padding:2px 8px;border-radius:999px;background:#FDECE8;color:#B23A2A;font-size:10px;font-weight:800;letter-spacing:.3px}
+
+/* ---- Itinerary preview photo thumbnail ---- */
+.plan-photo-thumb{width:28px;height:28px;min-width:28px;border-radius:7px;overflow:hidden;border:1px solid #E4E1D9;padding:0;margin-right:8px;cursor:pointer;display:inline-block;vertical-align:middle}
+.plan-photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.plan-cell-title{display:flex;align-items:center;flex-wrap:wrap}
