@@ -2728,3 +2728,32 @@ html body .settle-undo:hover{background:#FADDD7}
 .plan-photo-thumb{width:28px;height:28px;min-width:28px;border-radius:7px;overflow:hidden;border:1px solid #E4E1D9;padding:0;margin-right:8px;cursor:pointer;display:inline-block;vertical-align:middle}
 .plan-photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .plan-cell-title{display:flex;align-items:center;flex-wrap:wrap}
+
+/* ---- Drag-resizable Expenses table columns (same pattern as Itinerary) ---- */
+.expense-action-table{--exp-col-0:240px;--exp-col-1:110px;--exp-col-2:120px;--exp-col-3:130px;--exp-col-4:110px;overflow-x:auto}
+.expense-action-table .expense-table-header,.expense-action-table .expense-row{grid-template-columns:var(--exp-col-0) var(--exp-col-1) var(--exp-col-2) var(--exp-col-3) var(--exp-col-4) minmax(120px,1fr)}
+.expense-action-table .expense-table-header>span{position:relative}
+.expense-col-grip{position:absolute;top:-11px;right:-6px;bottom:-11px;width:12px;cursor:col-resize;display:block}
+.expense-action-table.resizing{user-select:none}
+@media(max-width:1180px){.expense-action-table{--exp-col-0:auto}.expense-col-grip{display:none}}
+
+/* ---- Invite: share with travellers via email / WhatsApp ---- */
+.invite-share{margin-top:16px;padding-top:14px;border-top:1px solid #EFEDE7}
+.invite-share-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.invite-share-list{display:grid;gap:8px}
+.invite-share-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:9px 12px;border:1px solid #EFEDE7;border-radius:10px;background:#FAF9F6;font-size:13px}
+.invite-share-actions{display:flex;gap:8px;flex-wrap:wrap}
+.invite-share-actions a{min-height:28px;padding:0 12px;border-radius:999px;border:1px solid #BFE3D3;background:#E3F4EC;color:#17744F;font-weight:700;font-size:12px;text-decoration:none;display:inline-flex;align-items:center}
+.invite-share-muted{color:#9aa4ad;font-size:11px;font-style:italic}
+
+/* ---- Experience photo thumbnail (linked trip photo or pasted reference link) ---- */
+.experience-photo-thumb{display:block;width:100%;height:120px;padding:0;margin:0 0 10px;border:0;border-radius:12px;overflow:hidden;cursor:pointer}
+.experience-photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ---- Shared Google Photos album panel (Trip Photos page) ---- */
+.photo-album-panel{margin:16px 0;padding:16px 18px;border:1px solid #EFEDE7;border-radius:14px;background:#FAF9F6}
+.photo-album-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.photo-album-head h3{margin:2px 0 4px;font-size:15px}
+.photo-album-head p{margin:0;font-size:12.5px;color:#7b8898}
+.photo-album-open{display:inline-flex;align-items:center;gap:6px;margin-top:10px;min-height:34px;padding:0 16px;border-radius:999px;background:#E3F4EC;border:1px solid #BFE3D3;color:#17744F;font-weight:700;font-size:13px;text-decoration:none}
+.photo-album-empty{margin:10px 0 0;font-size:12.5px;color:#9aa4ad;font-style:italic}

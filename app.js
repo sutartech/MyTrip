@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.56.1";
+  const frontendVersion = "4.57.0";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -52,6 +52,17 @@
     html = html.replace(/\[h:(yellow|green|pink)\]([\s\S]+?)\[\/h\]/g, '<mark class="note-h-$1">$2</mark>');
     return html;
   }
+  function experiencePhotoFieldHtml(currentUrl) {
+    const photos = state.data.photos || [];
+    const options = photos.map((p) => `<option value="${esc(p.photoUrl)}"${currentUrl && currentUrl === p.photoUrl ? " selected" : ""}>${esc(p.caption || "Untitled trip photo")}</option>`).join("");
+    return `<label>Attach a photo <small>(optional)</small><select data-experience-photo-pick>${photos.length ? `<option value="">— pick a trip photo, or paste a link below —</option>${options}` : `<option value="">No trip photos uploaded yet — paste a link below</option>`}</select></label><label>Photo link <small>(a trip photo picked above, a Google Drive share link, or any image link — e.g. a reference sunset photo)</small><input name="photoUrl" type="url" maxlength="1000" value="${esc(currentUrl || "")}" placeholder="https://..."></label>`;
+  }
+  document.addEventListener("change", (event) => {
+    const pick = event.target.closest("[data-experience-photo-pick]");
+    if (!pick || !pick.value) return;
+    const form = pick.closest("form"), input = form && form.querySelector('input[name="photoUrl"]');
+    if (input) input.value = pick.value;
+  });
   function noteToolbarHtml() {
     const colourBtns = NOTE_COLOURS.map((c) => `<button type="button" class="note-fmt-c" data-note-fmt="color" data-note-color="${c}" title="${c[0].toUpperCase()}${c.slice(1)} text">●</button>`).join("");
     const hiliteBtns = NOTE_HILITES.map((c) => `<button type="button" class="note-fmt-h" data-note-fmt="highlight" data-note-color="${c}" title="${c[0].toUpperCase()}${c.slice(1)} highlight">A</button>`).join("");
@@ -1125,6 +1136,44 @@
     });
   }
 
+  /* ---- drag-resizable expense columns ---- */
+  const expenseColumnKey = "mytrip_expense_columns_v1";
+  const expenseColumnLabels = ["DESCRIPTION", "DATE", "CATEGORY", "PAID BY", "AMOUNT", "ACTIONS"];
+  const expenseColumnDefaults = [240, 110, 120, 130, 110];
+  const expenseColumnMinimums = [160, 70, 80, 90, 80];
+  function expenseColumnWidths() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(expenseColumnKey) || "null"); } catch { saved = null; }
+    if (!Array.isArray(saved) || saved.length !== expenseColumnDefaults.length) return [...expenseColumnDefaults];
+    return saved.map((value, index) => Math.max(expenseColumnMinimums[index], Number(value) || expenseColumnDefaults[index]));
+  }
+  function expenseColumnStyle() { return expenseColumnWidths().map((width, index) => `--exp-col-${index}:${Math.round(width)}px`).join(";"); }
+  function saveExpenseColumns(widths) { try { localStorage.setItem(expenseColumnKey, JSON.stringify(widths.map(Math.round))); } catch {} }
+  function bindExpenseColumnResizers() {
+    const table = $(".expense-action-table");
+    if (!table) return;
+    $$(".expense-col-grip", table).forEach((grip) => {
+      grip.addEventListener("pointerdown", (event) => {
+        event.preventDefault(); event.stopPropagation();
+        const index = Number(grip.dataset.expCol);
+        const widths = expenseColumnWidths();
+        const startX = event.clientX, startWidth = widths[index];
+        grip.setPointerCapture(event.pointerId);
+        table.classList.add("resizing");
+        const move = (moveEvent) => {
+          widths[index] = Math.max(expenseColumnMinimums[index], startWidth + (moveEvent.clientX - startX));
+          table.style.setProperty(`--exp-col-${index}`, `${Math.round(widths[index])}px`);
+        };
+        const finish = () => {
+          grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", finish); grip.removeEventListener("pointercancel", finish);
+          table.classList.remove("resizing"); saveExpenseColumns(widths);
+        };
+        grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", finish); grip.addEventListener("pointercancel", finish);
+      });
+      grip.addEventListener("dblclick", (event) => { event.stopPropagation(); saveExpenseColumns([...expenseColumnDefaults]); render(); });
+    });
+  }
+
   /* ---- print options for the itinerary sheet ---- */
   const printWidthKey = "mytrip_print_plan_scale_v1";
   const printWrapKey = "mytrip_print_plan_wrap_v1";
@@ -1650,7 +1699,7 @@
   function renderExperiences() {
     if (!canViewExperiences()) return `<section class="feature-locked"><i>✍</i><h2>Experiences hidden</h2><p>The Administrator has not enabled this feature for your Traveller ID.</p></section>`;
     const experiences = [...state.data.experiences].sort((a, b) => `${a.date}${a.createdAt || ""}`.localeCompare(`${b.date}${b.createdAt || ""}`));
-    const experienceCards = experiences.map((item, index) => `<article class="experience-card colour-${index % 5}"><div class="experience-date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b><span>${displayDate(item.date, { month: "short" })}</span></div><div class="experience-copy"><span class="experience-place">${item.place ? `⌖ ${esc(item.place)}` : "TRIP MEMORY"}${item.visibility === "Only me" ? `<em class="experience-private-badge">🔒 Only me</em>` : ""}</span><p>${formatNote(item.note)}</p><strong>✍ Written by ${esc(item.writer || "Trip member")}</strong></div><span class="record-actions">${canEditRecords("ExperienceNotes") ? `<button class="edit-control" data-edit data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control" data-delete data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Delete</button>` : ""}</span></article>`).join("");
+    const experienceCards = experiences.map((item, index) => `<article class="experience-card colour-${index % 5}"><div class="experience-date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b><span>${displayDate(item.date, { month: "short" })}</span></div>${item.photoUrl ? `<button type="button" class="experience-photo-thumb" data-experience-photo="${esc(item.id)}" title="View photo"><img src="${esc(item.photoUrl)}" alt="" loading="lazy" decoding="async"></button>` : ""}<div class="experience-copy"><span class="experience-place">${item.place ? `⌖ ${esc(item.place)}` : "TRIP MEMORY"}${item.visibility === "Only me" ? `<em class="experience-private-badge">🔒 Only me</em>` : ""}</span><p>${formatNote(item.note)}</p><strong>✍ Written by ${esc(item.writer || "Trip member")}</strong></div><span class="record-actions">${canEditRecords("ExperienceNotes") ? `<button class="edit-control" data-edit data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control" data-delete data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Delete</button>` : ""}</span></article>`).join("");
     return `<section class="experience-section experience-page"><div class="experience-hero"><div><span class="kicker">COLOURFUL TRAVEL JOURNAL</span><h2>Experiences worth remembering</h2><p>Keep every place, feeling and story together in a separate journal.</p></div>${canAdd("experience") ? `<button class="primary" data-add="experience">＋ Add experience</button>` : ""}</div><div class="experience-summary"><article><i>✍</i><div><small>MEMORIES</small><b>${experiences.length}</b></div></article><article><i>⌖</i><div><small>PLACES</small><b>${new Set(experiences.map((item) => item.place).filter(Boolean)).size}</b></div></article><article><i>☀</i><div><small>WRITERS</small><b>${new Set(experiences.map((item) => item.writer).filter(Boolean)).size}</b></div></article></div><div class="experience-list">${experienceCards || `<div class="empty-experiences"><b>No experience notes yet</b><p>Add the first colourful memory from this trip.</p></div>`}</div></section>`;
   }
 
@@ -1677,8 +1726,30 @@
       ? `${enabled ? "Traveller uploads are enabled" : "Traveller uploads are disabled"}. Administrator uploads remain available.`
       : (!state.travellerId ? "Shared trip access can view photos but cannot add them." : (enabled && limit > 0 ? `${count} of ${limit} photo slots used · ${remainingPhotos} remaining` : "Photo addition is disabled for your account in this trip."));
     const cards = photos.map((photo, index) => `<article class="trip-photo-card colour-${index % 6}"><button class="trip-photo-open" data-open-photo="${esc(photo.id)}" aria-label="View photo"><img src="${esc(tripPhotoUrl(photo.photoUrl, 800))}" loading="lazy" decoding="async" alt="${esc(photo.caption || `Trip photo by ${photo.uploadedBy || "Trip member"}`)}" width="900" height="600" loading="lazy" decoding="async" fetchpriority="low"></button><div><span class="photo-number">PHOTO ${String(index + 1).padStart(2, "0")}</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>📷 ${esc(photo.uploadedBy || "Trip member")} · ${displayDate(String(photo.createdAt || "").slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</p>${mayManagePhoto(photo) ? `<span class="trip-photo-actions"><button data-edit-caption="${esc(photo.id)}">Edit caption</button>${mayReplacePhoto(photo) ? `<button data-replace-photo="${esc(photo.id)}">Replace</button>` : ""}<button class="delete" data-delete-photo="${esc(photo.id)}">Delete</button></span>` : ""}</div></article>`).join("");
-    return `<section class="trip-photos-page"><div class="trip-photos-hero"><div><span class="kicker">COLOURFUL TRIP GALLERY</span><h2>Photos from the journey</h2><p>Keep selected trip photographs together. Images are stored in Google Drive and photo details are stored in Google Sheets.</p></div><div class="trip-photos-hero-actions">${isAdmin() ? `<button class="photo-access-toggle ${enabled ? "enabled" : "disabled"}" data-toggle-photo-uploads>${enabled ? "Disable traveller uploads" : "Enable traveller uploads"}</button>` : ""}${mayAdd ? `<button class="primary" data-add-trip-photo>＋ Add photo</button>` : ""}</div></div><div class="photo-access-strip ${enabled ? "enabled" : "disabled"}"><i>${enabled ? "●" : "○"}</i><div><b>${isAdmin() ? "Administrator photo control" : "Your photo allowance"}</b><p>${esc(accessText)}</p></div>${!isAdmin() && state.travellerId ? `<strong>${count}/${limit}</strong>` : `<strong>${photos.length} photos</strong>`}</div><div class="trip-photo-grid">${cards || `<div class="empty-photo-gallery"><i>▣</i><b>No trip photos yet</b><p>${mayAdd ? "Add the first colourful memory from this journey." : "An authorised traveller or the Administrator can add the first photo."}</p></div>`}</div></section>`;
+    const albumUrl = String((state.data.trip || {}).photoAlbumUrl || "").trim();
+    const albumPanel = `<section class="photo-album-panel"><div class="photo-album-head"><div><span class="kicker">SHARED ALBUM</span><h3>Google Photos album</h3><p>Everyone with the link can view, and add their own photos &amp; videos if Collaborate is turned on.</p></div>${isAdmin() ? `<button type="button" class="ghost-button" data-manage-photo-album>${albumUrl ? "Replace link" : "Add album link"}</button>` : ""}</div>${albumUrl ? `<a class="photo-album-open" target="_blank" rel="noopener" href="${esc(albumUrl)}">📷 Open the shared album ↗</a>` : `<p class="photo-album-empty">${isAdmin() ? "No shared album linked yet — create one in the Google Photos app (name it, turn on Collaborate), then paste the link here." : "The Administrator hasn’t linked a shared album for this trip yet."}</p>`}</section>`;
+    return `<section class="trip-photos-page"><div class="trip-photos-hero"><div><span class="kicker">COLOURFUL TRIP GALLERY</span><h2>Photos from the journey</h2><p>Keep selected trip photographs together. Images are stored in Google Drive and photo details are stored in Google Sheets.</p></div><div class="trip-photos-hero-actions">${isAdmin() ? `<button class="photo-access-toggle ${enabled ? "enabled" : "disabled"}" data-toggle-photo-uploads>${enabled ? "Disable traveller uploads" : "Enable traveller uploads"}</button>` : ""}${mayAdd ? `<button class="primary" data-add-trip-photo>＋ Add photo</button>` : ""}</div></div>${albumPanel}<div class="photo-access-strip ${enabled ? "enabled" : "disabled"}"><i>${enabled ? "●" : "○"}</i><div><b>${isAdmin() ? "Administrator photo control" : "Your photo allowance"}</b><p>${esc(accessText)}</p></div>${!isAdmin() && state.travellerId ? `<strong>${count}/${limit}</strong>` : `<strong>${photos.length} photos</strong>`}</div><div class="trip-photo-grid">${cards || `<div class="empty-photo-gallery"><i>▣</i><b>No trip photos yet</b><p>${mayAdd ? "Add the first colourful memory from this journey." : "An authorised traveller or the Administrator can add the first photo."}</p></div>`}</div></section>`;
   }
+  function manageTripPhotoAlbum() {
+    if (!isAdmin()) return toast("Global Administrator access required", true);
+    const trip = state.data.trip || {};
+    const suggestedName = `${trip.name || "Trip"} (${displayDate(trip.startDate, { day: "numeric", month: "short" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })})`;
+    showModal("Shared Google Photos album", `<form class="modal-form" id="photoAlbumForm"><div class="security-note"><i>📷</i><p>In the Google Photos app: create a new album named something like "<b>${esc(suggestedName)}</b>", turn on <b>Collaborate</b> so travellers can add their own photos, then copy its share link here.</p></div><label>Album share link<input name="photoAlbumUrl" type="url" maxlength="1000" value="${esc(trip.photoAlbumUrl || "")}" placeholder="https://photos.app.goo.gl/…" required></label><div class="form-actions">${trip.photoAlbumUrl ? `<button type="button" id="removePhotoAlbum" class="danger-link">Remove link</button>` : ""}<button type="button" data-cancel>Cancel</button><button type="submit">Save</button></div></form>`);
+    $('[data-cancel]').addEventListener("click", closeModal);
+    if ($("#removePhotoAlbum")) $("#removePhotoAlbum").addEventListener("click", async () => {
+      try { if (!state.demoMode) await api("updateTrip", authPayload({ trip: { photoAlbumUrl: "" } })); state.data.trip.photoAlbumUrl = ""; closeModal(); render(); toast("Album link removed"); } catch (error) { toast(error.message, true); }
+    });
+    $("#photoAlbumForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const photoAlbumUrl = String(event.currentTarget.elements.photoAlbumUrl.value || "").trim();
+      const button = event.submitter; if (button) { button.disabled = true; button.textContent = "Saving…"; }
+      try {
+        if (!state.demoMode) await api("updateTrip", authPayload({ trip: { photoAlbumUrl } }));
+        state.data.trip.photoAlbumUrl = photoAlbumUrl; closeModal(); render(); toast("Album link saved");
+      } catch (error) { if (button) { button.disabled = false; button.textContent = "Save"; } toast(error.message, true); }
+    });
+  }
+  document.addEventListener("click", (event) => { if (event.target.closest("[data-manage-photo-album]")) manageTripPhotoAlbum(); });
 
   function renderPlaces() {
     const tripKey = String(state.data.trip.tripId || "");
@@ -1930,7 +2001,7 @@
       const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
       return `<div class="expense-row"><span class="expense-description"><i>₹</i><b>${esc(expense.label)}</b></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${expense.receiptUrl || canEditRecords("Expenses") ? `<button class="receipt-btn${expense.receiptUrl ? " has" : ""}" data-receipt-open="${esc(expense.id)}" title="${expense.receiptUrl ? "View receipt" : "Add receipt photo"}">🧾</button>` : ""}${editActions}${deleteAction}</span></div>`;
     }).join("");
-    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderSpendChart(total, budget)}<section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu()}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${travellerFilterBar}<div class="expense-table expense-action-table"><div class="expense-table-header"><span>DESCRIPTION</span><span>DATE</span><span>CATEGORY</span><span>PAID BY</span><span>AMOUNT</span><span>ACTIONS</span></div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
+    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderSpendChart(total, budget)}<section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-expense-columns>⇔ Reset</button></label>`)}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${travellerFilterBar}<div class="expense-table expense-action-table" style="${expenseColumnStyle()}"><div class="expense-table-header">${expenseColumnLabels.map((label, index) => `<span>${label}${index < expenseColumnLabels.length - 1 ? `<i class="expense-col-grip" data-exp-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
   }
   document.addEventListener("click", (event) => { const t = event.target.closest("[data-expense-traveller-filter]"); if (!t) return; event.preventDefault(); state.expenseTravellerFilter = t.dataset.expenseTravellerFilter; render(); });
 
@@ -2050,7 +2121,10 @@
       ["How do I make text bigger?", "Use A− / A+ at the top, or in ⋯ More on mobile. Your choice is remembered."],
       ["Why was I signed out?", "The Administrator can set auto sign-out after 5 min, 30 min, 1 hr or 2 hr without use."]] }
   ];
-  const FEEDBACK_FEATURES = [["overall", "Overall"], ["itinerary", "Itinerary"], ["expenses", "Expenses"], ["sticky", "Sticky notes"], ["photos", "Photos"]];
+  /* Sticky notes is excluded from ratings: admin controls who may use it
+     (and can hide it entirely for travellers), so it isn't a feature every
+     traveller experiences the same way. */
+  const FEEDBACK_FEATURES = [["overall", "Overall"], ["itinerary", "Itinerary"], ["expenses", "Expenses"], ["photos", "Photos"]];
   function feedbackKey() { return `mytrip.feedback.${state.data ? state.data.trip.tripId : ""}.${state.travellerId || state.accountUsername || state.currentUser || ""}`; }
   function feedbackDraft() {
     if (!state.feedbackDraft) { try { state.feedbackDraft = JSON.parse(localStorage.getItem(feedbackKey()) || "null"); } catch (e) {} }
@@ -2459,6 +2533,7 @@
     if (state.tab === "itinerary" && planMapOpen()) { try { initPlanMap(); } catch (error) {} }
     try { applyLineIcons(); } catch {} try { updateTabbar(); } catch {}
     if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
+    if (state.tab === "expenses") bindExpenseColumnResizers();
     const printMenu = $(".plan-print-menu");
     if (printMenu) printMenu.addEventListener("toggle", () => { state.printMenuOpen = printMenu.open; });
   }
@@ -2485,6 +2560,7 @@
     if (button.dataset.sortPlanTime !== undefined) return sortPlansByTime(button.dataset.sortPlanTime);
     if (button.dataset.planPay) return showPlanPayment(button.dataset.planPay);
     if (button.dataset.togglePlanDone) return togglePlanDone(button.dataset.togglePlanDone);
+    if (button.dataset.experiencePhoto) { const item = state.data.experiences.find((e) => String(e.id) === String(button.dataset.experiencePhoto)); if (item && item.photoUrl) { showModal(item.place || "Trip photo", `<div class="trip-photo-view"><img src="${esc(item.photoUrl)}" alt="" loading="lazy" decoding="async"><div><span>MEMORY</span><h3>${esc(item.place || "A trip memory")}</h3></div><div class="form-actions"><button type="button" data-cancel>Close</button>${canEditRecords("ExperienceNotes") ? `<button type="button" data-edit data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Edit</button>` : ""}</div></div>`); $('[data-cancel]').addEventListener("click", closeModal); } return; }
     if (button.dataset.planPhoto) { const item = sortedPlans().find((p) => String(p.id) === String(button.dataset.planPhoto)); if (item && item.photoUrl) { showModal(item.title || "Preview photo", `<div class="trip-photo-view"><img src="${esc(item.photoUrl)}" alt="" loading="lazy" decoding="async"><div><span>PREVIEW</span><h3>${esc(item.title || "")}</h3>${item.place ? `<p>⌖ ${esc(item.place)}</p>` : ""}</div><div class="form-actions"><button type="button" data-cancel>Close</button>${canEditRecords("Itinerary") ? `<button type="button" data-edit data-sheet="Itinerary" data-id="${esc(item.id)}">Edit</button>` : ""}</div></div>`); $('[data-cancel]').addEventListener("click", closeModal); } return; }
     if (button.dataset.duplicatePlan) return duplicatePlanRow(button.dataset.duplicatePlan);
     if (button.dataset.planDay !== undefined) { state.planDayFilter = button.dataset.planDay; return render(); }
@@ -2497,6 +2573,7 @@
     if (button.dataset.printLayout) return setPrintLayout(button.dataset.printLayout);
     if (button.dataset.printAlign) return setPrintAlign(button.dataset.printAlign);
     if (button.hasAttribute("data-reset-plan-columns")) { savePlanColumns([...planColumnDefaults]); return render(); }
+    if (button.hasAttribute("data-reset-expense-columns")) { saveExpenseColumns([...expenseColumnDefaults]); return render(); }
     if (button.hasAttribute("data-print-wrap")) return togglePrintWrap();
     if (button.dataset.rowEditPlan) { state.planRowEditId = button.dataset.rowEditPlan; return render(); }
     if (button.hasAttribute("data-cancel-plan-row")) { state.planRowEditId = ""; state.planAddDate = ""; return render(); }
@@ -4268,11 +4345,11 @@
   function showAddModal(type) {
     if (!canAdd(type)) return toast("Global Administrator access required for this action", true);
     if (type === "travellers") return showAddTravellersToCurrentTrip();
-    if (type === "plan") showModal("Add to itinerary", `<form class="modal-form" data-form="plan"><label>Plan title<input name="title" placeholder="e.g. Sunset cruise" required></label><div class="form-row"><label>Date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(state.data.trip.startDate)}" required></label><label>Time<input name="time" type="time" value="10:00" required></label></div><label>Place<input name="place" placeholder="Place or address" required></label><label>Planning note<textarea name="notes" rows="3" placeholder="Tickets, reminders, meeting point or other preparation"></textarea></label><details class="plan-extra-fields"><summary>Optional booking detail</summary><div class="form-row"><label>Category<select name="category"><option value="">—</option>${planCategories.map((value) => `<option>${value}</option>`).join("")}</select></label><label>Status<select name="status"><option value="">—</option>${planStatuses.map((value) => `<option${value === "To book" ? " selected" : ""}>${value}</option>`).join("")}</select></label></div><div class="form-row"><label>Booking reference<input name="bookingRef" maxlength="80" placeholder="PNR / confirmation"></label><label>Planned cost (₹)<input name="cost" type="number" min="0" step="1" placeholder="0"></label></div><label>Preview photo link <small>(optional — paste an image link so you can visualise this before the trip)</small><input name="photoUrl" type="url" maxlength="1000" placeholder="e.g. a Google Images link for Kanyakumari sunset"></label></details>${actions}</form>`);
+    if (type === "plan") showModal("Add to itinerary", `<form class="modal-form" data-form="plan"><label>Plan title<input name="title" placeholder="e.g. Sunset cruise" required></label><div class="form-row"><label>Date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(state.data.trip.startDate)}" required></label><label>Time<input name="time" type="time" value="10:00" required></label></div><label>Place<input name="place" placeholder="Place or address" required></label><label>Planning note<textarea name="notes" rows="3" placeholder="Tickets, reminders, meeting point or other preparation"></textarea></label><details class="plan-extra-fields"><summary>Optional booking detail</summary><div class="form-row"><label>Category<select name="category"><option value="">—</option>${planCategories.map((value) => `<option>${value}</option>`).join("")}</select></label><label>Status<select name="status"><option value="">—</option>${planStatuses.map((value) => `<option${value === "To book" ? " selected" : ""}>${value}</option>`).join("")}</select></label></div><div class="form-row"><label>Booking reference<input name="bookingRef" maxlength="80" placeholder="PNR / confirmation"></label><label>Planned cost (₹)<input name="cost" type="number" min="0" step="1" placeholder="0"></label></div><label>Preview photo link <small>(optional — paste an image link so you can visualise this before the trip)</small><input name="photoUrl" type="url" maxlength="1000" placeholder="e.g. a Google Images link, or a Google Drive share link, for Kanyakumari sunset"></label></details>${actions}</form>`);
     if (type === "experience") {
       const writer = state.currentUser === "Traveller" ? "" : state.currentUser;
       const writerNames = [...new Set(visibleTripMembers().map((member) => member.name).filter(Boolean))];
-      showModal("Add experience note", `<form class="modal-form" data-form="experience"><div class="security-note traveller-note"><i>✍</i><p>This note will appear below the itinerary and in the printed trip book with the writer’s name.</p></div><div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(state.data.trip.startDate)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" placeholder="e.g. Padmanabhaswamy Temple"></label></div><label>Experience note${noteToolbarHtml()}<textarea name="note" rows="5" maxlength="4000" placeholder="What happened? What did you enjoy, learn or want to remember?" required></textarea></label><div class="form-row"><label>Written by<input name="writer" list="experienceWriterNames" maxlength="80" value="${esc(writer)}" placeholder="Enter the writer’s name" required><datalist id="experienceWriterNames">${writerNames.map((name) => `<option value="${esc(name)}"></option>`).join("")}</datalist></label><label>Who can see this<select name="visibility"><option value="Everyone" selected>Everyone on the trip</option><option value="Only me">Only me</option></select></label></div>${actions}</form>`);
+      showModal("Add experience note", `<form class="modal-form" data-form="experience"><div class="security-note traveller-note"><i>✍</i><p>This note will appear below the itinerary and in the printed trip book with the writer’s name.</p></div><div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(state.data.trip.startDate)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" placeholder="e.g. Padmanabhaswamy Temple"></label></div><label>Experience note${noteToolbarHtml()}<textarea name="note" rows="5" maxlength="4000" placeholder="What happened? What did you enjoy, learn or want to remember?" required></textarea></label><div class="form-row"><label>Written by<input name="writer" list="experienceWriterNames" maxlength="80" value="${esc(writer)}" placeholder="Enter the writer’s name" required><datalist id="experienceWriterNames">${writerNames.map((name) => `<option value="${esc(name)}"></option>`).join("")}</datalist></label><label>Who can see this<select name="visibility"><option value="Everyone" selected>Everyone on the trip</option><option value="Only me">Only me</option></select></label></div>${experiencePhotoFieldHtml("")}${actions}</form>`);
     }
     if (type === "place") showModal("Save a place", `<form class="modal-form" data-form="place"><label>Place name<input name="name" placeholder="e.g. Dudhsagar Falls" required></label><label>Area or address<input name="area" placeholder="Goa" required></label><div class="form-row"><label>Category<select name="category"><option>Beach</option><option>Food</option><option>Culture</option><option>Nature</option><option>Shopping</option><option>Stay</option></select></label><label>Plan for<select name="plannedDay"><option>Unplanned</option><option>Day 1</option><option>Day 2</option><option>Day 3</option><option>Day 4</option><option>Day 5</option></select></label></div>${actions}</form>`);
     if (type === "expense" && mtIsPhone()) { showModal("Add expense", mtExpenseSheet()); }
@@ -4305,14 +4382,35 @@
     } catch (error) { toast(error.message, true); }
   }
 
+  function inviteMessage(link) {
+    return `You're invited to view and manage our trip "${(state.data.trip || {}).name || "our trip"}" on MyTrip.\n\nOpen this link: ${link}\nTrip code: ${state.data.trip.tripId}\n\nIf you don't have a login yet, use "Join by link" on that page — the Administrator will approve you.`;
+  }
   function showInvite() {
     if (!isAdmin()) return toast("Global Administrator access required to invite travellers", true);
     const inviteParams = new URLSearchParams({ trip: state.data.trip.tripId });
     if (!validApiUrl(config.API_URL) && apiUrlReady()) inviteParams.set("api", apiUrl);
     const link = `${location.origin}${location.pathname}?${inviteParams.toString()}`;
-    showModal("Invite your travel group", `<div class="join-admin" id="joinAdmin"><span class="kicker">JOIN BY LINK · NO PASSWORD TO SHARE</span><p class="form-help">Loading…</p></div><div class="invite-box"><p>Share this link and only this trip’s Traveller PIN. Never share the global Administrator password/PIN.</p><div class="copy-field"><input id="inviteLink" value="${esc(link)}" readonly><button id="copyInvite">Copy</button></div><div class="pin-box"><span>TRIP CODE<b>${esc(state.data.trip.tripId)}</b></span><span>TRAVELLER PIN<b>••••</b></span></div><small>The Traveller PIN is different for each trip and is not displayed after creation.</small></div>`);
+    showModal("Invite your travel group", `<div class="join-admin" id="joinAdmin"><span class="kicker">JOIN BY LINK · NO PASSWORD TO SHARE</span><p class="form-help">Loading…</p></div><div class="invite-box"><p>Share this link and only this trip’s Traveller PIN. Never share the global Administrator password/PIN.</p><div class="copy-field"><input id="inviteLink" value="${esc(link)}" readonly><button id="copyInvite">Copy</button></div><div class="pin-box"><span>TRIP CODE<b>${esc(state.data.trip.tripId)}</b></span><span>TRAVELLER PIN<b>••••</b></span></div><small>The Traveller PIN is different for each trip and is not displayed after creation.</small></div><div class="invite-share"><div class="invite-share-head"><span class="kicker">SEND TO YOUR TRAVELLERS</span><button type="button" id="copyInviteMessage" class="ghost-button">📋 Copy message</button></div><div id="inviteShareList" class="invite-share-list"><p class="form-help">Loading travellers…</p></div></div>`);
     $("#copyInvite").addEventListener("click", async () => { try { await navigator.clipboard.writeText(link); } catch {} toast("Invite link copied"); });
+    $("#copyInviteMessage").addEventListener("click", async () => { try { await navigator.clipboard.writeText(inviteMessage(link)); } catch {} toast("Message copied — paste it in a group chat or email"); });
     loadJoinAdmin();
+    loadInviteShareList(link);
+  }
+  async function loadInviteShareList(link) {
+    const slot = $("#inviteShareList");
+    if (!slot) return;
+    try {
+      const travellers = state.demoMode ? demoTravellerAccounts : (await api("listTravellerAccounts", { ...adminAuth() })).travellers || [];
+      const tripId = state.data.trip.tripId;
+      const here = travellers.filter((t) => Array.isArray(t.tripIds) && t.tripIds.includes(tripId));
+      if (!here.length) { slot.innerHTML = `<p class="form-help">No traveller accounts are assigned to this trip yet.</p>`; return; }
+      const message = inviteMessage(link);
+      slot.innerHTML = here.map((t) => {
+        const mail = t.email ? `<a href="mailto:${encodeURIComponent(t.email)}?subject=${encodeURIComponent(`Join "${(state.data.trip || {}).name || "our trip"}" on MyTrip`)}&body=${encodeURIComponent(message)}">✉ Email</a>` : `<span class="invite-share-muted">No email on file</span>`;
+        const wa = t.phone ? `<a target="_blank" rel="noopener" href="https://wa.me/${String(t.phone).replace(/[^0-9]/g, "")}?text=${encodeURIComponent(message)}">✆ WhatsApp</a>` : `<span class="invite-share-muted">No phone on file</span>`;
+        return `<div class="invite-share-row"><b>${esc(t.name)}</b><span class="invite-share-actions">${mail}${wa}</span></div>`;
+      }).join("");
+    } catch (error) { slot.innerHTML = `<p class="form-help">Couldn’t load travellers — ${esc(error.message)}</p>`; }
   }
 
   function showSecurity() {
@@ -4364,7 +4462,7 @@
     if (!record) return toast("Record not found", true);
     let fields = "";
     if (sheet === "Itinerary") fields = `<label>Plan title<input name="title" value="${esc(record.title)}" required></label><div class="form-row"><label>Date<input name="date" type="date" value="${esc(record.date)}" required></label><label>Time<input name="time" type="time" value="${esc(record.time)}"></label></div><label>Place<input name="place" value="${esc(record.place || "")}"></label><label>Planning note<textarea name="notes" rows="3">${esc(record.notes || "")}</textarea></label><details class="plan-extra-fields"${record.photoUrl ? " open" : ""}><summary>Optional booking detail</summary><div class="form-row"><label>Category<select name="category"><option value="">—</option>${planCategories.map((value) => `<option${record.category === value ? " selected" : ""}>${value}</option>`).join("")}</select></label><label>Status<select name="status"><option value="">—</option>${planStatuses.map((value) => `<option${record.status === value ? " selected" : ""}>${value}</option>`).join("")}</select></label></div><div class="form-row"><label>Booking reference<input name="bookingRef" maxlength="80" value="${esc(record.bookingRef || "")}"></label><label>Planned cost (₹)<input name="cost" type="number" min="0" step="1" value="${esc(record.cost || "")}"></label></div><label>Preview photo link <small>(optional — paste an image link so you can visualise this before the trip)</small><input name="photoUrl" type="url" maxlength="1000" value="${esc(record.photoUrl || "")}" placeholder="e.g. a Google Images link for Kanyakumari sunset"></label></details>`;
-    if (sheet === "ExperienceNotes") fields = `<div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(record.date)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" value="${esc(record.place || "")}"></label></div><label>Experience note${noteToolbarHtml()}<textarea name="note" rows="5" maxlength="4000" required>${esc(record.note || "")}</textarea></label><div class="form-row"><label>Written by<input name="writer" maxlength="80" value="${esc(record.writer || "")}" required></label><label>Who can see this<select name="visibility"><option value="Everyone"${record.visibility === "Only me" ? "" : " selected"}>Everyone on the trip</option><option value="Only me"${record.visibility === "Only me" ? " selected" : ""}>Only me</option></select></label></div>`;
+    if (sheet === "ExperienceNotes") fields = `<div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(record.date)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" value="${esc(record.place || "")}"></label></div><label>Experience note${noteToolbarHtml()}<textarea name="note" rows="5" maxlength="4000" required>${esc(record.note || "")}</textarea></label><div class="form-row"><label>Written by<input name="writer" maxlength="80" value="${esc(record.writer || "")}" required></label><label>Who can see this<select name="visibility"><option value="Everyone"${record.visibility === "Only me" ? "" : " selected"}>Everyone on the trip</option><option value="Only me"${record.visibility === "Only me" ? " selected" : ""}>Only me</option></select></label></div>${experiencePhotoFieldHtml(record.photoUrl || "")}`;
     if (sheet === "Places") fields = `<label>Place name<input name="name" value="${esc(record.name)}" required></label><label>Area or address<input name="area" value="${esc(record.area || "")}"></label><div class="form-row"><label>Category<input name="category" value="${esc(record.category || "")}"></label><label>Planned day<input name="plannedDay" value="${esc(record.plannedDay || "Unplanned")}"></label></div><label>Notes<textarea name="notes" rows="3">${esc(record.notes || "")}</textarea></label>`;
     if (sheet === "Expenses") fields = `<label>Expense description<input name="label" value="${esc(record.label)}" required></label><div class="form-row"><label>Amount<input name="amount" type="number" min="0.01" step="0.01" value="${esc(record.amount)}" required></label><label>Date<input name="date" type="date" value="${esc(record.date)}" required></label></div><div class="form-row"><label>Category<input name="category" value="${esc(record.category || "")}"></label><label>Paid by<input name="paidBy" value="${esc(record.paidBy || "")}" required></label></div><label>Notes<textarea name="notes" rows="3">${esc(record.notes || "")}</textarea></label>`;
     showModal(sheet === "ExperienceNotes" ? "Edit experience note" : `Edit ${sheet === "Itinerary" ? "plan" : sheet.slice(0, -1).toLowerCase()}`, `<form class="modal-form" id="editRecordForm">${fields}<div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save changes</button></div></form>`);
