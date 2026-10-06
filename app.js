@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.55.7";
+  const frontendVersion = "4.56.0";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -38,6 +38,44 @@
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: config.DEFAULT_CURRENCY || "INR", maximumFractionDigits: 0 });
   const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
+  /* Lightweight, safe rich text for experience notes: the stored value is
+     still a plain string, always fully HTML-escaped first, so nothing a
+     traveller types can ever inject real markup. A small bold / colour /
+     highlight marker syntax, written by the toolbar buttons below, is
+     then turned into a fixed, hard-coded set of safe tags — no attributes
+     or styles ever come from user input. */
+  const NOTE_COLOURS = ["red", "blue", "green", "orange"], NOTE_HILITES = ["yellow", "green", "pink"];
+  function formatNote(raw) {
+    let html = esc(raw);
+    html = html.replace(/\*\*([\s\S]+?)\*\*/g, "<b>$1</b>");
+    html = html.replace(/\[c:(red|blue|green|orange)\]([\s\S]+?)\[\/c\]/g, '<span class="note-c-$1">$2</span>');
+    html = html.replace(/\[h:(yellow|green|pink)\]([\s\S]+?)\[\/h\]/g, '<mark class="note-h-$1">$2</mark>');
+    return html;
+  }
+  function noteToolbarHtml() {
+    const colourBtns = NOTE_COLOURS.map((c) => `<button type="button" class="note-fmt-c" data-note-fmt="color" data-note-color="${c}" title="${c[0].toUpperCase()}${c.slice(1)} text">●</button>`).join("");
+    const hiliteBtns = NOTE_HILITES.map((c) => `<button type="button" class="note-fmt-h" data-note-fmt="highlight" data-note-color="${c}" title="${c[0].toUpperCase()}${c.slice(1)} highlight">A</button>`).join("");
+    return `<div class="note-toolbar" role="toolbar" aria-label="Text formatting"><button type="button" data-note-fmt="bold" title="Bold"><b>B</b></button><span class="note-toolbar-sep"></span>${colourBtns}<span class="note-toolbar-sep"></span>${hiliteBtns}</div>`;
+  }
+  function wrapTextareaSelection(textarea, before, after) {
+    const start = textarea.selectionStart, end = textarea.selectionEnd, value = textarea.value;
+    const selected = value.slice(start, end);
+    textarea.value = value.slice(0, start) + before + selected + after + value.slice(end);
+    const cursorStart = start + before.length, cursorEnd = cursorStart + selected.length;
+    textarea.focus(); textarea.setSelectionRange(cursorStart, cursorEnd);
+  }
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-note-fmt]");
+    if (!btn) return;
+    event.preventDefault();
+    const form = btn.closest("form");
+    const textarea = form && form.querySelector('textarea[name="note"]');
+    if (!textarea) return;
+    const kind = btn.dataset.noteFmt, colour = btn.dataset.noteColor;
+    if (kind === "bold") wrapTextareaSelection(textarea, "**", "**");
+    else if (kind === "color") wrapTextareaSelection(textarea, `[c:${colour}]`, "[/c]");
+    else if (kind === "highlight") wrapTextareaSelection(textarea, `[h:${colour}]`, "[/h]");
+  });
   const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
   function readSavedAccountLogin() {
@@ -616,7 +654,7 @@
   function uniqById(list) { const seen = new Set(); return list.filter((x) => { const k = x && x.id != null && x.id !== "" ? String(x.id) : ""; if (!k) return true; if (seen.has(k)) return false; seen.add(k); return true; }); }
   function normalize(data) {
     if (data && data.profilePhotos) setProfilePhotos(data.profilePhotos);
-    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: uniqById(data.itinerary || []), experiences: uniqById(data.experiences || []), photos: data.photos || [], stickyDiary: data.stickyDiary || [], stickyNotes: data.stickyNotes || [], checklist: uniqById(data.checklist || []), expenses: uniqById(data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
+    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: uniqById(data.itinerary || []), experiences: uniqById(data.experiences || []), photos: data.photos || [], stickyDiary: data.stickyDiary || [], stickyNotes: data.stickyNotes || [], checklist: uniqById(data.checklist || []), expenses: uniqById(data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })), settlements: uniqById(data.settlements || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
   }
 
   function isAdmin() { return state.accessRole === "administrator"; }
@@ -674,7 +712,7 @@
   function canWriteStickyNotes() { return stickyAccessLevel() === "edit"; }
   function stickyAccessLabel(level) { return level === "edit" ? "Can edit this note" : "View only"; }
   function canAdd(type) {
-    const allowed = { plan: canViewItinerary(), experience: canViewExperiences(), place: canViewPlaces(), expense: canViewExpenses(), travellers: isAdmin(), member: isAdmin() };
+    const allowed = { plan: canViewItinerary(), experience: canViewExperiences(), place: canViewPlaces(), expense: canViewExpenses(), travellers: isAdmin(), member: isAdmin(), settlement: isAdmin() };
     return allowed[type] !== false && (isAdmin() || state.permissions[`add${type[0].toUpperCase()}${type.slice(1)}`] !== false);
   }
   function canEditRecords(sheet = "") {
@@ -1611,7 +1649,7 @@
   function renderExperiences() {
     if (!canViewExperiences()) return `<section class="feature-locked"><i>✍</i><h2>Experiences hidden</h2><p>The Administrator has not enabled this feature for your Traveller ID.</p></section>`;
     const experiences = [...state.data.experiences].sort((a, b) => `${a.date}${a.createdAt || ""}`.localeCompare(`${b.date}${b.createdAt || ""}`));
-    const experienceCards = experiences.map((item, index) => `<article class="experience-card colour-${index % 5}"><div class="experience-date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b><span>${displayDate(item.date, { month: "short" })}</span></div><div class="experience-copy"><span class="experience-place">${item.place ? `⌖ ${esc(item.place)}` : "TRIP MEMORY"}</span><p>${esc(item.note)}</p><strong>✍ Written by ${esc(item.writer || "Trip member")}</strong></div><span class="record-actions">${canEditRecords("ExperienceNotes") ? `<button class="edit-control" data-edit data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control" data-delete data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Delete</button>` : ""}</span></article>`).join("");
+    const experienceCards = experiences.map((item, index) => `<article class="experience-card colour-${index % 5}"><div class="experience-date"><small>${displayDate(item.date, { weekday: "short" }).toUpperCase()}</small><b>${displayDate(item.date, { day: "2-digit" })}</b><span>${displayDate(item.date, { month: "short" })}</span></div><div class="experience-copy"><span class="experience-place">${item.place ? `⌖ ${esc(item.place)}` : "TRIP MEMORY"}${item.visibility === "Only me" ? `<em class="experience-private-badge">🔒 Only me</em>` : ""}</span><p>${formatNote(item.note)}</p><strong>✍ Written by ${esc(item.writer || "Trip member")}</strong></div><span class="record-actions">${canEditRecords("ExperienceNotes") ? `<button class="edit-control" data-edit data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control" data-delete data-sheet="ExperienceNotes" data-id="${esc(item.id)}">Delete</button>` : ""}</span></article>`).join("");
     return `<section class="experience-section experience-page"><div class="experience-hero"><div><span class="kicker">COLOURFUL TRAVEL JOURNAL</span><h2>Experiences worth remembering</h2><p>Keep every place, feeling and story together in a separate journal.</p></div>${canAdd("experience") ? `<button class="primary" data-add="experience">＋ Add experience</button>` : ""}</div><div class="experience-summary"><article><i>✍</i><div><small>MEMORIES</small><b>${experiences.length}</b></div></article><article><i>⌖</i><div><small>PLACES</small><b>${new Set(experiences.map((item) => item.place).filter(Boolean)).size}</b></div></article><article><i>☀</i><div><small>WRITERS</small><b>${new Set(experiences.map((item) => item.writer).filter(Boolean)).size}</b></div></article></div><div class="experience-list">${experienceCards || `<div class="empty-experiences"><b>No experience notes yet</b><p>Add the first colourful memory from this trip.</p></div>`}</div></section>`;
   }
 
@@ -1637,7 +1675,7 @@
     const accessText = isAdmin()
       ? `${enabled ? "Traveller uploads are enabled" : "Traveller uploads are disabled"}. Administrator uploads remain available.`
       : (!state.travellerId ? "Shared trip access can view photos but cannot add them." : (enabled && limit > 0 ? `${count} of ${limit} photo slots used · ${remainingPhotos} remaining` : "Photo addition is disabled for your account in this trip."));
-    const cards = photos.map((photo, index) => `<article class="trip-photo-card colour-${index % 6}"><button class="trip-photo-open" data-open-photo="${esc(photo.id)}" aria-label="View photo"><img src="${esc(tripPhotoUrl(photo.photoUrl, 800))}" loading="lazy" decoding="async" alt="${esc(photo.caption || `Trip photo by ${photo.uploadedBy || "Trip member"}`)}" width="900" height="600" loading="lazy" decoding="async" fetchpriority="low"></button><div><span class="photo-number">PHOTO ${String(index + 1).padStart(2, "0")}</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>📷 ${esc(photo.uploadedBy || "Trip member")} · ${displayDate(String(photo.createdAt || "").slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</p>${mayManagePhoto(photo) ? `<span class="trip-photo-actions">${mayReplacePhoto(photo) ? `<button data-replace-photo="${esc(photo.id)}">Replace</button>` : ""}<button class="delete" data-delete-photo="${esc(photo.id)}">Delete</button></span>` : ""}</div></article>`).join("");
+    const cards = photos.map((photo, index) => `<article class="trip-photo-card colour-${index % 6}"><button class="trip-photo-open" data-open-photo="${esc(photo.id)}" aria-label="View photo"><img src="${esc(tripPhotoUrl(photo.photoUrl, 800))}" loading="lazy" decoding="async" alt="${esc(photo.caption || `Trip photo by ${photo.uploadedBy || "Trip member"}`)}" width="900" height="600" loading="lazy" decoding="async" fetchpriority="low"></button><div><span class="photo-number">PHOTO ${String(index + 1).padStart(2, "0")}</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>📷 ${esc(photo.uploadedBy || "Trip member")} · ${displayDate(String(photo.createdAt || "").slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</p>${mayManagePhoto(photo) ? `<span class="trip-photo-actions"><button data-edit-caption="${esc(photo.id)}">Edit caption</button>${mayReplacePhoto(photo) ? `<button data-replace-photo="${esc(photo.id)}">Replace</button>` : ""}<button class="delete" data-delete-photo="${esc(photo.id)}">Delete</button></span>` : ""}</div></article>`).join("");
     return `<section class="trip-photos-page"><div class="trip-photos-hero"><div><span class="kicker">COLOURFUL TRIP GALLERY</span><h2>Photos from the journey</h2><p>Keep selected trip photographs together. Images are stored in Google Drive and photo details are stored in Google Sheets.</p></div><div class="trip-photos-hero-actions">${isAdmin() ? `<button class="photo-access-toggle ${enabled ? "enabled" : "disabled"}" data-toggle-photo-uploads>${enabled ? "Disable traveller uploads" : "Enable traveller uploads"}</button>` : ""}${mayAdd ? `<button class="primary" data-add-trip-photo>＋ Add photo</button>` : ""}</div></div><div class="photo-access-strip ${enabled ? "enabled" : "disabled"}"><i>${enabled ? "●" : "○"}</i><div><b>${isAdmin() ? "Administrator photo control" : "Your photo allowance"}</b><p>${esc(accessText)}</p></div>${!isAdmin() && state.travellerId ? `<strong>${count}/${limit}</strong>` : `<strong>${photos.length} photos</strong>`}</div><div class="trip-photo-grid">${cards || `<div class="empty-photo-gallery"><i>▣</i><b>No trip photos yet</b><p>${mayAdd ? "Add the first colourful memory from this journey." : "An authorised traveller or the Administrator can add the first photo."}</p></div>`}</div></section>`;
   }
 
@@ -1744,6 +1782,17 @@
       if (!us.length) us = sharing; us.forEach((u) => { u.owed += amt / us.length; });
     });
     units.forEach((u) => { u.net = Math.round((u.paid - u.owed) * 100) / 100; });
+    /* Administrator-confirmed settlement payments move money directly between
+       two people outside the shared expense pool, so they adjust the net
+       balance here rather than being added as a new trip expense (which
+       would wrongly get split across everyone again). */
+    const unitFor = (name) => { const k = String(name || "").trim().toLowerCase(); return units.find((u) => u.members.some((m) => m.toLowerCase() === k)); };
+    (state.data.settlements || []).forEach((s) => {
+      const amt = Number(s.amount || 0); if (!amt) return;
+      const from = unitFor(s.fromPerson), to = unitFor(s.toPerson);
+      if (from) from.net = Math.round((from.net + amt) * 100) / 100;
+      if (to) to.net = Math.round((to.net - amt) * 100) / 100;
+    });
     const owe = units.filter((u) => u.net < -0.5).map((u) => ({ ...u, left: -u.net })).sort((a, b) => b.left - a.left);
     const get = units.filter((u) => u.net > 0.5).map((u) => ({ ...u, left: u.net })).sort((a, b) => b.left - a.left);
     const transfers = [];
@@ -1784,9 +1833,31 @@
     const forced = String((state.data.trip || {}).settleVisible).toUpperCase() === "TRUE";
     if (!settleShown()) return isAdmin() ? `<section class="settle-collapsed"><div><b>Settle up is hidden</b><small>Travellers will see who owes whom after the trip ends.</small></div><div class="settle-collapsed-actions"><button type="button" data-split-members>Choose who shares</button><button type="button" data-resplit>Re-split past expenses</button><button type="button" data-currency-setup>Currency</button><button type="button" class="settle-show" data-settle-toggle="show">Show now</button></div></section>` : "";
     const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.lead })}<b>${esc(p.name)}</b></span><small>${p.members.length > 1 ? `${p.members.map(esc).join(" + ")} · ` : ""}Paid ${money.format(p.paid)}${p.shares ? "" : " · not sharing"}</small><strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong></div>`).join("");
-    const moves = plan.transfers.length ? plan.transfers.map((t) => `<li><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong><a class="settle-remind" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`MyTrip · ${(state.data.trip || {}).name || "Trip"}: ${t.from} pays ${t.to} ${money.format(t.amount)} to settle up. Thank you!`)}">✆ Remind</a></li>`).join("") : `<li class="settle-done"><b>All settled</b><span>Every share is paid equally.</span></li>`;
-    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>${state.data.expenses.some((e) => String(e.sharedBy || "").trim()) ? `Shared across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · some expenses re-split` : `Split equally across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · ${money.format(Math.round(plan.share))} each`}</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button><button type="button" class="ghost-button" data-resplit>Re-split</button><button type="button" class="ghost-button" data-currency-setup>Currency</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div></section>`;
+    const moves = plan.transfers.length ? plan.transfers.map((t) => `<li><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong><span class="settle-move-actions"><a class="settle-remind" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`MyTrip · ${(state.data.trip || {}).name || "Trip"}: ${t.from} pays ${t.to} ${money.format(t.amount)} to settle up. Thank you!`)}">✆ Remind</a>${isAdmin() ? `<button type="button" class="settle-mark-done" data-settle-from="${esc(t.from)}" data-settle-to="${esc(t.to)}" data-settle-amount="${t.amount}">✓ Mark settled</button>` : ""}</span></li>`).join("") : `<li class="settle-done"><b>All settled</b><span>Every share is paid equally.</span></li>`;
+    const settlements = (state.data.settlements || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    const history = settlements.length ? `<div class="settle-history"><h3>Recorded settlements</h3><ul class="settle-history-list">${settlements.map((s) => `<li><span>${esc(s.fromPerson)} → ${esc(s.toPerson)}</span><strong>${money.format(s.amount)}</strong>${s.note ? `<small>${esc(s.note)}</small>` : ""}${isAdmin() ? `<button type="button" class="settle-undo" data-settle-undo="${esc(s.id)}">Undo</button>` : ""}</li>`).join("")}</ul></div>` : "";
+    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>${state.data.expenses.some((e) => String(e.sharedBy || "").trim()) ? `Shared across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · some expenses re-split` : `Split equally across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · ${money.format(Math.round(plan.share))} each`}</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button><button type="button" class="ghost-button" data-resplit>Re-split</button><button type="button" class="ghost-button" data-currency-setup>Currency</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div>${history}</section>`;
   }
+  function openSettlementConfirm(from, to, amount) {
+    if (!isAdmin()) return toast("Administrator access is required to confirm a settlement", true);
+    showModal("Confirm settlement", `<form class="modal-form" data-form="settlement"><p style="margin:0 0 4px;color:#5B6574;font-size:13px"><b>${esc(from)}</b> pays <b>${esc(to)}</b> to settle up.</p><label>Amount<input name="amount" type="number" min="1" step="1" value="${Math.round(Number(amount) || 0)}" required></label><label>Note <small>(optional)</small><input name="note" maxlength="200" placeholder="e.g. Paid via UPI"></label><input type="hidden" name="fromPerson" value="${esc(from)}"><input type="hidden" name="toPerson" value="${esc(to)}"><div class="form-actions"><button type="button" id="cancelSettlement">Cancel</button><button type="submit" class="primary">Confirm settlement</button></div></form>`);
+    const cancelBtn = $("#cancelSettlement"); if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+  }
+  async function undoSettlement(id) {
+    if (!isAdmin()) return toast("Administrator access is required", true);
+    if (!confirm("Undo this settlement? The amount will count as outstanding again in Settle Up.")) return;
+    try {
+      if (!state.demoMode) await api("deleteRecord", authPayload({ sheet: "Settlements", id }));
+      state.data.settlements = (state.data.settlements || []).filter((s) => String(s.id) !== String(id));
+      render(); toast("Settlement removed");
+    } catch (error) { toast(error.message, true); }
+  }
+  document.addEventListener("click", (event) => {
+    const mark = event.target.closest("[data-settle-from]");
+    if (mark) { openSettlementConfirm(mark.dataset.settleFrom, mark.dataset.settleTo, mark.dataset.settleAmount); return; }
+    const undo = event.target.closest("[data-settle-undo]");
+    if (undo) undoSettlement(undo.dataset.settleUndo);
+  });
 
   function mtDefaultDate() {
     const t = new Date(), today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
@@ -2435,6 +2506,7 @@
     if (button.dataset.featureAccess) return showTravellerFeatureAccess(state.data.members.find((member) => String(member.id) === String(button.dataset.featureAccess)));
     if (button.hasAttribute("data-trip-photo")) return showTripPhotoSettings();
     if (button.hasAttribute("data-add-trip-photo")) return showTripGalleryPhotoEditor();
+    if (button.dataset.editCaption) return editPhotoCaption(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.editCaption)));
     if (button.dataset.replacePhoto) return showTripGalleryPhotoEditor(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.replacePhoto)));
     if (button.dataset.deletePhoto) return showDeleteTripGalleryPhoto(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.deletePhoto)));
     if (button.dataset.openPhoto) return showTripGalleryPhoto(state.data.photos.find((photo) => String(photo.id) === String(button.dataset.openPhoto)));
@@ -4090,9 +4162,27 @@
 
   function showTripGalleryPhoto(photo) {
     if (!photo) return toast("Photo not found", true);
-    showModal("Trip photo", `<div class="trip-photo-view"><img src="${esc(tripPhotoUrl(photo.photoUrl, 600))}" loading="lazy" decoding="async" alt="${esc(photo.caption || "Trip photo")}"><div><span>TRIP MEMORY</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>Uploaded by <b>${esc(photo.uploadedBy || "Trip member")}</b>${photo.createdAt ? ` · ${displayDate(String(photo.createdAt).slice(0, 10))}` : ""}</p></div><div class="form-actions"><button type="button" data-cancel>Close</button>${mayReplacePhoto(photo) ? `<button id="replaceViewedPhoto" type="button">Replace</button>` : ""}</div></div>`);
+    showModal("Trip photo", `<div class="trip-photo-view"><img src="${esc(tripPhotoUrl(photo.photoUrl, 600))}" loading="lazy" decoding="async" alt="${esc(photo.caption || "Trip photo")}"><div><span>TRIP MEMORY</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>Uploaded by <b>${esc(photo.uploadedBy || "Trip member")}</b>${photo.createdAt ? ` · ${displayDate(String(photo.createdAt).slice(0, 10))}` : ""}</p></div><div class="form-actions"><button type="button" data-cancel>Close</button>${mayManagePhoto(photo) ? `<button id="editViewedPhotoCaption" type="button">Edit caption</button>` : ""}${mayReplacePhoto(photo) ? `<button id="replaceViewedPhoto" type="button">Replace</button>` : ""}</div></div>`);
     $('[data-cancel]').addEventListener("click", closeModal);
     if ($("#replaceViewedPhoto")) $("#replaceViewedPhoto").addEventListener("click", () => showTripGalleryPhotoEditor(photo));
+    if ($("#editViewedPhotoCaption")) $("#editViewedPhotoCaption").addEventListener("click", () => editPhotoCaption(photo));
+  }
+
+  function editPhotoCaption(photo) {
+    if (!photo || !mayManagePhoto(photo)) return toast("You can edit captions only for photos you uploaded", true);
+    showModal("Edit caption", `<form class="modal-form" id="editCaptionForm"><div class="photo-preview"><img loading="lazy" decoding="async" src="${esc(tripPhotoUrl(photo.photoUrl, 400))}" alt="Trip photo"></div><label>Caption <small>(optional)</small><input name="caption" maxlength="240" value="${esc(photo.caption || "")}" placeholder="What should everyone remember about this photo?"></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save caption</button></div></form>`);
+    $('[data-cancel]').addEventListener("click", closeModal);
+    $("#editCaptionForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const caption = String(event.currentTarget.elements.caption.value || "").trim();
+      const button = event.submitter; if (button) { button.disabled = true; button.textContent = "Saving…"; }
+      try {
+        if (!state.demoMode) await api("updateRecord", authPayload({ sheet: "TripPhotos", id: photo.id, record: { caption } }));
+        const stored = state.data.photos.find((item) => String(item.id) === String(photo.id));
+        if (stored) stored.caption = caption;
+        closeModal(); render(); updatePrintArea(); toast("Caption updated");
+      } catch (error) { if (button) { button.disabled = false; button.textContent = "Save caption"; } toast(error.message, true); }
+    });
   }
 
   function showDeleteTripGalleryPhoto(photo) {
@@ -4180,7 +4270,7 @@
     if (type === "experience") {
       const writer = state.currentUser === "Traveller" ? "" : state.currentUser;
       const writerNames = [...new Set(visibleTripMembers().map((member) => member.name).filter(Boolean))];
-      showModal("Add experience note", `<form class="modal-form" data-form="experience"><div class="security-note traveller-note"><i>✍</i><p>This note will appear below the itinerary and in the printed trip book with the writer’s name.</p></div><div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(state.data.trip.startDate)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" placeholder="e.g. Padmanabhaswamy Temple"></label></div><label>Experience note<textarea name="note" rows="5" maxlength="4000" placeholder="What happened? What did you enjoy, learn or want to remember?" required></textarea></label><label>Written by<input name="writer" list="experienceWriterNames" maxlength="80" value="${esc(writer)}" placeholder="Enter the writer’s name" required><datalist id="experienceWriterNames">${writerNames.map((name) => `<option value="${esc(name)}"></option>`).join("")}</datalist></label>${actions}</form>`);
+      showModal("Add experience note", `<form class="modal-form" data-form="experience"><div class="security-note traveller-note"><i>✍</i><p>This note will appear below the itinerary and in the printed trip book with the writer’s name.</p></div><div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(state.data.trip.startDate)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" placeholder="e.g. Padmanabhaswamy Temple"></label></div><label>Experience note${noteToolbarHtml()}<textarea name="note" rows="5" maxlength="4000" placeholder="What happened? What did you enjoy, learn or want to remember?" required></textarea></label><div class="form-row"><label>Written by<input name="writer" list="experienceWriterNames" maxlength="80" value="${esc(writer)}" placeholder="Enter the writer’s name" required><datalist id="experienceWriterNames">${writerNames.map((name) => `<option value="${esc(name)}"></option>`).join("")}</datalist></label><label>Who can see this<select name="visibility"><option value="Everyone" selected>Everyone on the trip</option><option value="Only me">Only me</option></select></label></div>${actions}</form>`);
     }
     if (type === "place") showModal("Save a place", `<form class="modal-form" data-form="place"><label>Place name<input name="name" placeholder="e.g. Dudhsagar Falls" required></label><label>Area or address<input name="area" placeholder="Goa" required></label><div class="form-row"><label>Category<select name="category"><option>Beach</option><option>Food</option><option>Culture</option><option>Nature</option><option>Shopping</option><option>Stay</option></select></label><label>Plan for<select name="plannedDay"><option>Unplanned</option><option>Day 1</option><option>Day 2</option><option>Day 3</option><option>Day 4</option><option>Day 5</option></select></label></div>${actions}</form>`);
     if (type === "expense" && mtIsPhone()) { showModal("Add expense", mtExpenseSheet()); }
@@ -4203,12 +4293,13 @@
     const record = { id: uid(), ...values }; if (type === "expense") { record.amount = Number(record.amount); if (!String(record.label || "").trim()) record.label = record.category || "Expense"; }
     const again = type === "expense" && event.submitter && event.submitter.hasAttribute("data-again");
     if (type === "plan") { record.cost = Number(record.cost) > 0 ? Number(record.cost) : ""; record.sortOrder = nextPlanSortOrder(record.date); }
+    if (type === "settlement") { record.amount = Number(record.amount); record.settledBy = state.currentUser; }
     record.createdBy = type === "experience" ? values.writer : state.currentUser;
-    const collection = { plan: "itinerary", place: "places", expense: "expenses", experience: "experiences", member: "members" }[type];
+    const collection = { plan: "itinerary", place: "places", expense: "expenses", experience: "experiences", member: "members", settlement: "settlements" }[type];
     try {
       if (!state.demoMode) await api(`add${type[0].toUpperCase()}${type.slice(1)}`, authPayload({ record }));
       state.data[collection].push(record); closeModal(); render(); hydrateShell(); updatePrintArea(); if (type === "expense") { try { localStorage.setItem("mytrip_last_expense", JSON.stringify({ paidBy: record.paidBy, category: record.category })); } catch {} if (again) setTimeout(() => showAddModal("expense"), 60); }
-      toast(type === "experience" ? `Experience note saved · Written by ${values.writer}` : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`);
+      toast(type === "experience" ? `Experience note saved · Written by ${values.writer}` : type === "settlement" ? "Settlement recorded" : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`);
     } catch (error) { toast(error.message, true); }
   }
 
@@ -4271,7 +4362,7 @@
     if (!record) return toast("Record not found", true);
     let fields = "";
     if (sheet === "Itinerary") fields = `<label>Plan title<input name="title" value="${esc(record.title)}" required></label><div class="form-row"><label>Date<input name="date" type="date" value="${esc(record.date)}" required></label><label>Time<input name="time" type="time" value="${esc(record.time)}"></label></div><label>Place<input name="place" value="${esc(record.place || "")}"></label><label>Planning note<textarea name="notes" rows="3">${esc(record.notes || "")}</textarea></label><details class="plan-extra-fields"><summary>Optional booking detail</summary><div class="form-row"><label>Category<select name="category"><option value="">—</option>${planCategories.map((value) => `<option${record.category === value ? " selected" : ""}>${value}</option>`).join("")}</select></label><label>Status<select name="status"><option value="">—</option>${planStatuses.map((value) => `<option${record.status === value ? " selected" : ""}>${value}</option>`).join("")}</select></label></div><div class="form-row"><label>Booking reference<input name="bookingRef" maxlength="80" value="${esc(record.bookingRef || "")}"></label><label>Planned cost (₹)<input name="cost" type="number" min="0" step="1" value="${esc(record.cost || "")}"></label></div></details>`;
-    if (sheet === "ExperienceNotes") fields = `<div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(record.date)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" value="${esc(record.place || "")}"></label></div><label>Experience note<textarea name="note" rows="5" maxlength="4000" required>${esc(record.note || "")}</textarea></label><label>Written by<input name="writer" maxlength="80" value="${esc(record.writer || "")}" required></label>`;
+    if (sheet === "ExperienceNotes") fields = `<div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(record.date)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" value="${esc(record.place || "")}"></label></div><label>Experience note${noteToolbarHtml()}<textarea name="note" rows="5" maxlength="4000" required>${esc(record.note || "")}</textarea></label><div class="form-row"><label>Written by<input name="writer" maxlength="80" value="${esc(record.writer || "")}" required></label><label>Who can see this<select name="visibility"><option value="Everyone"${record.visibility === "Only me" ? "" : " selected"}>Everyone on the trip</option><option value="Only me"${record.visibility === "Only me" ? " selected" : ""}>Only me</option></select></label></div>`;
     if (sheet === "Places") fields = `<label>Place name<input name="name" value="${esc(record.name)}" required></label><label>Area or address<input name="area" value="${esc(record.area || "")}"></label><div class="form-row"><label>Category<input name="category" value="${esc(record.category || "")}"></label><label>Planned day<input name="plannedDay" value="${esc(record.plannedDay || "Unplanned")}"></label></div><label>Notes<textarea name="notes" rows="3">${esc(record.notes || "")}</textarea></label>`;
     if (sheet === "Expenses") fields = `<label>Expense description<input name="label" value="${esc(record.label)}" required></label><div class="form-row"><label>Amount<input name="amount" type="number" min="0.01" step="0.01" value="${esc(record.amount)}" required></label><label>Date<input name="date" type="date" value="${esc(record.date)}" required></label></div><div class="form-row"><label>Category<input name="category" value="${esc(record.category || "")}"></label><label>Paid by<input name="paidBy" value="${esc(record.paidBy || "")}" required></label></div><label>Notes<textarea name="notes" rows="3">${esc(record.notes || "")}</textarea></label>`;
     showModal(sheet === "ExperienceNotes" ? "Edit experience note" : `Edit ${sheet === "Itinerary" ? "plan" : sheet.slice(0, -1).toLowerCase()}`, `<form class="modal-form" id="editRecordForm">${fields}<div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save changes</button></div></form>`);
@@ -4299,7 +4390,7 @@
 
   function buildPrintArea() {
     if (!state.data) return; const budget = Number(state.data.trip.budget || 0), members = visibleTripMembers();
-    const printedExperiences = [...state.data.experiences].sort((a,b)=>`${a.date}${a.createdAt || ""}`.localeCompare(`${b.date}${b.createdAt || ""}`)).map((item) => `<article><time>${displayDate(item.date, { weekday:"short", day:"2-digit", month:"short" })}</time><div><h3>${esc(item.place || "Trip experience")}</h3><p>${esc(item.note)}</p><strong>Written by ${esc(item.writer || "Trip member")}</strong></div></article>`).join("");
+    const printedExperiences = [...state.data.experiences].sort((a,b)=>`${a.date}${a.createdAt || ""}`.localeCompare(`${b.date}${b.createdAt || ""}`)).map((item) => `<article><time>${displayDate(item.date, { weekday:"short", day:"2-digit", month:"short" })}</time><div><h3>${esc(item.place || "Trip experience")}</h3><p>${formatNote(item.note)}</p><strong>Written by ${esc(item.writer || "Trip member")}</strong></div></article>`).join("");
     const printedTravellerTotals = expenseTotalsByTraveller().map((row) => `<tr><td>${esc(row.name)}</td><td>${row.count}</td><td>${money.format(row.total)}</td></tr>`).join("");
     const photo = tripPhotoUrl(state.data.trip.photoUrl);
     const memberText = canViewTravellers() ? ` · ${members.length} trip members` : "";
