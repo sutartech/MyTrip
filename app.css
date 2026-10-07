@@ -2733,8 +2733,9 @@ html body .settle-undo:hover{background:#FADDD7}
 /* ---- Drag-resizable Expenses table columns (same pattern as Itinerary) ---- */
 .expense-action-table{--exp-col-0:240px;--exp-col-1:110px;--exp-col-2:120px;--exp-col-3:130px;--exp-col-4:110px;overflow-x:auto}
 html body .expense-action-table .expense-table-header,html body .expense-action-table .expense-row{grid-template-columns:var(--exp-col-0) var(--exp-col-1) var(--exp-col-2) var(--exp-col-3) var(--exp-col-4) minmax(120px,1fr)!important}
-.expense-action-table .expense-table-header>span{position:relative}
-.expense-col-grip{position:absolute;top:-11px;right:-6px;bottom:-11px;width:12px;cursor:col-resize;display:block}
+.expense-action-table .expense-table-header>span{position:relative;padding-right:14px}
+.expense-col-grip{position:absolute;top:0;right:0;bottom:0;width:12px;cursor:col-resize;display:block;z-index:3;touch-action:none}
+.expense-col-grip:hover,.expense-col-grip:active{background:rgba(15,110,106,.18)}
 .expense-action-table.resizing{user-select:none}
 @media(max-width:1180px){.expense-action-table{--exp-col-0:auto}.expense-col-grip{display:none}}
 
