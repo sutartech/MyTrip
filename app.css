@@ -947,7 +947,8 @@ button:disabled{cursor:wait;opacity:.65}
 .experience-hero h2{margin:5px 0;color:#102a43;font:700 clamp(27px,4vw,39px)/1.08 "Playfair Display",Georgia,serif;letter-spacing:-.6px}
 .experience-hero p{margin:0;color:#607786;font-size:10px;font-weight:700}
 .experience-hero .primary{flex:0 0 auto}
-.experience-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:13px}
+.experience-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:13px}
+@media(max-width:760px){.experience-summary{grid-template-columns:repeat(2,1fr)}}
 .experience-summary article{display:flex;align-items:center;gap:11px;padding:14px 16px;border:1px solid #e3e7ec;border-radius:13px;background:#fff;box-shadow:0 6px 20px rgba(16,42,67,.05)}
 .experience-summary i{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:#fff0eb;color:#d86250;font-size:17px;font-style:normal}
 .experience-summary article:nth-child(2) i{background:#e9f8f4;color:#168879}
@@ -2731,7 +2732,7 @@ html body .settle-undo:hover{background:#FADDD7}
 
 /* ---- Drag-resizable Expenses table columns (same pattern as Itinerary) ---- */
 .expense-action-table{--exp-col-0:240px;--exp-col-1:110px;--exp-col-2:120px;--exp-col-3:130px;--exp-col-4:110px;overflow-x:auto}
-.expense-action-table .expense-table-header,.expense-action-table .expense-row{grid-template-columns:var(--exp-col-0) var(--exp-col-1) var(--exp-col-2) var(--exp-col-3) var(--exp-col-4) minmax(120px,1fr)}
+html body .expense-action-table .expense-table-header,html body .expense-action-table .expense-row{grid-template-columns:var(--exp-col-0) var(--exp-col-1) var(--exp-col-2) var(--exp-col-3) var(--exp-col-4) minmax(120px,1fr)!important}
 .expense-action-table .expense-table-header>span{position:relative}
 .expense-col-grip{position:absolute;top:-11px;right:-6px;bottom:-11px;width:12px;cursor:col-resize;display:block}
 .expense-action-table.resizing{user-select:none}
@@ -2757,3 +2758,8 @@ html body .settle-undo:hover{background:#FADDD7}
 .photo-album-head p{margin:0;font-size:12.5px;color:#7b8898}
 .photo-album-open{display:inline-flex;align-items:center;gap:6px;margin-top:10px;min-height:34px;padding:0 16px;border-radius:999px;background:#E3F4EC;border:1px solid #BFE3D3;color:#17744F;font-weight:700;font-size:13px;text-decoration:none}
 .photo-album-empty{margin:10px 0 0;font-size:12.5px;color:#9aa4ad;font-style:italic}
+
+/* ---- Experience notes: Learning vs Memory distinction + type filter ---- */
+.experience-type-filter{margin:4px 0 14px}
+.experience-card.learning-note{border-left:4px solid #D97706;background:#FFFBEB}
+.experience-learning-badge{display:inline-block;margin-bottom:6px;padding:3px 10px;border-radius:999px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:800;letter-spacing:.2px}
