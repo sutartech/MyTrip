@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.58.3";
+  const frontendVersion = "4.58.4";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -1934,7 +1934,7 @@
     if (!plan.total) return "";
     const forced = String((state.data.trip || {}).settleVisible).toUpperCase() === "TRUE";
     if (!settleShown()) return isAdmin() ? `<section class="settle-collapsed"><div><b>Settle up is hidden</b><small>Travellers will see who owes whom after the trip ends.</small></div><div class="settle-collapsed-actions"><button type="button" data-split-members>Choose who shares</button><button type="button" data-resplit>Re-split past expenses</button><button type="button" data-currency-setup>Currency</button><button type="button" class="settle-show" data-settle-toggle="show">Show now</button></div></section>` : "";
-    const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.lead })}<b>${esc(p.name)}</b></span><small>${p.members.length > 1 ? `${p.members.map(esc).join(" + ")} · ` : ""}Paid ${money.format(p.paid)}${p.shares ? "" : " · not sharing"}</small>${Math.abs(p.net) < 0.5 ? `<strong class="settle-clear">✓ Settled</strong>` : `<strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong>`}</div>`).join("");
+    const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.lead })}<b>${esc(p.name)}</b></span><small>${p.members.length > 1 ? `${p.members.map(esc).join(" + ")} · ` : ""}Paid ${money.format(p.paid)}${p.shares ? "" : " · not sharing"}</small>${Math.abs(p.net) <= 0.5 ? `<strong class="settle-clear">✓ Settled</strong>` : `<strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong>`}</div>`).join("");
     const settlements = (state.data.settlements || []).slice().sort((x, y) => String(y.createdAt || "").localeCompare(String(x.createdAt || "")));
     const pendingRows = plan.transfers.map((t) => `<li class="settle-pending"><em class="settle-status pending">PENDING</em><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong><span class="settle-move-actions"><a class="settle-remind" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`MyTrip · ${(state.data.trip || {}).name || "Trip"}: ${t.from} pays ${t.to} ${money.format(t.amount)} to settle up. Thank you!`)}">✆ Remind</a>${isAdmin() ? `<button type="button" class="settle-mark-done" data-settle-from="${esc(t.from)}" data-settle-to="${esc(t.to)}" data-settle-amount="${t.amount}">✓ Mark settled</button>` : ""}</span></li>`).join("");
     const settledRows = settlements.map((x) => `<li class="settle-settled"><em class="settle-status settled">✓ SETTLED</em><b>${esc(x.fromPerson)}</b><span>paid</span><b>${esc(x.toPerson)}</b><strong>${money.format(x.amount)}</strong><small>${x.method ? `<b class="settle-method">${esc(x.method)}</b> · ` : ""}${displayDate(String(x.paidOn || x.createdAt || "").slice(0, 10))}${x.reference ? ` · Ref ${esc(x.reference)}` : ""}${x.settledBy ? ` · confirmed by ${esc(x.settledBy)}` : ""}${x.note ? ` · ${esc(x.note)}` : ""}</small>${isAdmin() ? `<button type="button" class="settle-undo" data-settle-undo="${esc(x.id)}">Undo</button>` : ""}</li>`).join("");
@@ -1947,8 +1947,10 @@
   const SETTLE_METHODS = ["Cash", "UPI (GPay / PhonePe / Paytm)", "Bank transfer", "Cheque", "Other"];
   function openSettlementConfirm(from, to, amount) {
     if (!isAdmin()) return toast("Administrator access is required to confirm a settlement", true);
+    if (backendInfo && backendInfo.settlementRecords !== true) return toast("Your Google backend is out of date. In Apps Script paste the latest Code.gs, then Deploy → Manage deployments → Edit → New version. After that, Mark settled will save.", true);
     const amt = Math.round(Number(amount) || 0);
     showModal("Confirm settlement", `<form class="modal-form settle-confirm" data-form="settlement"><div class="settle-confirm-card"><div class="settle-confirm-who"><span><small>PAID BY</small><b>${esc(from)}</b></span><i>→</i><span><small>PAID TO</small><b>${esc(to)}</b></span></div><strong class="settle-confirm-amt" id="settleConfirmAmt">${money.format(amt)}</strong></div><div class="form-row"><label>Amount paid (₹)<input name="amount" id="settleAmountInput" type="number" min="1" step="1" value="${amt}" required></label><label>Date paid<input name="paidOn" type="date" value="${esc(localDateKey())}" max="${esc(localDateKey())}" required></label></div><div class="form-row"><label>How was it paid?<select name="method">${SETTLE_METHODS.map((m) => `<option>${m}</option>`).join("")}</select></label><label>Reference / UTR <small>(optional)</small><input name="reference" maxlength="60" placeholder="e.g. UPI transaction ID"></label></div><label>Note <small>(optional)</small><input name="note" maxlength="200" placeholder="e.g. Paid at the station"></label><input type="hidden" name="fromPerson" value="${esc(from)}"><input type="hidden" name="toPerson" value="${esc(to)}"><p class="settle-confirm-help">This is saved to the Settlements tab of your Google Sheet and counted against what is owed. It is not added as a trip expense.</p><div class="form-actions"><button type="button" id="cancelSettlement">Cancel</button><button type="submit" class="primary">Confirm &amp; save</button></div></form>`);
+    const settleForm = $('form[data-form="settlement"]'); if (settleForm) settleForm.addEventListener("submit", saveForm);
     const cancelBtn = $("#cancelSettlement"); if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
     const input = $("#settleAmountInput"); if (input) input.addEventListener("input", () => { const el = $("#settleConfirmAmt"); if (el) el.textContent = money.format(Number(input.value) || 0); });
   }
@@ -4415,7 +4417,7 @@
     try {
       if (!state.demoMode) await api(`add${type[0].toUpperCase()}${type.slice(1)}`, authPayload({ record }));
       state.data[collection].push(record); closeModal(); render(); hydrateShell(); updatePrintArea(); if (type === "expense") { try { localStorage.setItem("mytrip_last_expense", JSON.stringify({ paidBy: record.paidBy, category: record.category })); } catch {} if (again) setTimeout(() => showAddModal("expense"), 60); }
-      toast(type === "experience" ? `Experience note saved · Written by ${values.writer}` : type === "settlement" ? "✓ Settlement saved and recorded in your Google Sheet" : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`);
+      toast(type === "experience" ? `Experience note saved · Written by ${values.writer}` : type === "settlement" ? "Settlement saved and recorded in your Google Sheet" : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`);
     } catch (error) { toast(error.message, true); }
   }
 
