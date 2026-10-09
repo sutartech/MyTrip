@@ -2792,3 +2792,32 @@ html body .settle-history-foot{margin:8px 0 0;font-size:11px;color:#7b8898}
 .settle-status-vis button{min-height:30px;padding:0 14px;border-radius:999px;border:1px solid #BFE3D3;background:#E3F4EC;color:#17744F;font-weight:700;font-size:12px;cursor:pointer}
 .settle-status-vis.off button{background:#FEF3C7;border-color:#F3D98B;color:#92400E}
 @media(max-width:760px){.settle-status-nums{grid-template-columns:1fr 1fr 1fr;gap:6px}.settle-status-nums b{font-size:14px}}
+
+/* ---- Confirm settlement: who paid whom, how, when ---- */
+.settle-confirm-card{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 16px;border-radius:14px;background:#F3FAF6;border:1px solid #CDE9DB;margin-bottom:12px}
+.settle-confirm-who{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.settle-confirm-who span{display:grid;gap:2px}
+.settle-confirm-who small{font-size:10px;letter-spacing:.08em;font-weight:800;color:#5B7A6C}
+.settle-confirm-who b{font-size:16px;color:#1F2A33}
+.settle-confirm-who i{font-style:normal;font-size:20px;color:#17744F}
+.settle-confirm-amt{font-size:24px;color:#17744F}
+.settle-confirm-help{margin:0 0 6px;font-size:11.5px;color:#7b8898}
+.settle-method{background:#E3F4EC;color:#17744F;border-radius:999px;padding:1px 8px;font-size:11px}
+
+/* ---- Settle up: pending vs settled, clearly different ---- */
+html body .settle-moves li.settle-pending,html body .settle-moves li.settle-settled{display:flex!important;flex-wrap:wrap;align-items:center;gap:8px}
+html body .settle-moves li.settle-pending{border-left:4px solid #D97706;background:#FFFBEB}
+html body .settle-moves li.settle-settled{border:1px solid #BFE3D3;border-left:4px solid #17744F;background:#EAF7F0}
+html body .settle-moves li.settle-settled b,html body .settle-moves li.settle-settled strong{color:#17744F}
+html body .settle-moves li.settle-settled strong{margin-left:auto;text-decoration:none}
+html body .settle-moves li.settle-settled small{flex-basis:100%;font-size:11.5px;color:#5B7A6C}
+html body .settle-moves li.settle-pending strong{margin-left:auto;color:#B45309}
+html body .settle-status{font-style:normal;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.06em}
+html body .settle-status.pending{background:#FDE68A;color:#92400E}
+html body .settle-status.settled{background:#17744F;color:#fff}
+html body .settle-clear{display:inline-block;padding:4px 12px;border-radius:999px;background:#17744F;color:#fff;font-size:12px;font-weight:800}
+html body .settle-allclear{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:12px 16px;border-radius:14px;background:linear-gradient(135deg,#17744F,#28B49C);color:#fff}
+html body .settle-allclear i{font-style:normal;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.22);font-size:20px;font-weight:800}
+html body .settle-allclear b{display:block;font-size:15px;letter-spacing:.08em}
+html body .settle-allclear small{color:rgba(255,255,255,.88);font-size:12px}
+html body .settle-summary{margin:10px 0 0;color:#17744F;font-weight:700}
