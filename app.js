@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.57.3";
+  const frontendVersion = "4.58.1";
   const requiredBackendVersion = "4.15.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -1062,6 +1062,28 @@
   });
   let mtPhoneWas = mtIsPhone();
   addEventListener("resize", () => { const p = mtIsPhone(); if (p !== mtPhoneWas) { mtPhoneWas = p; if (state.data && state.tab === "overview") render(); } });
+  /* Overview card: how much is still to settle and what has been paid back.
+     Administrator always sees it (with a show/hide switch for travellers);
+     travellers see it only when Settle up is shown to them. */
+  function renderSettleStatusCard() {
+    if (!canViewExpenses()) return "";
+    const plan = settleUpPlan();
+    if (!plan.total) return "";
+    const shown = settleShown();
+    if (!shown && !isAdmin()) return "";
+    const forced = String((state.data.trip || {}).settleVisible).toUpperCase() === "TRUE";
+    const pending = plan.transfers.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    const done = (state.data.settlements || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    const paidBack = done.reduce((sum, x) => sum + Number(x.amount || 0), 0);
+    const pendingList = plan.transfers.slice(0, 3).map((t) => `<li><b>${esc(t.from)}</b> pays <b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong></li>`).join("");
+    const doneList = done.slice(0, 2).map((x) => `<li class="done"><em>✓ Saved</em><b>${esc(x.fromPerson)}</b> → <b>${esc(x.toPerson)}</b><strong>${money.format(x.amount)}</strong></li>`).join("");
+    const visibility = !isAdmin() ? "" : forced
+      ? `<div class="settle-status-vis"><span>👁 Shown to travellers</span><button type="button" data-settle-toggle="hide">Hide from travellers</button></div>`
+      : shown
+        ? `<div class="settle-status-vis"><span>👁 Shown to travellers (trip has ended)</span></div>`
+        : `<div class="settle-status-vis off"><span>🙈 Hidden from travellers until the trip ends</span><button type="button" data-settle-toggle="show">Show to travellers</button></div>`;
+    return `<section class="settle-status-card ${pending ? "pending" : "clear"}"><div class="settle-status-head"><div><span class="kicker">SETTLE UP STATUS</span><h3>${pending ? `${money.format(pending)} still to settle` : "Everyone is settled ✓"}</h3></div><button type="button" class="ghost-button" data-go="expenses">Open Settle up</button></div><div class="settle-status-nums"><div><small>STILL TO PAY</small><b>${money.format(pending)}</b></div><div><small>PAID BACK</small><b>${money.format(paidBack)}</b></div><div><small>SETTLEMENTS SAVED</small><b>${done.length}</b></div></div>${pendingList || doneList ? `<ul class="settle-status-list">${pendingList}${doneList}</ul>` : ""}${visibility}</section>`;
+  }
   function renderOverview() {
     const budget = Number(state.data.trip.budget || 0), total = spent(), percent = budget ? Math.min(100, Math.round(total / budget * 100)) : 0;
     const today = localDateKey();
@@ -1091,9 +1113,9 @@
     const quick = `<section class="quick-actions overview-primary-actions" aria-label="Quick actions">${planQuickAction}${expenseQuickAction}${placeQuickAction}${peopleQuickAction}${experienceQuickAction}${printQuickAction}</section>`;
     if (mtIsPhone() && stage === "active") {
       const fold = (title, sub, body, open) => body ? `<details class="mt-fold"${open ? " open" : ""}><summary><span><b>${title}</b><small>${sub}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>` : "";
-      return `${mtTodayBlock(today, sortedItinerary)}${fold("Trip status", "Journey, weather & reminders", renderJourneyStage(today))}${fold("Spending & next plans", "Budget, recent payments, coming up", gridHtml)}${fold("Trip photo & stats", "Cover, length, places, members", cover + statsHtml)}${fold("More shortcuts", "Places, journal, print", quick)}`;
+      return `${mtTodayBlock(today, sortedItinerary)}${fold("Trip status", "Journey, weather & reminders", renderJourneyStage(today))}${fold("Spending & next plans", "Budget, recent payments, coming up", gridHtml)}${fold("Settle up status", "Still to pay and paid back", renderSettleStatusCard())}${fold("Trip photo & stats", "Cover, length, places, members", cover + statsHtml)}${fold("More shortcuts", "Places, journal, print", quick)}`;
     }
-    return `${renderJourneyStage(today)}${quick}${cover}${statsHtml}${gridHtml}`;
+    return `${renderJourneyStage(today)}${quick}${cover}${statsHtml}${renderSettleStatusCard()}${gridHtml}`;
   }
 
   /* ---- drag-resizable itinerary columns ---- */
@@ -1915,7 +1937,8 @@
     const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.lead })}<b>${esc(p.name)}</b></span><small>${p.members.length > 1 ? `${p.members.map(esc).join(" + ")} · ` : ""}Paid ${money.format(p.paid)}${p.shares ? "" : " · not sharing"}</small><strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong></div>`).join("");
     const moves = plan.transfers.length ? plan.transfers.map((t) => `<li><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong><span class="settle-move-actions"><a class="settle-remind" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`MyTrip · ${(state.data.trip || {}).name || "Trip"}: ${t.from} pays ${t.to} ${money.format(t.amount)} to settle up. Thank you!`)}">✆ Remind</a>${isAdmin() ? `<button type="button" class="settle-mark-done" data-settle-from="${esc(t.from)}" data-settle-to="${esc(t.to)}" data-settle-amount="${t.amount}">✓ Mark settled</button>` : ""}</span></li>`).join("") : `<li class="settle-done"><b>All settled</b><span>Every share is paid equally.</span></li>`;
     const settlements = (state.data.settlements || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-    const history = settlements.length ? `<div class="settle-history"><h3>Recorded settlements</h3><ul class="settle-history-list">${settlements.map((s) => `<li><span>${esc(s.fromPerson)} → ${esc(s.toPerson)}</span><strong>${money.format(s.amount)}</strong>${s.note ? `<small>${esc(s.note)}</small>` : ""}${isAdmin() ? `<button type="button" class="settle-undo" data-settle-undo="${esc(s.id)}">Undo</button>` : ""}</li>`).join("")}</ul></div>` : "";
+    const settledTotal = settlements.reduce((sum, x) => sum + Number(x.amount || 0), 0);
+    const history = settlements.length ? `<div class="settle-history"><h3>✓ Settlements saved <small>${settlements.length} recorded · ${money.format(settledTotal)} paid back</small></h3><ul class="settle-history-list">${settlements.map((x) => `<li><em class="settle-saved-badge">✓ Saved</em><span class="settle-history-who">${esc(x.fromPerson)} → ${esc(x.toPerson)}</span><strong>${money.format(x.amount)}</strong><small>${x.createdAt ? displayDate(String(x.createdAt).slice(0, 10)) : ""}${x.settledBy ? ` · confirmed by ${esc(x.settledBy)}` : ""}${x.note ? ` · ${esc(x.note)}` : ""}</small>${isAdmin() ? `<button type="button" class="settle-undo" data-settle-undo="${esc(x.id)}">Undo</button>` : ""}</li>`).join("")}</ul>${isAdmin() ? `<p class="settle-history-foot">Stored in your Google Sheet, tab “Settlements”.</p>` : ""}</div>` : "";
     return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>${state.data.expenses.some((e) => String(e.sharedBy || "").trim()) ? `Shared across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · some expenses re-split` : `Split equally across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · ${money.format(Math.round(plan.share))} each`}</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button><button type="button" class="ghost-button" data-resplit>Re-split</button><button type="button" class="ghost-button" data-currency-setup>Currency</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div><div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div>${history}</section>`;
   }
   function openSettlementConfirm(from, to, amount) {
@@ -1928,7 +1951,7 @@
     if (!confirm("Undo this settlement? The amount will count as outstanding again in Settle Up.")) return;
     try {
       if (!state.demoMode) await api("deleteRecord", authPayload({ sheet: "Settlements", id }));
-      state.data.settlements = (state.data.settlements || []).filter((s) => String(s.id) !== String(id));
+      state.data.settlements = (state.data.settlements || []).filter((s) => String(s.id) !== String(id)); state.mtSettleOpen = true;
       render(); toast("Settlement removed");
     } catch (error) { toast(error.message, true); }
   }
@@ -1969,9 +1992,9 @@
     const filterPeople = expenseFilterPeople();
     const travellerChips = filterPeople.length ? `<div class="mt-xfilters mt-xtraveller-filters">${[["", "Everyone"]].concat(filterPeople.map((n) => [n, n])).map(([v, l]) => `<button type="button" data-mt-xtraveller="${esc(v)}" class="${travellerFilter === v ? "on" : ""}">${esc(l)}</button>`).join("")}</div>` : "";
     const travellerCards = expenseTotalsByTraveller().map((row) => `<article class="traveller-expense-card"><i>${avatarSlot(row)}</i><div><b>${esc(row.name)}</b><small>${row.count} ${row.count === 1 ? "payment" : "payments"}</small></div><strong>${money.format(row.total)}</strong></article>`).join("");
-    const fold = (t, s, body) => `<details class="mt-fold"><summary><span><b>${t}</b><small>${s}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>`;
+    const fold = (t, s, body, open) => `<details class="mt-fold"${open ? " open" : ""}><summary><span><b>${t}</b><small>${s}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>`;
     const left = budget - total;
-    return `<section class="mt-money"><div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button>` : ""}<div class="mt-xfilters">${chips}</div>${travellerChips}<div class="mt-xlist">${list || `<p class="mt-today-empty">${travellerFilter ? `No expenses for ${esc(travellerFilter)}${f !== "all" ? " on this day" : ""}.` : f === "all" ? "No expenses yet. Tap ＋ to add the first one." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", `<div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No payments yet.</p>`}</div>`)}${fold("Settle up", "Who owes whom", renderSettleUp())}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
+    return `<section class="mt-money"><div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button>` : ""}<div class="mt-xfilters">${chips}</div>${travellerChips}<div class="mt-xlist">${list || `<p class="mt-today-empty">${travellerFilter ? `No expenses for ${esc(travellerFilter)}${f !== "all" ? " on this day" : ""}.` : f === "all" ? "No expenses yet. Tap ＋ to add the first one." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", `<div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No payments yet.</p>`}</div>`)}${fold("Settle up", "Who owes whom", renderSettleUp(), state.mtSettleOpen)}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
   }
   document.addEventListener("click", (event) => { const c = event.target.closest("[data-mt-xfilter]"); if (c) { state.mtExpFilter = c.dataset.mtXfilter; render(); } });
   document.addEventListener("click", (event) => { const c = event.target.closest("[data-mt-xtraveller]"); if (c) { state.expenseTravellerFilter = c.dataset.mtXtraveller; render(); } });
@@ -4380,13 +4403,13 @@
     const record = { id: uid(), ...values }; if (type === "expense") { record.amount = Number(record.amount); if (!String(record.label || "").trim()) record.label = record.category || "Expense"; }
     const again = type === "expense" && event.submitter && event.submitter.hasAttribute("data-again");
     if (type === "plan") { record.cost = Number(record.cost) > 0 ? Number(record.cost) : ""; record.sortOrder = nextPlanSortOrder(record.date); }
-    if (type === "settlement") { record.amount = Number(record.amount); record.settledBy = state.currentUser; }
+    if (type === "settlement") { record.amount = Number(record.amount); record.settledBy = state.currentUser; record.createdAt = new Date().toISOString(); state.mtSettleOpen = true; }
     record.createdBy = type === "experience" ? values.writer : state.currentUser;
     const collection = { plan: "itinerary", place: "places", expense: "expenses", experience: "experiences", member: "members", settlement: "settlements" }[type];
     try {
       if (!state.demoMode) await api(`add${type[0].toUpperCase()}${type.slice(1)}`, authPayload({ record }));
       state.data[collection].push(record); closeModal(); render(); hydrateShell(); updatePrintArea(); if (type === "expense") { try { localStorage.setItem("mytrip_last_expense", JSON.stringify({ paidBy: record.paidBy, category: record.category })); } catch {} if (again) setTimeout(() => showAddModal("expense"), 60); }
-      toast(type === "experience" ? `Experience note saved · Written by ${values.writer}` : type === "settlement" ? "Settlement recorded" : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`);
+      toast(type === "experience" ? `Experience note saved · Written by ${values.writer}` : type === "settlement" ? "✓ Settlement saved and recorded in your Google Sheet" : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`);
     } catch (error) { toast(error.message, true); }
   }
 

@@ -2764,3 +2764,31 @@ html body .expense-action-table .expense-table-header,html body .expense-action-
 .experience-type-filter{margin:4px 0 14px}
 .experience-card.learning-note{border-left:4px solid #D97706;background:#FFFBEB}
 .experience-learning-badge{display:inline-block;margin-bottom:6px;padding:3px 10px;border-radius:999px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:800;letter-spacing:.2px}
+
+/* ---- Settlements: clearly shown as saved ---- */
+html body .settle-history{background:#F3FAF6;border:1px solid #CDE9DB;border-radius:12px;padding:12px 14px}
+html body .settle-history h3{color:#17744F;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+html body .settle-history h3 small{font-weight:600;color:#5B7A6C;font-size:11px}
+html body .settle-saved-badge{font-style:normal;padding:2px 8px;border-radius:999px;background:#17744F;color:#fff;font-size:10px;font-weight:800}
+html body .settle-history-who{font-weight:700;color:#1F2A33!important}
+html body .settle-history-list li small{flex-basis:100%;order:5}
+html body .settle-history-foot{margin:8px 0 0;font-size:11px;color:#7b8898}
+
+/* ---- Overview: settle-up status card ---- */
+.settle-status-card{margin:14px 0;padding:16px 18px;border-radius:16px;background:#fff;border:1px solid #EFEDE7;border-left:5px solid #D97706}
+.settle-status-card.clear{border-left-color:#17744F;background:#F3FAF6}
+.settle-status-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.settle-status-head h3{margin:2px 0 0;font-size:19px}
+.settle-status-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+.settle-status-nums div{padding:10px 12px;border-radius:12px;background:#FAF9F6}
+.settle-status-nums small{display:block;font-size:10px;letter-spacing:.08em;color:#7b8898;font-weight:800}
+.settle-status-nums b{font-size:17px}
+.settle-status-list{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:6px}
+.settle-status-list li{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;padding:7px 10px;border-radius:10px;background:#FAF9F6}
+.settle-status-list li strong{margin-left:auto}
+.settle-status-list li.done{background:#E8F5EE}
+.settle-status-list li.done em{font-style:normal;background:#17744F;color:#fff;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:800}
+.settle-status-vis{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px dashed #E4E1D9;font-size:12px;color:#5B6574}
+.settle-status-vis button{min-height:30px;padding:0 14px;border-radius:999px;border:1px solid #BFE3D3;background:#E3F4EC;color:#17744F;font-weight:700;font-size:12px;cursor:pointer}
+.settle-status-vis.off button{background:#FEF3C7;border-color:#F3D98B;color:#92400E}
+@media(max-width:760px){.settle-status-nums{grid-template-columns:1fr 1fr 1fr;gap:6px}.settle-status-nums b{font-size:14px}}
