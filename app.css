@@ -2821,3 +2821,31 @@ html body .settle-allclear i{font-style:normal;display:grid;place-items:center;w
 html body .settle-allclear b{display:block;font-size:15px;letter-spacing:.08em}
 html body .settle-allclear small{color:rgba(255,255,255,.88);font-size:12px}
 html body .settle-summary{margin:10px 0 0;color:#17744F;font-weight:700}
+
+/* ---- MyTrip premium mark: white arrow with champagne-gold edge ---- */
+:root{--mytrip-champagne:#d9bd7a;--mytrip-champagne-soft:#ead9ad}
+html body .brand i,
+html body .mobile-brand i,
+html body .mobile-logo i,
+html body .access-art>.brand i,
+html body .account-hub-topbar>.brand i{
+  color:#fff!important;
+  font-family:Arial,"Helvetica Neue",sans-serif!important;
+  font-weight:900!important;
+  -webkit-text-stroke:.7px var(--mytrip-champagne-soft);
+  paint-order:stroke fill;
+  text-shadow:0 0 1px var(--mytrip-champagne),0 2px 5px rgba(84,60,20,.28)!important;
+}
+html body .access-art>.brand i{-webkit-text-stroke:.95px var(--mytrip-champagne-soft)}
+@supports not (-webkit-text-stroke:1px #000){
+  html body .brand i,
+  html body .mobile-brand i,
+  html body .mobile-logo i,
+  html body .access-art>.brand i,
+  html body .account-hub-topbar>.brand i{filter:drop-shadow(0 0 1px var(--mytrip-champagne)) drop-shadow(0 2px 2px rgba(84,60,20,.24))}
+}
+@media(max-width:520px){
+  html body .brand i,
+  html body .mobile-brand i,
+  html body .mobile-logo i{-webkit-text-stroke:.6px var(--mytrip-champagne-soft)}
+}

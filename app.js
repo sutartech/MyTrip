@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.58.4";
-  const requiredBackendVersion = "4.15.0";
+  const frontendVersion = "4.58.5";
+  const requiredBackendVersion = "4.26.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -3404,7 +3404,7 @@
   }
 
   function showBackendSetup(afterConnect) {
-    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v4.6.0 account build required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This enables common login, traveller trip-creation permission, the Drive photo gallery and the <code>StickyNoteDiary</code> Google Sheet.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. Account login, traveller credentials, photo gallery, version and Sticky Note Diary capabilities are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test and connect</button></div></form>`);
+    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v${requiredBackendVersion} or newer required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This enables common login, traveller trip-creation permission, the Drive photo gallery, settlement records and the <code>StickyNoteDiary</code> Google Sheet.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. Account login, traveller credentials, photo gallery, settlement, version and Sticky Note Diary capabilities are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test and connect</button></div></form>`);
     const form = $("#backendForm");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();

@@ -1,6 +1,6 @@
-# MyTrip Google Backend 4.6.0 Account Setup
+# MyTrip Google Backend 4.26.0 Setup
 
-The supplied backend is required even when the existing deployment already reports **v4.6.0**. This build adds:
+The supplied backend is required when the existing deployment is older than **v4.26.0** or reports a missing capability. This build includes:
 
 - One common username/password login that identifies the account automatically
 - One all-trips dashboard for each signed-in account
@@ -23,7 +23,7 @@ Existing data and passwords are preserved.
 7. Choose **Deploy → Manage deployments → Edit**.
 8. Select **New version** and click **Deploy**.
 9. Keep web-app access as **Anyone** and retain the same `/exec` URL.
-10. Test `YOUR-EXEC-URL?action=ping`. It must return backend `4.6.0` with `accountLogin: true`, `stickyNoteDiary: true`, `travellerCredentialEdit: true`, `administratorLoginEdit: true`, `travellerTripCreation: true`, `travellerTripCreationQuota: true` and `tripPhotoGallery: true`.
+10. Test `YOUR-EXEC-URL?action=ping`. It must return backend `4.26.0` with `accountLogin: true`, `stickyNoteDiary: true`, `travellerCredentialEdit: true`, `administratorLoginEdit: true`, `travellerTripCreation: true`, `travellerTripCreationQuota: true`, `tripPhotoGallery: true` and `settlementRecords: true`.
 
 ## Trip creation and photo controls
 

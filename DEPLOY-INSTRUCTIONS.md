@@ -1,6 +1,6 @@
-# MyTrip Dashboard 4.7.0
+# MyTrip Dashboard 4.58.5
 
-This package keeps the exact versions **FE v4.7.0** and **BE v4.6.0**. It adds the unified account login, all-trips account dashboard, collapsible sticky notes, Sticky Note Diary, colourful Experiences tab, row-based expense controls, the date-aware **Today’s Journey** Overview, and the final 10/10 usability polish.
+This package contains **FE v4.58.5** and **BE v4.26.0**. It includes unified account login, the all-trips account dashboard, collapsible sticky notes, Sticky Note Diary, colourful Experiences, row-based expense controls, Today’s Journey, settlements, photo tools and the refined MyTrip champagne-gold arrow identity.
 
 Existing trips, travellers, assignments, plans, places, expenses, experiences and passwords are preserved.
 
@@ -61,7 +61,7 @@ Existing trips, travellers, assignments, plans, places, expenses, experiences an
 
 ## Step 1 — Update Google Apps Script
 
-The supplied backend must be deployed even if the live page already reports **Backend v4.6.0**. The visible version stays unchanged, but the supplied build adds the unified account-login capability and Sticky Note Diary operations.
+Deploy the supplied backend when the live page reports an older version than **Backend v4.26.0**, or when a required backend capability is missing.
 
 1. Open the existing Apps Script project used by MyTrip.
 2. Replace the entire `Code.gs` with `backend/Code.gs` from this ZIP.
@@ -69,7 +69,7 @@ The supplied backend must be deployed even if the live page already reports **Ba
 4. Choose **Deploy → Manage deployments → Edit**.
 5. Select **New version**, then click **Deploy**.
 6. Keep access as **Anyone** and keep the same `/exec` URL.
-7. Open `YOUR-EXEC-URL?action=ping` and confirm it contains `"version":"4.6.0"`, `"accountLogin":true`, `"stickyNoteDiary":true`, `"travellerCredentialEdit":true`, `"administratorLoginEdit":true`, `"travellerTripCreation":true`, `"travellerTripCreationQuota":true`, and `"tripPhotoGallery":true`.
+7. Open `YOUR-EXEC-URL?action=ping` and confirm it contains `"version":"4.26.0"`, `"accountLogin":true`, `"stickyNoteDiary":true`, `"travellerCredentialEdit":true`, `"administratorLoginEdit":true`, `"travellerTripCreation":true`, `"travellerTripCreationQuota":true`, `"tripPhotoGallery":true`, and `"settlementRecords":true`.
 
 ## Step 2 — Update GitHub Pages
 
@@ -84,7 +84,7 @@ Replace these repository-root files:
 
 Keep the existing `config.js` so the connected `/exec` URL is unchanged. Wait about two minutes, open `repair.html` once to remove any older broad service worker, then reopen the site. The new controlled speed cache registers automatically after the page opens.
 
-Deploy the supplied `backend/Code.gs` for Administrator-controlled traveller username changes, even if the visible backend badge already says `4.6.0`. The visible version remains unchanged.
+Deploy the supplied `backend/Code.gs` whenever the live backend is older than `4.26.0` or the ping check reports a missing capability.
 
 ## Administrator username/password recovery
 
@@ -115,7 +115,7 @@ The username must be 3–40 characters, start with a letter or number, and use o
 5. Sign in with a Traveller ID and its personal password and confirm only assigned trips appear.
 6. Confirm **Sign out** is the rightmost control in the top header on desktop and mobile.
 7. As Administrator, open a Traveller profile, select **Edit login**, and verify the new username/password works.
-8. Confirm **FE v4.7.0 · BE v4.6.0** and the automatically updating date/time appear inside the app.
+8. Confirm **FE v4.58.5 · BE v4.26.0** and the automatically updating date/time appear inside the app.
 9. Open Expenses and test View, Row edit, Edit and Administrator Delete.
 10. Complete a sticky note and confirm a row appears in `StickyNoteDiary`.
 11. Confirm the colourful Experiences tab is separate from Itinerary.
