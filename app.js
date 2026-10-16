@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.58.5";
+  const frontendVersion = "4.59.0";
   const requiredBackendVersion = "4.26.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -1715,7 +1715,7 @@
         : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.planDayFilter || state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
       : "";
 
-    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}${canAdd("plan") ? quickAddBar() : ""}${planMapOpen() ? planMapSlot(items) : ""}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool${planMapOpen() ? " active" : ""}" data-plan-map title="Show the day on a map">⌖ ${planMapOpen() ? "Hide map" : "Map"}</button><button type="button" class="plan-tool plan-view-toggle" data-plan-view title="Switch between compact cards and the full table">${planWideView() ? "☰ Card view" : "▦ Table view"}</button><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button>${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label>`)}${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table${planWideView() ? " plan-table-wide" : ""}" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
+    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}${canAdd("plan") ? quickAddBar() + textImportStrip("auto") : ""}${planMapOpen() ? planMapSlot(items) : ""}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool${planMapOpen() ? " active" : ""}" data-plan-map title="Show the day on a map">⌖ ${planMapOpen() ? "Hide map" : "Map"}</button><button type="button" class="plan-tool plan-view-toggle" data-plan-view title="Switch between compact cards and the full table">${planWideView() ? "☰ Card view" : "▦ Table view"}</button><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button>${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label>`)}${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table${planWideView() ? " plan-table-wide" : ""}" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
   }
 
   function renderExperiences() {
@@ -2002,7 +2002,7 @@
     const travellerCards = expenseTotalsByTraveller().map((row) => `<article class="traveller-expense-card"><i>${avatarSlot(row)}</i><div><b>${esc(row.name)}</b><small>${row.count} ${row.count === 1 ? "payment" : "payments"}</small></div><strong>${money.format(row.total)}</strong></article>`).join("");
     const fold = (t, s, body, open) => `<details class="mt-fold"${open ? " open" : ""}><summary><span><b>${t}</b><small>${s}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>`;
     const left = budget - total;
-    return `<section class="mt-money"><div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button>` : ""}<div class="mt-xfilters">${chips}</div>${travellerChips}<div class="mt-xlist">${list || `<p class="mt-today-empty">${travellerFilter ? `No expenses for ${esc(travellerFilter)}${f !== "all" ? " on this day" : ""}.` : f === "all" ? "No expenses yet. Tap ＋ to add the first one." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", `<div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No payments yet.</p>`}</div>`)}${fold("Settle up", "Who owes whom", renderSettleUp(), state.mtSettleOpen)}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
+    return `<section class="mt-money"><div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<div class="mt-money-actions"><button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button><button type="button" class="mt-today-add mt-paste-import" data-text-import="auto">▤ Paste &amp; import</button></div>` : ""}<div class="mt-xfilters">${chips}</div>${travellerChips}<div class="mt-xlist">${list || `<p class="mt-today-empty">${travellerFilter ? `No expenses for ${esc(travellerFilter)}${f !== "all" ? " on this day" : ""}.` : f === "all" ? "No expenses yet. Tap ＋ to add the first one." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", `<div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No payments yet.</p>`}</div>`)}${fold("Settle up", "Who owes whom", renderSettleUp(), state.mtSettleOpen)}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
   }
   document.addEventListener("click", (event) => { const c = event.target.closest("[data-mt-xfilter]"); if (c) { state.mtExpFilter = c.dataset.mtXfilter; render(); } });
   document.addEventListener("click", (event) => { const c = event.target.closest("[data-mt-xtraveller]"); if (c) { state.expenseTravellerFilter = c.dataset.mtXtraveller; render(); } });
@@ -2040,7 +2040,7 @@
       const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
       return `<div class="expense-row"><span class="expense-description"><i>₹</i><b>${esc(expense.label)}</b></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${expense.receiptUrl || canEditRecords("Expenses") ? `<button class="receipt-btn${expense.receiptUrl ? " has" : ""}" data-receipt-open="${esc(expense.id)}" title="${expense.receiptUrl ? "View receipt" : "Add receipt photo"}">🧾</button>` : ""}${editActions}${deleteAction}</span></div>`;
     }).join("");
-    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderSpendChart(total, budget)}<section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-expense-columns>⇔ Reset</button></label>`)}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${travellerFilterBar}<div class="expense-table expense-action-table" style="${expenseColumnStyle()}"><div class="expense-table-header">${expenseColumnLabels.map((label, index) => `<span>${label}${index < expenseColumnLabels.length - 1 ? `<i class="expense-col-grip" data-exp-col="${index}" title="Drag to resize this column">⋮⋮</i>` : ""}</span>`).join("")}</div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
+    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}${canAdd("expense") ? textImportStrip("auto") : ""}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderSpendChart(total, budget)}<section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-expense-columns>⇔ Reset</button></label>`)}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${travellerFilterBar}<div class="expense-table expense-action-table" style="${expenseColumnStyle()}"><div class="expense-table-header">${expenseColumnLabels.map((label, index) => `<span>${label}${index < expenseColumnLabels.length - 1 ? `<i class="expense-col-grip" data-exp-col="${index}" title="Drag to resize this column">⋮⋮</i>` : ""}</span>`).join("")}</div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
   }
   document.addEventListener("click", (event) => { const t = event.target.closest("[data-expense-traveller-filter]"); if (!t) return; event.preventDefault(); state.expenseTravellerFilter = t.dataset.expenseTravellerFilter; render(); });
 
@@ -2484,6 +2484,287 @@
     const bars = days.map(([d, v]) => `<li title="${esc(d)} · ${money.format(Math.round(v))}" class="${d === top ? "is-top" : ""}"><i style="height:${Math.max(6, Math.round(v / max * 100))}%"></i><small>${esc(d.slice(8, 10))}</small></li>`).join("");
     return `<div class="spend-days"><span class="kicker">BY DAY · avg ${money.format(Math.round(days.reduce((s, [, v]) => s + v, 0) / days.length))}</span><ul>${bars}</ul></div>`;
   }
+  /* Paste & Import: on-device text reader for itinerary and expense rows. */
+  function textImportStrip(preferred = "auto") {
+    return `<section class="text-import-strip"><span class="text-import-icon">▤</span><div><b>Have plans or expenses in WhatsApp, email or Notes?</b><p>Paste the text, review what MyTrip reads, then save the selected rows to Google Sheets.</p></div><button type="button" data-text-import="${esc(preferred)}">Paste &amp; import</button></section>`;
+  }
+
+  function importDefaultPayer() {
+    const people = visibleTripMembers().map((member) => String(member.name || "").trim()).filter(Boolean);
+    const current = String(state.currentUser || "").trim();
+    return people.find((name) => name.toLowerCase() === current.toLowerCase()) || (current && !/^traveller$/i.test(current) ? current : "") || people[0] || "Traveller";
+  }
+
+  function validImportDate(year, month, day) {
+    const d = new Date(Number(year), Number(month) - 1, Number(day), 12);
+    if (d.getFullYear() !== Number(year) || d.getMonth() !== Number(month) - 1 || d.getDate() !== Number(day)) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function parseImportDateValue(text) {
+    const value = String(text || "").trim();
+    let match = value.match(/\b(20\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})\b/);
+    if (match) return validImportDate(match[1], match[2], match[3]);
+    match = value.match(/\b(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2}|\d{2})\b/);
+    if (match) return validImportDate(match[3].length === 2 ? 2000 + Number(match[3]) : match[3], match[2], match[1]);
+    match = value.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(20\d{2}|\d{2}))?\b/i);
+    if (match) {
+      const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(match[2].slice(0, 3).toLowerCase()) + 1;
+      const year = match[3] ? (match[3].length === 2 ? 2000 + Number(match[3]) : Number(match[3])) : Number(String(state.data.trip.startDate || new Date().getFullYear()).slice(0, 4));
+      return validImportDate(year, month, match[1]);
+    }
+    match = value.match(/\bday\s*(\d{1,3})\b/i);
+    if (match) return tripDates()[Number(match[1]) - 1] || "";
+    match = value.match(/\b(today|tomorrow)\b/i);
+    if (match) { const d = new Date(); if (/tomorrow/i.test(match[1])) d.setDate(d.getDate() + 1); return validImportDate(d.getFullYear(), d.getMonth() + 1, d.getDate()); }
+    match = value.match(/\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b/i);
+    if (match) {
+      const weekday = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(match[1].slice(0, 3).toLowerCase());
+      return tripDates().find((date) => new Date(`${date}T12:00:00`).getDay() === weekday) || "";
+    }
+    return "";
+  }
+
+  function parseImportTimeValue(text) {
+    const value = String(text || "");
+    let match = value.match(/\b(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b/i);
+    if (match) { let hour = Number(match[1]) % 12; if (/pm/i.test(match[3])) hour += 12; return `${String(hour).padStart(2, "0")}:${match[2] || "00"}`; }
+    match = value.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
+    return match ? `${String(match[1]).padStart(2, "0")}:${match[2]}` : "";
+  }
+
+  function importAmountInfo(text) {
+    const value = String(text || "");
+    const patterns = [
+      /(?:₹|\bINR\b|\bRs\.?)(?:\s*)?([\d,]+(?:\.\d{1,2})?)/i,
+      /\b(?:amount|cost|expense)\s*[:=-]?\s*([\d,]+(?:\.\d{1,2})?)/i,
+      /\b([\d,]+(?:\.\d{1,2})?)\s+(?=paid\s+by\b)/i,
+      /(?:^|[|\t,;–—-]\s*)([\d,]+(?:\.\d{1,2})?)\s*(?:\/-|only)?\s*$/i
+    ];
+    for (const pattern of patterns) {
+      const match = value.match(pattern); const amount = match ? Number(String(match[1]).replace(/,/g, "")) : 0;
+      if (Number.isFinite(amount) && amount > 0) return { amount, matched: match[0], number: match[1] };
+    }
+    return { amount: 0, matched: "", number: "" };
+  }
+
+  function expenseCategoryFromText(text) {
+    const value = String(text || "").toLowerCase();
+    if (/taxi|cab|auto|rickshaw|metro|uber|ola|parking|toll|fuel|petrol|diesel|local\s*travel/.test(value)) return "Local travel";
+    if (/flight|airfare|train|rail|bus|ferry|cruise|ticket\s*fare/.test(value)) return "Travel";
+    if (/hotel|hostel|resort|stay|room|accommodation|lodg/.test(value)) return "Stay";
+    if (/breakfast|lunch|dinner|meal|food|restaurant|cafe|tea|coffee|snack|drink/.test(value)) return "Food";
+    if (/activity|entry|entrance|museum|tour|guide|show|ride|boating|temple\s*ticket/.test(value)) return "Activities";
+    if (/shop|souvenir|gift|purchase|market/.test(value)) return "Shopping";
+    return "Other";
+  }
+
+  function importPayerFromText(text, parts = []) {
+    const people = visibleTripMembers().map((member) => String(member.name || "").trim()).filter(Boolean);
+    const value = String(text || "");
+    const explicit = value.match(/\bpaid\s+by\s+([^|,;₹]+?)(?=\s+(?:₹|INR\b|Rs\.?|on\s+\d)|$)/i);
+    const candidate = explicit ? explicit[1].trim() : "";
+    const exactPart = parts.find((part) => people.some((name) => name.toLowerCase() === part.toLowerCase()));
+    const known = people.find((name) => (candidate && name.toLowerCase() === candidate.toLowerCase()) || new RegExp(`(^|\\W)${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=\\W|$)`, "i").test(value));
+    return known || exactPart || candidate || importDefaultPayer();
+  }
+
+  function cleanImportLine(text) {
+    return String(text || "").replace(/^\s*(?:[-*•▪◦]+|\d{1,3}[.)])\s*/, "").replace(/\s+/g, " ").trim();
+  }
+
+  function stripImportDecorations(text, amountInfo) {
+    let value = cleanImportLine(text);
+    value = value
+      .replace(/\b(20\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})\b/g, " ")
+      .replace(/\b(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2}|\d{2})\b/g, " ")
+      .replace(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(?:20\d{2}|\d{2}))?\b/ig, " ")
+      .replace(/\bday\s*\d{1,3}\b/ig, " ")
+      .replace(/\b(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*\b/ig, " ")
+      .replace(/\b(?:today|tomorrow)\b/ig, " ")
+      .replace(/\b\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)\b/ig, " ")
+      .replace(/\b(?:[01]?\d|2[0-3])[:.]\d{2}\b/g, " ")
+      .replace(/\bpaid\s+by\s+[^|,;₹]+?(?=\s+(?:₹|INR\b|Rs\.?|on\s+\d)|$)/ig, " ");
+    if (amountInfo && amountInfo.matched) value = value.replace(amountInfo.matched, " ");
+    return value.replace(/^[\s|,;:–—-]+|[\s|,;:–—-]+$/g, "").replace(/\s{2,}/g, " ").trim();
+  }
+
+  function isImportHeading(text) {
+    const value = cleanImportLine(text).replace(/:$/, "").trim();
+    if (/^(itinerary|schedule|travel plan|day[- ]?by[- ]?day)$/i.test(value)) return "itinerary";
+    if (/^(expenses?|payments?|spending|costs?)$/i.test(value)) return "expenses";
+    return "";
+  }
+
+  function parseImportedExpense(raw, fallbackDate) {
+    const line = cleanImportLine(raw), parts = line.split(/\s*(?:\||\t)\s*/).map((part) => part.trim()).filter(Boolean);
+    const amountInfo = importAmountInfo(line);
+    let label = "", category = "", paidBy = "", date = "";
+    if (parts.length > 1) {
+      const categories = ["Food", "Stay", "Travel", "Local travel", "Activities", "Shopping", "Other"];
+      const people = visibleTripMembers().map((member) => String(member.name || "").trim()).filter(Boolean);
+      const leftovers = [];
+      parts.forEach((part) => {
+        const foundDate = parseImportDateValue(part);
+        const foundCategory = categories.find((name) => name.toLowerCase() === part.toLowerCase());
+        const foundPayer = people.find((name) => name.toLowerCase() === part.toLowerCase());
+        if (!date && foundDate) date = foundDate;
+        else if (!category && foundCategory) category = foundCategory;
+        else if (!paidBy && foundPayer) paidBy = foundPayer;
+        else if (!(importAmountInfo(part).amount > 0)) leftovers.push(part);
+      });
+      label = leftovers[0] || "";
+    }
+    date = date || parseImportDateValue(line) || fallbackDate || mtDefaultDate();
+    category = category || expenseCategoryFromText(line);
+    paidBy = paidBy || importPayerFromText(line, parts);
+    label = label || stripImportDecorations(line, amountInfo).replace(/\b(?:Food|Stay|Travel|Local travel|Activities|Shopping|Other)\b\s*[:|-]?/i, "").trim();
+    if (!label) label = category === "Other" ? "Expense" : category;
+    return { date, label: label.slice(0, 180), category, paidBy, amount: amountInfo.amount };
+  }
+
+  function parseImportedPlan(raw, fallbackDate) {
+    const line = cleanImportLine(raw), parts = line.split(/\s*(?:\||\t)\s*/).map((part) => part.trim()).filter(Boolean);
+    let date = "", time = "", title = "", place = "", notes = "", category = "", cost = "";
+    if (parts.length > 1) {
+      const leftovers = [];
+      parts.forEach((part) => {
+        const foundDate = parseImportDateValue(part), foundTime = parseImportTimeValue(part);
+        const foundCategory = planCategories.find((name) => name.toLowerCase() === part.toLowerCase());
+        const amountInfo = importAmountInfo(part);
+        if (!date && foundDate) date = foundDate;
+        else if (!time && foundTime && /^(?:\d{1,2}(?::|\.)?\d{0,2}\s*(?:am|pm)?|[01]?\d|2[0-3])$/i.test(part)) time = foundTime;
+        else if (!category && foundCategory) category = foundCategory;
+        else if (!cost && amountInfo.amount > 0) cost = amountInfo.amount;
+        else leftovers.push(part);
+      });
+      [title, place, ...notes] = leftovers;
+      notes = notes.join(" · ");
+    }
+    const quick = parseQuickPlan(line);
+    date = date || parseImportDateValue(line) || fallbackDate || quick.date;
+    time = time || quick.time;
+    title = title || quick.title;
+    place = place || quick.place;
+    category = category || quick.category || "";
+    return { date, time, title: String(title || "").slice(0, 180), place: String(place || "").slice(0, 240), notes: String(notes || "").slice(0, 1000), category, status: "", bookingRef: "", cost };
+  }
+
+  function importLooksLikeExpense(text) {
+    return importAmountInfo(text).amount > 0 && /(?:₹|\bINR\b|\bRs\.?|\bpaid\s+by\b|\bamount\b|\bcost\b|\bexpense\b|[|\t])/i.test(String(text || ""));
+  }
+
+  function isImportDuplicate(kind, record) {
+    if (kind === "expenses") return state.data.expenses.some((item) => String(item.date) === String(record.date) && Number(item.amount) === Number(record.amount) && String(item.label || "").trim().toLowerCase() === String(record.label || "").trim().toLowerCase());
+    return state.data.itinerary.some((item) => String(item.date) === String(record.date) && String(item.time || "") === String(record.time || "") && String(item.title || "").trim().toLowerCase() === String(record.title || "").trim().toLowerCase());
+  }
+
+  function parseTextImport(text, mode = "auto") {
+    let lines = String(text || "").replace(/\r/g, "").split("\n").map((line) => line.trim()).filter(Boolean);
+    if (lines.length === 1 && (lines[0].match(/;/g) || []).length > 0) lines = lines[0].split(/\s*;\s*/).filter(Boolean);
+    lines = lines.slice(0, 100);
+    let section = mode === "auto" ? "" : mode, contextDate = state.data.trip.startDate || mtDefaultDate();
+    const items = [];
+    lines.forEach((raw, index) => {
+      const clean = cleanImportLine(raw), headingType = isImportHeading(clean);
+      if (headingType) { if (mode === "auto") section = headingType; return; }
+      const dateOnly = parseImportDateValue(clean);
+      if (dateOnly && /^(?:day\s*\d{1,3}|(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*,?\s*)?(?:\d{1,2}(?:st|nd|rd|th)?[\s\/.-]+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2})[a-z]*[\s\/.-]*(?:20\d{2}|\d{2})?$|^day\s*\d{1,3}$/i.test(clean)) { contextDate = dateOnly; return; }
+      const kind = mode === "auto" ? (section || (importLooksLikeExpense(clean) ? "expenses" : "itinerary")) : mode;
+      const record = kind === "expenses" ? parseImportedExpense(clean, contextDate) : parseImportedPlan(clean, contextDate);
+      const valid = kind === "expenses" ? record.amount > 0 && Boolean(record.label && record.date) : Boolean(record.title && record.date);
+      const allowed = kind === "expenses" ? canAdd("expense") : canAdd("plan");
+      const duplicate = valid && isImportDuplicate(kind, record);
+      items.push({ index, raw: clean, kind, record, valid, allowed, duplicate });
+    });
+    return items;
+  }
+
+  function importModeOptions(selected) {
+    return [["auto", "Auto-detect itinerary and expenses"], ["itinerary", "Itinerary only"], ["expenses", "Expenses only"]].map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`).join("");
+  }
+
+  function openTextImport(preferred = "auto", preservedText = "") {
+    const selected = ["itinerary", "expenses"].includes(preferred) ? preferred : "auto";
+    const example = selected === "expenses" ? "26/09/2026 | Dinner | Food | Sarada | ₹1,250\nTaxi to hotel ₹480 paid by Sidharth" : selected === "itinerary" ? "Day 1 | 8:30 AM | Breakfast | Hotel restaurant\nDay 1 | 10:00 AM | Museum visit | City Palace" : "ITINERARY\nDay 1 | 10:00 AM | Museum visit | City Palace\n\nEXPENSES\n26/09/2026 | Dinner | Food | Sarada | ₹1,250";
+    showModal("Paste & import", `<form class="modal-form text-import-form" id="textImportForm"><div class="security-note text-import-note"><i>▤</i><p><b>Paste from WhatsApp, email, Notes or a document.</b> Text is read on this device. Nothing is saved until you review and confirm the rows.</p></div><label>What does the text contain?<select name="mode">${importModeOptions(selected)}</select></label><label>Paste text<textarea name="source" rows="10" maxlength="30000" placeholder="${esc(example)}" required>${esc(preservedText)}</textarea></label><div class="text-import-examples"><b>Easy formats</b><span><strong>Plan:</strong> Day 2 | 9:30 AM | Boat ride | Poovar</span><span><strong>Expense:</strong> 27/09/2026 | Lunch | Food | Sarada | ₹850</span><small>One item per line works best. Dates such as Day 1, 27/09/2026 or 27 Sep 2026 are understood.</small></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Read &amp; review</button></div></form>`);
+    const form = $("#textImportForm");
+    form.addEventListener("submit", (event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const items = parseTextImport(values.source, values.mode); showTextImportPreview(values.source, values.mode, items); });
+    $("[data-cancel]").addEventListener("click", closeModal);
+    setTimeout(() => form.elements.source.focus(), 80);
+  }
+
+  function textImportPreviewRow(item, previewIndex) {
+    const disabled = !item.valid || !item.allowed;
+    const checked = !disabled && !item.duplicate ? "checked" : "";
+    const status = !item.allowed ? "Not allowed for this account" : !item.valid ? (item.kind === "expenses" ? "Amount not recognised" : "Plan title or date not recognised") : item.duplicate ? "Possible duplicate — left unticked" : "Ready to import";
+    const common = `<label class="import-pick"><input type="checkbox" data-import-pick ${checked} ${disabled ? "disabled" : ""}><span>${item.kind === "expenses" ? "₹ EXPENSE" : "▦ ITINERARY"}</span></label><em class="import-status ${disabled ? "error" : item.duplicate ? "warn" : "ok"}">${esc(status)}</em><small class="import-source">${esc(item.raw)}</small>`;
+    if (item.kind === "expenses") {
+      const categories = ["Food", "Stay", "Travel", "Local travel", "Activities", "Shopping", "Other"];
+      const payers = [...new Set([...visibleTripMembers().map((member) => member.name), item.record.paidBy, importDefaultPayer()].filter(Boolean))];
+      return `<article class="text-import-row expense" data-import-row data-import-kind="expenses" data-import-index="${previewIndex}"><header>${common}</header><div class="text-import-fields"><label>Date<input data-import-field="date" type="date" value="${esc(item.record.date)}" required></label><label class="wide">Description<input data-import-field="label" value="${esc(item.record.label)}" maxlength="180" required></label><label>Category<select data-import-field="category">${categories.map((value) => `<option ${value === item.record.category ? "selected" : ""}>${value}</option>`).join("")}</select></label><label>Paid by<select data-import-field="paidBy">${payers.map((value) => `<option ${value === item.record.paidBy ? "selected" : ""}>${esc(value)}</option>`).join("")}</select></label><label>Amount (₹)<input data-import-field="amount" type="number" min="0.01" step="0.01" value="${esc(item.record.amount || "")}" required></label></div></article>`;
+    }
+    return `<article class="text-import-row plan" data-import-row data-import-kind="itinerary" data-import-index="${previewIndex}"><header>${common}</header><div class="text-import-fields"><label>Date<input data-import-field="date" type="date" min="${esc(state.data.trip.startDate || "")}" max="${esc(state.data.trip.endDate || "")}" value="${esc(item.record.date)}" required></label><label>Time<input data-import-field="time" type="time" value="${esc(item.record.time)}"></label><label class="wide">Plan title<input data-import-field="title" value="${esc(item.record.title)}" maxlength="180" required></label><label class="wide">Place<input data-import-field="place" value="${esc(item.record.place)}" maxlength="240"></label></div></article>`;
+  }
+
+  function showTextImportPreview(source, mode, items) {
+    const usable = items.filter((item) => item.valid && item.allowed).length;
+    const itineraryCount = items.filter((item) => item.kind === "itinerary" && item.valid).length;
+    const expenseCount = items.filter((item) => item.kind === "expenses" && item.valid).length;
+    $("#modalTitle").textContent = "Review imported rows";
+    $("#modalBody").innerHTML = `<form class="modal-form text-import-review" id="textImportReview"><div class="text-import-summary"><span><b>${itineraryCount}</b><small>ITINERARY</small></span><span><b>${expenseCount}</b><small>EXPENSES</small></span><span><b>${items.filter((item) => item.duplicate).length}</b><small>POSSIBLE DUPLICATES</small></span></div><p class="form-help">Check every field. Untick anything you do not want. Possible duplicates are unticked automatically.</p><div class="text-import-rows">${items.map(textImportPreviewRow).join("") || `<div class="text-import-empty"><b>No rows recognised</b><p>Use one item per line and include an amount for every expense.</p></div>`}</div><div class="form-actions"><button type="button" data-import-back>← Edit pasted text</button><button type="submit" ${usable ? "" : "disabled"}>Import selected rows</button></div></form>`;
+    const form = $("#textImportReview");
+    form.addEventListener("submit", (event) => { event.preventDefault(); saveTextImport(form, items); });
+    $("[data-import-back]").addEventListener("click", () => openTextImport(mode, source));
+  }
+
+  function collectTextImportRecords(form, items) {
+    const records = [];
+    form.querySelectorAll("[data-import-row]").forEach((row) => {
+      const pick = row.querySelector("[data-import-pick]"); if (!pick || !pick.checked) return;
+      const item = items[Number(row.dataset.importIndex)]; if (!item || !item.valid || !item.allowed) return;
+      const value = (name) => String((row.querySelector(`[data-import-field="${name}"]`) || {}).value || "").trim();
+      if (row.dataset.importKind === "expenses") {
+        const amount = Number(value("amount")); if (!(amount > 0) || !value("date") || !value("label")) return;
+        records.push({ kind: "expenses", raw: item.raw, record: { id: uid(), date: value("date"), label: value("label"), category: value("category") || "Other", paidBy: value("paidBy") || importDefaultPayer(), amount, createdBy: state.currentUser } });
+      } else {
+        if (!value("date") || !value("title")) return;
+        records.push({ kind: "itinerary", raw: item.raw, record: { id: uid(), date: value("date"), time: value("time"), title: value("title"), place: value("place"), notes: item.record.notes || "", category: item.record.category || "", status: "", bookingRef: "", cost: item.record.cost || "", sortOrder: 0, createdBy: state.currentUser } });
+      }
+    });
+    const nextByDate = new Map();
+    records.filter((item) => item.kind === "itinerary").forEach((item) => { const date = item.record.date; const next = nextByDate.has(date) ? nextByDate.get(date) + 10 : nextPlanSortOrder(date); nextByDate.set(date, next); item.record.sortOrder = next; });
+    return records;
+  }
+
+  async function saveTextImport(form, items) {
+    const records = collectTextImportRecords(form, items);
+    if (!records.length) return toast("Select at least one complete row to import", true);
+    const button = form.querySelector('button[type="submit"]'); button.disabled = true; button.textContent = `Importing 0 of ${records.length}…`;
+    const succeeded = [], failed = []; let cursor = 0, completed = 0;
+    const worker = async () => {
+      while (cursor < records.length) {
+        const item = records[cursor++];
+        try {
+          if (!state.demoMode) await api(item.kind === "expenses" ? "addExpense" : "addPlan", authPayload({ record: item.record }));
+          succeeded.push(item);
+        } catch (error) { failed.push({ ...item, error: error && error.message ? error.message : "Could not save" }); }
+        completed += 1; button.textContent = `Importing ${completed} of ${records.length}…`;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(2, records.length) }, worker));
+    succeeded.forEach((item) => state.data[item.kind].push(item.record));
+    hydrateShell(); updatePrintArea();
+    if (failed.length) {
+      render();
+      showModal("Import partly completed", `<div class="modal-form"><div class="security-note danger-note"><i>!</i><p><b>${succeeded.length} saved · ${failed.length} not saved.</b> The failed lines are listed below. You can copy them and try again.</p></div><ul class="text-import-failures">${failed.map((item) => `<li><b>${esc(item.raw)}</b><small>${esc(item.error)}</small></li>`).join("")}</ul><div class="form-actions"><button type="button" data-cancel>Close</button></div></div>`); $("[data-cancel]").addEventListener("click", closeModal);
+      return toast(`${succeeded.length} rows imported; ${failed.length} need attention`, true);
+    }
+    closeModal(); render();
+    const planCount = succeeded.filter((item) => item.kind === "itinerary").length, expenseCount = succeeded.length - planCount;
+    toast(`${succeeded.length} rows saved to Google Sheets${planCount && expenseCount ? ` · ${planCount} itinerary · ${expenseCount} expenses` : ""}`);
+  }
+
   /* Quick add: "Wed 10am backwater cruise at Poovar" (v4.37.0) */
   function quickAddBar() {
     return `<form class="quick-add" data-quick-add><span class="quick-add-ico">＋</span><input name="q" autocomplete="off" placeholder="Quick add: Wed 10am backwater cruise at Poovar" aria-label="Quick add a plan"><button type="submit">Add</button><small class="quick-add-hint" id="quickAddHint">Type a day, time and what. Paste several lines to add many.</small></form>`;
@@ -2591,6 +2872,7 @@
     if (button.hasAttribute("data-security")) return showSecurity();
     if (button.hasAttribute("data-open-sticky")) return openStickyPanel();
     if (button.hasAttribute("data-open-quick-find")) return openQuickFind();
+    if (button.dataset.textImport !== undefined) return openTextImport(button.dataset.textImport || "auto");
     if (button.hasAttribute("data-edit")) return showEditRecord(button.dataset.sheet, button.dataset.id);
     if (button.dataset.viewExpense) return showExpenseDetails(button.dataset.viewExpense);
     if (button.dataset.rowEditExpense) { state.expenseRowEditId = button.dataset.rowEditExpense; return render(); }
