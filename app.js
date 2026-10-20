@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.59.0";
-  const requiredBackendVersion = "4.26.0";
+  const frontendVersion = "4.60.0";
+  const requiredBackendVersion = "4.27.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -179,7 +179,7 @@
     ]
   };
 
-  const state = { data: null, tab: "overview", pin: "", accountUsername: "", authenticated: false, travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "", mapTripId: "", currentUser: "Traveller", accessRole: "traveller", permissions: {}, expenseRowEditId: "" };
+  const state = { data: null, tab: "overview", pin: "", accountUsername: "", authenticated: false, travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "", mapTripId: "", currentUser: "Traveller", accessRole: "traveller", permissions: {}, expenseRowEditId: "", plan: "free", planSource: "free", proEnforced: false, ratingStatus: {} };
   const stickyStoragePrefix = "mytrip_trip_stickies_v1";
   const stickyColours = ["yellow", "rose", "blue", "green", "violet"];
   const idleChoices = [5, 30, 60, 120];
@@ -415,7 +415,7 @@
 
   function backendUpgradeError(version) {
     const shownVersion = version ? `version ${version}` : "an old version";
-    const error = new Error(`Your Google backend is ${shownVersion}, but a required account, authorised traveller trip-creation, Drive photo-gallery, Administrator-login editing, Sticky Note Diary or traveller-login editing capability is missing. Replace Code.gs with the supplied MyTrip ${requiredBackendVersion} build, run setupMyTrip(), then deploy a New version in Apps Script.`);
+    const error = new Error(`Your Google backend is ${shownVersion}, but a required account, trip announcement, rating grace, Drive photo-gallery, Administrator-login editing, Sticky Note Diary or traveller-login editing capability is missing. Replace Code.gs with the supplied MyTrip ${requiredBackendVersion} build, run setupMyTrip(), then deploy a New version in Apps Script.`);
     error.code = "BACKEND_UPGRADE_REQUIRED";
     return error;
   }
@@ -423,7 +423,7 @@
   async function verifyBackendVersion(url = apiUrl) {
     const info = await requestAt(url, "ping");
     backendVersion = String(info && info.version || "");
-    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.sharedTripList !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true) throw backendUpgradeError(backendVersion);
+    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.sharedTripList !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true || info.tripAnnouncements !== true || info.ratingProGrace !== true) throw backendUpgradeError(backendVersion);
     return info;
   }
 
@@ -684,7 +684,7 @@
       const host = document.querySelector(sel); if (!host) return;
       let pill = host.querySelector(".plan-pill"); if (!pill) { pill = document.createElement("button"); pill.type = "button"; pill.className = cls; pill.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); showUpgradeSheet(); }); host.appendChild(pill); }
       const mobile = cls.includes("mobile");
-      if (pro) pill.innerHTML = '<span class="pro-coin" aria-hidden="true">✦</span>PRO'; else pill.textContent = mobile ? (state.proEnforced ? "FREE ↑" : "FREE") : state.proEnforced ? "FREE · Upgrade" : "FREE · all features open";
+      if (pro) pill.innerHTML = '<span class="pro-coin" aria-hidden="true">✦</span>PRO'; else if (state.planSource === "rating-downgraded") pill.textContent = mobile ? "FREE · RATE" : "FREE · Rate to restore Pro"; else pill.textContent = mobile ? (state.proEnforced ? "FREE ↑" : "FREE") : state.proEnforced ? "FREE · Upgrade" : "FREE · all features open";
       pill.setAttribute("aria-label", pro ? "MyTrip Pro plan" : "Free plan, see MyTrip Pro"); pill.classList.toggle("is-pro", pro);
     });
     if (pro) { proShineOnce(); maybeProWelcome(); }
@@ -708,7 +708,7 @@
   function proShineOnce() { if (proShineDone) return; proShineDone = true; setTimeout(() => document.querySelectorAll(".plan-pill.is-pro").forEach((p) => { p.classList.remove("shine"); void p.offsetWidth; p.classList.add("shine"); }), 600); }
   function showUpgradeSheet(feature) {
     const pro = isPro(); const hit = PRO_FEATURES.find((f) => f[0] === feature);
-    const lead = pro ? "You have MyTrip Pro. Every feature is unlocked." : !state.proEnforced ? "During launch, every Pro feature is free for everyone. Enjoy!" : hit ? `<b>${esc(hit[1])}</b> is a Pro feature.` : "Unlock everything MyTrip can do.";
+    const lead = pro ? "You have MyTrip Pro. Every feature is unlocked." : state.planSource === "rating-downgraded" ? "Your complimentary Pro access is paused because a required completed-trip rating is overdue. Open Help & Feedback, submit the Overall rating, and Pro will be restored after all overdue trip ratings are complete." : !state.proEnforced ? "During launch, every Pro feature is free for everyone. Enjoy!" : hit ? `<b>${esc(hit[1])}</b> is a Pro feature.` : "Unlock everything MyTrip can do.";
     showModal(pro ? "MyTrip Pro" : "Upgrade to MyTrip Pro", `<div class="pro-sheet"><div class="pro-sheet-hero"><span class="pro-seal" aria-hidden="true"><span>✦</span></span><div><small>MYTRIP PRO</small><b>${pro ? "You're a Pro member" : "Travel together, beautifully"}</b></div></div><p class="pro-lead">${lead}</p><ul class="pro-list">${PRO_FEATURES.map((f) => `<li class="${f[0] === feature ? "hit" : ""}"><i>${pro || !state.proEnforced ? "✓" : "✦"}</i><span><b>${esc(f[1])}</b><small>${esc(f[2])}</small></span></li>`).join("")}</ul>${pro || !state.proEnforced ? "" : `<div class="pro-plans"><span><small>MONTHLY</small><b>₹99</b></span><span class="best"><small>YEARLY · BEST VALUE</small><b>₹499</b></span><span><small>TRIP PASS</small><b>₹149</b></span></div><p class="pro-note">Online payment is coming soon. For now, ask your trip administrator to switch your account to Pro.</p>`}<div class="form-actions"><button type="button" data-cancel>Close</button></div></div>`);
   }
   function canPrintReports() { return isAdmin() || state.permissions.printReports !== false; }
@@ -807,7 +807,10 @@
     if (!state.accountUsername) state.accountUsername = travellerId || (state.accessRole === "administrator" ? "administrator" : "shared");
     state.authenticated = true;
     state.permissions = data.permissions || {};
-    state.plan = data.plan === "pro" ? "pro" : "free"; state.proEnforced = data.proEnforced === true; renderPlanPill();
+    state.plan = data.plan === "pro" ? "pro" : "free";
+    state.planSource = data.planSource || "free";
+    state.ratingStatus = data.ratingStatus || {};
+    state.proEnforced = data.proEnforced === true; renderPlanPill();
     $("#accessScreen").classList.add("hidden"); $("#accountHub").classList.add("hidden"); $("#dashboard").classList.remove("hidden");
     loadStickyNotes(); setStickyControlsVisible(true); applyPrintPlanSettings(); applyTextScale(); startIdleTimer();
     setTab("overview"); hydrateShell(); updatePrintArea();
@@ -869,7 +872,43 @@
 
   function heading(kicker, title, action = "", add = "") { return `<div class="view-head"><div><span class="kicker">${kicker}</span><h2>${title}</h2><p>${action}</p></div>${add && canAdd(add) ? `<button class="primary" data-add="${add}">＋ Add ${add}</button>` : ""}</div>`; }
   function panelHead(kicker, title, tab) { return `<div class="panel-head"><div><span class="kicker">${kicker}</span><h2>${title}</h2></div>${tab ? `<button data-go="${tab}">View all →</button>` : ""}</div>`; }
-  function accessNotice() { const personal = Boolean(state.travellerId); const travellerMessage = personal ? "Only the trip features enabled for this Traveller ID appear in the menu. Hidden data is not downloaded." : "Shared trip access uses the common feature set for this trip."; const accountActions = isAdmin() ? `<button data-all-trips>All trips</button><button data-security>Security</button>` : (personal ? `<button data-my-trips>My trips</button>` : `<span class="shared-trip-label">SHARED TRIP</span>`); return `<section class="permission-banner ${isAdmin() ? "admin" : "traveller"}"><i>${isAdmin() ? "◆" : "♙"}</i><div class="permission-copy"><b>${isAdmin() ? "Global Administrator access" : (personal ? "Personal traveller access" : "Shared trip access")}</b><p>${isAdmin() ? "Open every trip, assign travellers, control all feature access, edit details or delete a trip." : travellerMessage}</p></div>${!isAdmin() && personal ? `<span class="personal-traveller-id"><small>MY TRAVELLER ID</small><b>${esc(state.travellerId)}</b></span>` : ""}<div class="permission-banner-actions"><button class="quick-find-trigger permission-search" data-open-quick-find type="button" aria-haspopup="dialog" aria-controls="quickFindLayer" title="Search this trip (Ctrl or Command + K)"><span>⌕</span><b>Quick Find</b><kbd>⌘K</kbd></button>${accountActions}</div><span class="dashboard-inline-version">FE v${frontendVersion} · BE ${backendVersion ? `v${esc(backendVersion)}` : "—"}</span></section>`; }
+  function accessNotice() {
+    const personal = Boolean(state.travellerId);
+    const travellerMessage = personal ? "Only the trip features enabled for this Traveller ID appear in the menu. Hidden data is not downloaded." : "Shared trip access uses the common feature set for this trip.";
+    const accountActions = isAdmin() ? `<button data-all-trips>All trips</button><button data-announcement>Announcement</button><button data-security>Security</button>` : (personal ? `<button data-my-trips>My trips</button>` : `<span class="shared-trip-label">SHARED TRIP</span>`);
+    return `<section class="permission-banner ${isAdmin() ? "admin" : "traveller"}"><i>${isAdmin() ? "◆" : "♙"}</i><div class="permission-copy"><b>${isAdmin() ? "Global Administrator access" : (personal ? "Personal traveller access" : "Shared trip access")}</b><p>${isAdmin() ? "Open every trip, assign travellers, control all feature access, edit details or delete a trip." : travellerMessage}</p></div>${!isAdmin() && personal ? `<span class="personal-traveller-id"><small>MY TRAVELLER ID</small><b>${esc(state.travellerId)}</b></span>` : ""}<div class="permission-banner-actions"><button class="quick-find-trigger permission-search" data-open-quick-find type="button" aria-haspopup="dialog" aria-controls="quickFindLayer" title="Search this trip (Ctrl or Command + K)"><span>⌕</span><b>Quick Find</b><kbd>⌘K</kbd></button>${accountActions}</div><span class="dashboard-inline-version">FE v${frontendVersion} · BE ${backendVersion ? `v${esc(backendVersion)}` : "—"}</span></section>`;
+  }
+
+  function tripSettingOn(value) { return value === true || String(value || "").toUpperCase() === "TRUE"; }
+  function activeTripAnnouncement(trip) {
+    if (!tripSettingOn(trip.announcementEnabled) || !String(trip.announcementText || "").trim()) return "";
+    const today = localDateKey();
+    if (trip.announcementStart && today < String(trip.announcementStart).slice(0, 10)) return "";
+    if (trip.announcementEnd && today > String(trip.announcementEnd).slice(0, 10)) return "";
+    return String(trip.announcementText).trim();
+  }
+  function ratingTickerText() {
+    const status = state.ratingStatus || {};
+    if (!state.travellerId || !status.required || !status.completed || status.rated) return "";
+    if (status.downgraded) return "Action required: your complimentary Pro access was downgraded. Rate this trip now; it will be restored when all overdue trip ratings are complete.";
+    const deadline = status.deadline ? displayDate(status.deadline, { day: "numeric", month: "short", year: "numeric" }) : "the deadline";
+    const due = Number(status.daysRemaining) === 0 ? "due today" : `${Number(status.daysRemaining)} day${Number(status.daysRemaining) === 1 ? "" : "s"} left`;
+    if (status.overdue) return status.complimentaryPlan ? "Rating overdue: rate this completed trip now to keep or restore complimentary Pro access." : "Rating overdue: please rate this completed trip now.";
+    return status.complimentaryPlan ? `Please rate MyTrip by ${deadline} (${due}) to keep complimentary Pro access.` : `Please rate MyTrip by ${deadline} (${due}). Your feedback helps improve the dashboard.`;
+  }
+  function tripAnnouncementTicker() {
+    if (!state.data || !state.data.trip) return "";
+    const trip = state.data.trip;
+    const custom = activeTripAnnouncement(trip);
+    const rating = ratingTickerText();
+    if (!custom && !rating) return "";
+    const style = rating ? "warning" : (["warning", "info", "success"].includes(String(trip.announcementStyle || "").toLowerCase()) ? String(trip.announcementStyle).toLowerCase() : "warning");
+    const speed = ["slow", "normal", "fast"].includes(String(trip.announcementSpeed || "").toLowerCase()) ? String(trip.announcementSpeed).toLowerCase() : "normal";
+    const messages = [custom, rating].filter(Boolean);
+    const content = messages.map((message, index) => `<span><b>${index === 0 && custom ? "TRIP NOTICE" : "RATING REMINDER"}</b>${esc(message)}</span>`).join('<i aria-hidden="true">◆</i>');
+    const action = rating ? `<button type="button" data-go="help">Rate now</button>` : (isAdmin() ? `<button type="button" data-announcement>Manage</button>` : "");
+    return `<section class="trip-announcement ${style} ${speed}" role="status" aria-label="Trip announcement"><span class="announcement-icon" aria-hidden="true">${style === "warning" ? "!" : style === "success" ? "✓" : "i"}</span><div class="announcement-window"><div class="announcement-track"><span class="announcement-copy">${content}</span><span class="announcement-copy" aria-hidden="true">${content}</span></div></div>${action}</section>`;
+  }
 
   function quickFindEntries() {
     if (!state.data) return [];
@@ -1280,9 +1319,10 @@
     }
     const t = (ctx.travellers || []).find((x) => x.travellerId === ap.dataset.accountPlan); if (!t) return;
     const cur = t.planSaved || t.plan || "free";
-    showModal("Traveller plan", `<form class="modal-form" id="travellerPlanForm"><div class="profile-id-banner"><span>TRAVELLER USERNAME</span><b>${esc(t.travellerId)}</b><small>${esc(t.name)}</small></div><label>Plan<select name="plan"><option value="free" ${cur === "pro" ? "" : "selected"}>Free</option><option value="pro" ${cur === "pro" ? "selected" : ""}>✦ Pro</option></select></label><label>Pro valid till <small>(optional — leave empty for no expiry)</small><input type="date" name="planExpires" value="${esc(t.planExpires || "")}"></label><p class="form-help">After the expiry date the account returns to Free automatically. Their trips and data are never deleted.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save plan</button></div></form>`);
-    $("#travellerPlanForm").addEventListener("submit", async (ev) => { ev.preventDefault(); const fd = new FormData(ev.target); const plan = fd.get("plan"); const planExpires = fd.get("planExpires") || "";
-      try { if (ctx.demoMode) { t.plan = t.planSaved = plan; t.planExpires = plan === "pro" ? planExpires : ""; renderTravellerAccounts(ctx.travellers, ctx.trips, ctx.administratorSecret, true); } else { await api("setTravellerPlan", { ...auth(), travellerId: t.travellerId, plan, planExpires }); loadTravellerAccounts(ctx.administratorSecret, ctx.trips, ctx.demoMode); } toast(plan === "pro" ? `${t.name} is now Pro` : `${t.name} is now Free`); } catch (error) { toast(error.message, true); } });
+    const source = t.planSource === "complimentary" || t.planSource === "rating-downgraded" ? "complimentary" : "protected";
+    showModal("Traveller plan", `<form class="modal-form" id="travellerPlanForm"><div class="profile-id-banner"><span>TRAVELLER USERNAME</span><b>${esc(t.travellerId)}</b><small>${esc(t.name)}</small></div><label>Plan<select name="plan"><option value="free" ${cur === "pro" ? "" : "selected"}>Free</option><option value="pro" ${cur === "pro" ? "selected" : ""}>✦ Pro</option></select></label><label>Pro type<select name="planSource"><option value="protected"${source === "protected" ? " selected" : ""}>Protected / paid Pro · never rating-downgraded</option><option value="complimentary"${source === "complimentary" ? " selected" : ""}>Complimentary Pro · rating rule may apply</option></select></label><label>Pro valid till <small>(optional — leave empty for no expiry)</small><input type="date" name="planExpires" value="${esc(t.planExpires || "")}"></label><p class="form-help">Only Complimentary Pro can be downgraded after a missed required rating. Protected/Paid Pro is never affected. Trips and data are never deleted.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save plan</button></div></form>`);
+    $("#travellerPlanForm").addEventListener("submit", async (ev) => { ev.preventDefault(); const fd = new FormData(ev.target); const plan = fd.get("plan"); const planExpires = fd.get("planExpires") || ""; const planSource = plan === "pro" ? fd.get("planSource") : "free";
+      try { if (ctx.demoMode) { t.plan = t.planSaved = plan; t.planExpires = plan === "pro" ? planExpires : ""; t.planSource = planSource; renderTravellerAccounts(ctx.travellers, ctx.trips, ctx.administratorSecret, true); } else { await api("setTravellerPlan", { ...auth(), travellerId: t.travellerId, plan, planExpires, planSource }); loadTravellerAccounts(ctx.administratorSecret, ctx.trips, ctx.demoMode); } toast(plan === "pro" ? `${t.name} is now ${planSource === "complimentary" ? "Complimentary " : "Protected "}Pro` : `${t.name} is now Free`); } catch (error) { toast(error.message, true); } });
   }, true);
   const pwField = (name, label) => `<label>${label}<span class="pw-wrap"><input name="${name}" type="password" minlength="6" required autocomplete="new-password"><button type="button" class="pw-eye" data-pw-eye aria-label="Show password">👁</button></span></label>`;
   document.addEventListener("click", async (e) => {
@@ -2173,6 +2213,7 @@
   function rateReminder() {
     try {
       if (tripOverviewStage(new Date().toISOString().slice(0, 10)) !== "completed") return "";
+      if (state.ratingStatus && state.ratingStatus.required) return "";
       if (localStorage.getItem(feedbackKey()) || localStorage.getItem(feedbackKey() + ".later")) return "";
     } catch (e) { return ""; }
     return `<div class="rate-reminder"><span>${mtIcon("feedback")}</span><p><b>How was MyTrip on this trip?</b><small>Rate it in 20 seconds and help make it better.</small></p><button type="button" data-go="help">Rate</button><button type="button" class="rate-later" data-rate-later aria-label="Not now">×</button></div>`;
@@ -2200,7 +2241,9 @@
     const faq = groups.length ? groups.map((g) => `<div class="faq-group"><div class="faq-group-head"><h3>${g.group}</h3><button type="button" class="faq-go" data-go="${g.go}">Go there ›</button></div>${g.items.map(([qq, a]) => `<details class="faq-item" ${q ? "open" : ""}><summary>${esc(qq)}</summary><p>${esc(a)}</p></details>`).join("")}</div>`).join("") : `<p class="faq-empty">No answers match "${esc(state.helpQuery)}". Try another word, or send it as a suggestion below.</p>`;
     const d = feedbackDraft();
     const sent = d.sentAt ? `<small class="fb-sent">Sent ${esc(displayDate(d.sentAt.slice(0, 10)))} · you can change it any time</small>` : "";
-    const form = `<section class="fb-card" id="feedbackCard"><div class="fb-head"><span>${mtIcon("feedback")}</span><div><h3>Rate &amp; suggest</h3><p>Tap the stars for each feature. Only the Administrator sees replies.</p></div></div>${FEEDBACK_FEATURES.map(([k, l]) => starRow(k, l, Number(d.ratings[k] || 0))).join("")}<label class="fb-label" for="fbSuggestion">What would you like added or improved?</label><textarea id="fbSuggestion" rows="3" maxlength="600" placeholder="e.g. Show weather for each day">${esc(d.suggestion || "")}</textarea><div class="fb-actions">${sent}<button type="button" data-fb-send>${d.sentAt ? "Update feedback" : "Send feedback"}</button></div></section>`;
+    const rating = state.ratingStatus || {};
+    const ratingRule = rating.required && rating.completed && !rating.rated ? `<div class="feedback-deadline ${rating.downgraded ? "overdue" : ""}"><b>${rating.downgraded ? "Rate to restore Complimentary Pro" : "Trip rating required"}</b><span>${rating.deadline ? `Deadline: ${esc(displayDate(rating.deadline, { day: "numeric", month: "short", year: "numeric" }))}` : "Please rate this completed trip."}${rating.complimentaryPlan ? " · Complimentary Pro rule" : ""}</span></div>` : (rating.rated ? `<div class="feedback-deadline complete"><b>Rating complete</b><span>Thank you—your response is saved in the trip feedback record.</span></div>` : "");
+    const form = `<section class="fb-card" id="feedbackCard">${ratingRule}<div class="fb-head"><span>${mtIcon("feedback")}</span><div><h3>Rate &amp; suggest</h3><p>Tap the stars for each feature. Only the Administrator sees replies.</p></div></div>${FEEDBACK_FEATURES.map(([k, l]) => starRow(k, l, Number(d.ratings[k] || 0))).join("")}<label class="fb-label" for="fbSuggestion">What would you like added or improved?</label><textarea id="fbSuggestion" rows="3" maxlength="600" placeholder="e.g. Show weather for each day">${esc(d.suggestion || "")}</textarea><div class="fb-actions">${sent}<button type="button" data-fb-send>${d.sentAt ? "Update feedback" : "Send feedback"}</button></div></section>`;
     const admin = isAdmin() ? renderFeedbackSummary() : "";
     return `<section class="help-page"><div class="view-head"><div><span class="kicker">HELP &amp; FEEDBACK</span><h2>How can we help?</h2></div><button type="button" class="help-update" data-app-update>↻ Clear cache &amp; update</button></div><p class="help-version">You are on FE v${frontendVersion}${backendVersion ? ` · BE v${esc(backendVersion)}` : ""}. If a new version doesn't show, tap Clear cache &amp; update.</p><div class="help-search"><span>${mtIcon("help")}</span><input id="helpSearch" type="search" placeholder="Search e.g. settle, sticky, print" value="${esc(state.helpQuery || "")}" autocomplete="off"></div><div class="help-grid"><div class="faq-list">${faq}</div><div class="help-side">${form}${admin}</div></div></section>`;
   }
@@ -2223,12 +2266,17 @@
   async function sendFeedback() {
     const d = feedbackDraft();
     d.suggestion = ($("#fbSuggestion") || {}).value || "";
+    if (state.ratingStatus && state.ratingStatus.required && state.ratingStatus.completed && !Number(d.ratings.overall)) return toast("Please select an Overall star rating to complete the required trip rating", true);
     if (!Object.keys(d.ratings).length && !d.suggestion.trim()) return toast("Tap some stars or write a suggestion first", true);
     const btn = $("[data-fb-send]"); if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
     try {
-      if (!state.demoMode) await api("saveFeedback", authPayload({ feedback: { ...d.ratings, suggestion: d.suggestion.trim(), name: state.currentUser || "" } }));
+      let saved = null;
+      if (!state.demoMode) saved = await api("saveFeedback", authPayload({ feedback: { ...d.ratings, suggestion: d.suggestion.trim(), name: state.currentUser || "" } }));
       d.sentAt = new Date().toISOString();
       try { localStorage.setItem(feedbackKey(), JSON.stringify(d)); } catch (e) {}
+      try { localStorage.removeItem(feedbackKey() + ".later"); } catch (e) {}
+      if (saved && saved.ratingStatus) state.ratingStatus = saved.ratingStatus;
+      if (saved && saved.plan) { state.plan = saved.plan === "pro" ? "pro" : "free"; state.planSource = saved.planSource || state.planSource; renderPlanPill(); }
       state.feedbackSummary = null; toast("Thanks! Your feedback was sent"); render();
     } catch (error) { toast(error.message, true); if (btn) { btn.disabled = false; btn.textContent = "Send feedback"; } }
   }
@@ -2848,7 +2896,7 @@
   function renderInner() {
     if (!state.data) { try { hideTabbar(); } catch (error) {} return; }
     const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, checklist: renderChecklist, print: renderPrint, help: renderHelp };
-    $("#view").innerHTML = accessNotice() + (state.tab === "overview" ? greetingStrip() + rateReminder() + weatherSlot() : "") + renderers[state.tab]();
+    $("#view").innerHTML = accessNotice() + tripAnnouncementTicker() + (state.tab === "overview" ? greetingStrip() + rateReminder() + weatherSlot() : "") + renderers[state.tab]();
     maybeWelcome(); if (state.tab === "overview") loadWeather();
     if (state.tab === "itinerary" && planMapOpen()) { try { initPlanMap(); } catch (error) {} }
     try { applyLineIcons(); } catch {} try { updateTabbar(); } catch {}
@@ -2869,6 +2917,7 @@
     if (button.hasAttribute("data-invite")) return showInvite();
     if (button.hasAttribute("data-all-trips")) return showAllTrips();
     if (button.hasAttribute("data-my-trips")) return showMyTrips();
+    if (button.hasAttribute("data-announcement")) return showTripAnnouncementSettings();
     if (button.hasAttribute("data-security")) return showSecurity();
     if (button.hasAttribute("data-open-sticky")) return openStickyPanel();
     if (button.hasAttribute("data-open-quick-find")) return openQuickFind();
@@ -4749,6 +4798,40 @@
     $('[data-cancel]').addEventListener("click", closeModal);
   }
 
+  function showTripAnnouncementSettings() {
+    if (!isAdmin()) return toast("Global Administrator access required to manage trip announcements", true);
+    const trip = state.data.trip;
+    const enabled = tripSettingOn(trip.announcementEnabled);
+    const ratingRequired = tripSettingOn(trip.ratingRequired);
+    const style = ["warning", "info", "success"].includes(String(trip.announcementStyle || "").toLowerCase()) ? String(trip.announcementStyle).toLowerCase() : "warning";
+    const speed = ["slow", "normal", "fast"].includes(String(trip.announcementSpeed || "").toLowerCase()) ? String(trip.announcementSpeed).toLowerCase() : "normal";
+    showModal("Trip announcement", `<form class="modal-form announcement-settings" id="announcementForm"><div class="announcement-preview warning"><b>LIVE TRIP NOTICE</b><span>Red text on a yellow moving strip is the clearest option for urgent traveller information.</span></div><label class="switch-field"><span><b>Show custom moving announcement</b><small>Visible to everyone who opens this trip.</small></span><input name="announcementEnabled" type="checkbox"${enabled ? " checked" : ""}></label><label>Announcement text<textarea name="announcementText" rows="4" maxlength="500" placeholder="e.g. Meet in the hotel lobby at 7:30 AM">${esc(trip.announcementText || "")}</textarea></label><div class="form-row"><label>Colour<select name="announcementStyle"><option value="warning"${style === "warning" ? " selected" : ""}>Warning · yellow and red</option><option value="info"${style === "info" ? " selected" : ""}>Information · blue</option><option value="success"${style === "success" ? " selected" : ""}>Good news · green</option></select></label><label>Movement speed<select name="announcementSpeed"><option value="slow"${speed === "slow" ? " selected" : ""}>Slow</option><option value="normal"${speed === "normal" ? " selected" : ""}>Normal</option><option value="fast"${speed === "fast" ? " selected" : ""}>Fast</option></select></label></div><div class="form-row"><label>Show from <small>(optional)</small><input name="announcementStart" type="date" value="${esc(String(trip.announcementStart || "").slice(0, 10))}"></label><label>Show until <small>(optional)</small><input name="announcementEnd" type="date" value="${esc(String(trip.announcementEnd || "").slice(0, 10))}"></label></div><div class="rating-policy-box"><label class="switch-field"><span><b>Require rating after trip completion</b><small>A separate warning appears automatically after the trip.</small></span><input name="ratingRequired" type="checkbox"${ratingRequired ? " checked" : ""}></label><label>Days allowed after completion<input name="ratingGraceDays" type="number" min="1" max="30" step="1" value="${esc(trip.ratingGraceDays || 7)}" required></label><p>Only <b>Complimentary Pro</b> accounts can be downgraded. Protected/Paid Pro is never affected. Rating later restores Complimentary Pro after all overdue ratings are completed.</p></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save announcement</button></div></form>`);
+    $("#announcementForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const values = Object.fromEntries(new FormData(form).entries());
+      if (values.announcementStart && values.announcementEnd && values.announcementEnd < values.announcementStart) return toast("Announcement end date cannot be before its start date", true);
+      const update = {
+        announcementEnabled: form.elements.announcementEnabled.checked ? "TRUE" : "FALSE",
+        announcementText: String(values.announcementText || "").trim(),
+        announcementStyle: values.announcementStyle,
+        announcementStart: values.announcementStart || "",
+        announcementEnd: values.announcementEnd || "",
+        announcementSpeed: values.announcementSpeed,
+        ratingRequired: form.elements.ratingRequired.checked ? "TRUE" : "FALSE",
+        ratingGraceDays: Math.max(1, Math.min(30, Number(values.ratingGraceDays || 7)))
+      };
+      if (update.announcementEnabled === "TRUE" && !update.announcementText) return toast("Write the announcement text, or turn off the custom announcement", true);
+      try {
+        let saved = update;
+        if (!state.demoMode) saved = await api("updateTrip", authPayload({ trip: update }));
+        state.data.trip = { ...trip, ...saved, ...update };
+        closeModal(); render(); toast("Trip announcement and rating rule saved");
+      } catch (error) { toast(error.message, true); }
+    });
+    $('[data-cancel]').addEventListener("click", closeModal);
+  }
+
   function showEditTrip() {
     if (!isAdmin()) return toast("Global Administrator access required to edit trip settings", true);
     const trip = state.data.trip;
@@ -4852,7 +4935,7 @@
 
   async function refreshTrip() {
     if (state.demoMode) return toast("Demo data is already up to date");
-    try { const data = await api("getTrip", authPayload()); state.data = normalize(data); state.accessRole = data.accessRole; state.permissions = data.permissions || {}; cacheTripBundle(data, { name: state.currentUser, role: state.accessRole, travellerId: state.travellerId, loginMode: state.loginMode }); loadStickyNotes(); hydrateShell(); render(); renderStickyNotes(); updatePrintArea(); migrateCompletedStickyNotes(); toast("Latest trip data loaded"); } catch (error) { toast(error.message, true); }
+    try { const data = await api("getTrip", authPayload()); state.data = normalize(data); state.accessRole = data.accessRole; state.permissions = data.permissions || {}; state.plan = data.plan === "pro" ? "pro" : "free"; state.planSource = data.planSource || "free"; state.ratingStatus = data.ratingStatus || {}; state.proEnforced = data.proEnforced === true; renderPlanPill(); cacheTripBundle(data, { name: state.currentUser, role: state.accessRole, travellerId: state.travellerId, loginMode: state.loginMode }); loadStickyNotes(); hydrateShell(); render(); renderStickyNotes(); updatePrintArea(); migrateCompletedStickyNotes(); toast("Latest trip data loaded"); } catch (error) { toast(error.message, true); }
   }
 
   function showCreateTrip() {
