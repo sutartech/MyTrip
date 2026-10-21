@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.60.0";
-  const requiredBackendVersion = "4.27.0";
+  const frontendVersion = "4.61.0";
+  const requiredBackendVersion = "4.28.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -180,6 +180,8 @@
   };
 
   const state = { data: null, tab: "overview", pin: "", accountUsername: "", authenticated: false, travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "", mapTripId: "", currentUser: "Traveller", accessRole: "traveller", permissions: {}, expenseRowEditId: "", plan: "free", planSource: "free", proEnforced: false, ratingStatus: {} };
+  let quickExpenseToken = "", quickExpenseInfo = null, quickExpenseEditId = "";
+  const quickGeneratedLinks = new Map();
   const stickyStoragePrefix = "mytrip_trip_stickies_v1";
   const stickyColours = ["yellow", "rose", "blue", "green", "violet"];
   const idleChoices = [5, 30, 60, 120];
@@ -365,7 +367,7 @@
     activeRequests = Math.max(0, activeRequests + delta);
     const progress = $("#appProgress"), busy = activeRequests > 0;
     if (progress) { progress.classList.toggle("hidden", !busy); progress.setAttribute("aria-hidden", String(!busy)); }
-    ["#accessScreen", "#accountHub", "#dashboard"].forEach((selector) => { const element = $(selector); if (element) element.setAttribute("aria-busy", String(busy)); });
+    ["#accessScreen", "#accountHub", "#dashboard", "#quickExpenseScreen"].forEach((selector) => { const element = $(selector); if (element) element.setAttribute("aria-busy", String(busy)); });
   }
 
   async function requestAt(url, action, payload = {}) {
@@ -423,7 +425,7 @@
   async function verifyBackendVersion(url = apiUrl) {
     const info = await requestAt(url, "ping");
     backendVersion = String(info && info.version || "");
-    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.sharedTripList !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true || info.tripAnnouncements !== true || info.ratingProGrace !== true) throw backendUpgradeError(backendVersion);
+    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.sharedTripList !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true || info.tripAnnouncements !== true || info.ratingProGrace !== true || info.quickExpenseLinks !== true) throw backendUpgradeError(backendVersion);
     return info;
   }
 
@@ -2057,6 +2059,77 @@
     document.addEventListener("touchend", (e) => { if (!row) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy); if (dy < 30 && dx < -50) row.parentElement.classList.add("swiped"); else if (dy < 30 && dx > 40) row.parentElement.classList.remove("swiped"); row = null; }, { passive: true });
     document.addEventListener("click", (e) => { const r = e.target.closest(".mt-xrow"); if (r && r.parentElement.classList.contains("swiped")) { e.stopPropagation(); e.preventDefault(); r.parentElement.classList.remove("swiped"); } }, true);
   })();
+  function quickExpenseAdminCard() {
+    if (!isAdmin()) return "";
+    return `<section class="quick-expense-admin-card"><i>⚡</i><div><span class="kicker">TRAVEL MODE</span><h3>Quick expense links</h3><p>Give each traveller a personal, revocable expense-only link. They can save during the trip without opening the full dashboard.</p></div><button type="button" data-quick-expense-links>Manage links</button></section>`;
+  }
+
+  function createQuickExpenseToken() {
+    const bytes = new Uint8Array(32); crypto.getRandomValues(bytes);
+    return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function quickExpensePublicLink(token) {
+    const url = new URL(location.origin + location.pathname);
+    url.searchParams.set("quick-expense", "1");
+    if (!validApiUrl(String(config.API_URL || "").trim()) && apiUrlReady()) url.searchParams.set("api", apiUrl);
+    return `${url.toString()}#qe=${encodeURIComponent(token)}`;
+  }
+
+  function quickExpenseDefaultExpiry() {
+    const today = new Date(); today.setHours(12, 0, 0, 0);
+    const tripEnd = new Date(String((state.data.trip || {}).endDate || "") + "T12:00:00");
+    const base = !isNaN(tripEnd.getTime()) && tripEnd > today ? tripEnd : new Date(today.getTime() + 30 * 86400000);
+    base.setDate(base.getDate() + 2);
+    return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+  }
+
+  async function showQuickExpenseLinks() {
+    if (!isAdmin()) return toast("Administrator access required", true);
+    showModal("Quick expense links", `<div class="quick-pass-loading"><b>Loading personal links…</b><p>Only expense entry is opened by these links.</p></div>`);
+    try {
+      const data = state.demoMode ? { travellers: demoTravellerAccounts.map((t) => ({ travellerId: t.travellerId, name: t.name, active: t.active, expenseAccess: true })), passes: [] } : await api("listQuickExpensePasses", authPayload());
+      renderQuickExpenseLinks(data);
+    } catch (error) { $("#modalBody").innerHTML = `<div class="danger-note"><b>Links could not be loaded</b><p>${esc(error.message)}</p></div><div class="form-actions"><button type="button" data-cancel>Close</button></div>`; $("[data-cancel]").addEventListener("click", closeModal); }
+  }
+
+  function renderQuickExpenseLinks(data) {
+    const passes = data.passes || [], now = localDateKey();
+    const rows = (data.travellers || []).map((traveller) => {
+      const latest = passes.filter((p) => String(p.travellerId).toUpperCase() === String(traveller.travellerId).toUpperCase()).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+      const generated = quickGeneratedLinks.get(String(traveller.travellerId).toUpperCase());
+      const expired = latest && String(latest.expiresAt || "") < now;
+      const status = !latest ? "Not created" : expired ? "Expired" : latest.enabled ? "Active" : "Disabled";
+      const statusClass = !latest ? "new" : expired ? "expired" : latest.enabled ? "active" : "disabled";
+      const unavailable = !traveller.active || !traveller.expenseAccess;
+      const reason = !traveller.active ? "Traveller account inactive" : !traveller.expenseAccess ? "Expense access disabled" : latest ? `Expires ${displayDate(latest.expiresAt)} · ${latest.dailyLimit}/day · edit ${latest.editMinutes} min` : "No expense-only link yet";
+      const share = generated && latest && generated.passId === latest.id ? `<div class="quick-pass-share"><input value="${esc(generated.link)}" readonly aria-label="Quick expense link"><button type="button" data-quick-copy="${esc(traveller.travellerId)}">Copy</button><button type="button" data-quick-share="${esc(traveller.travellerId)}">Share</button><small>Shown only now. Regenerate later if this copy is lost.</small></div>` : "";
+      return `<article class="quick-pass-row ${statusClass}"><div class="quick-pass-person">${avatarSlot(traveller)}<span><b>${esc(traveller.name)}</b><small>${esc(traveller.travellerId)}</small></span></div><div class="quick-pass-status"><b>${status}</b><small>${esc(reason)}</small></div><div class="quick-pass-actions">${latest && !expired ? `<button type="button" data-quick-toggle="${esc(latest.id)}" data-enabled="${latest.enabled ? "false" : "true"}">${latest.enabled ? "Disable" : "Enable"}</button>` : ""}<button type="button" class="primary" data-quick-create="${esc(traveller.travellerId)}" ${unavailable ? "disabled" : ""}>${latest ? "Regenerate" : "Create link"}</button></div>${share}</article>`;
+    }).join("");
+    $("#modalBody").innerHTML = `<div class="security-note traveller-note"><i>⚡</i><p>Each personal link is a limited access key: it can add expenses only for its named traveller. Passwords and the rest of the trip stay hidden. Disable a lost link immediately.</p></div><div class="quick-pass-list">${rows || `<p class="form-help">Assign traveller accounts to this trip before creating links.</p>`}</div><div class="form-actions"><button type="button" data-cancel>Close</button></div>`;
+    $("[data-cancel]").addEventListener("click", closeModal);
+    $$("[data-quick-create]").forEach((button) => button.addEventListener("click", () => showQuickExpensePassForm(button.dataset.quickCreate)));
+    $$("[data-quick-toggle]").forEach((button) => button.addEventListener("click", async () => {
+      try { button.disabled = true; await api("setQuickExpensePassEnabled", authPayload({ id: button.dataset.quickToggle, enabled: button.dataset.enabled === "true" })); toast(button.dataset.enabled === "true" ? "Quick link enabled" : "Quick link disabled"); await showQuickExpenseLinks(); } catch (error) { button.disabled = false; toast(error.message, true); }
+    }));
+    $$("[data-quick-copy]").forEach((button) => button.addEventListener("click", async () => { const item = quickGeneratedLinks.get(button.dataset.quickCopy.toUpperCase()); if (!item) return; try { await navigator.clipboard.writeText(item.link); toast("Personal quick-expense link copied"); } catch { toast("Copy the link from the field", true); } }));
+    $$("[data-quick-share]").forEach((button) => button.addEventListener("click", async () => { const item = quickGeneratedLinks.get(button.dataset.quickShare.toUpperCase()); if (!item) return; const name = (data.travellers || []).find((t) => t.travellerId === button.dataset.quickShare)?.name || "Traveller"; const shareData = { title: "MyTrip quick expense", text: `${name}, use this private link to add your trip expenses. Do not forward it.`, url: item.link }; if (navigator.share) { try { await navigator.share(shareData); } catch {} } else { try { await navigator.clipboard.writeText(`${shareData.text}\n${item.link}`); toast("Share message copied"); } catch {} } }));
+  }
+
+  function showQuickExpensePassForm(travellerId) {
+    showModal("Create personal expense link", `<form class="modal-form quick-pass-form" id="quickExpensePassForm"><div class="profile-id-banner"><span>TRAVELLER USERNAME</span><b>${esc(travellerId)}</b><small>Paid by will be locked to this traveller</small></div><label>Link valid until<input name="expiresAt" type="date" min="${esc(localDateKey())}" value="${esc(quickExpenseDefaultExpiry())}" required></label><div class="form-row"><label>Maximum new entries per day<input name="dailyLimit" type="number" min="1" max="100" value="30" required></label><label>Traveller may correct/delete for<input name="editMinutes" type="number" min="0" max="1440" value="30" required><small>minutes after saving · 0 disables correction</small></label></div><div class="security-note"><i>!</i><p>Regenerating disables every older active quick link for this traveller. The new link is shown once for copying or sharing.</p></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Generate secure link</button></div></form>`);
+    $("[data-cancel]").addEventListener("click", showQuickExpenseLinks);
+    $("#quickExpensePassForm").addEventListener("submit", async (event) => {
+      event.preventDefault(); const form = event.currentTarget, submit = form.querySelector('button[type="submit"]'); submit.disabled = true; submit.textContent = "Generating…";
+      const values = Object.fromEntries(new FormData(form).entries()); const token = createQuickExpenseToken(); const passId = uid();
+      try {
+        const result = state.demoMode ? { pass: { id: passId } } : await api("createQuickExpensePass", authPayload({ travellerId, quickToken: token, settings: { id: passId, expiresAt: values.expiresAt, dailyLimit: Number(values.dailyLimit), editMinutes: Number(values.editMinutes) } }));
+        quickGeneratedLinks.set(travellerId.toUpperCase(), { passId: result.pass.id, link: quickExpensePublicLink(token) });
+        toast("Secure quick-expense link created"); await showQuickExpenseLinks();
+      } catch (error) { submit.disabled = false; submit.textContent = "Generate secure link"; toast(error.message, true); }
+    });
+  }
+
   function expenseFilterPeople() {
     return [...new Set([...visibleTripMembers().map((m) => m.name), ...state.data.expenses.map((e) => e.paidBy).filter(Boolean)])];
   }
@@ -2897,6 +2970,10 @@
     if (!state.data) { try { hideTabbar(); } catch (error) {} return; }
     const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, checklist: renderChecklist, print: renderPrint, help: renderHelp };
     $("#view").innerHTML = accessNotice() + tripAnnouncementTicker() + (state.tab === "overview" ? greetingStrip() + rateReminder() + weatherSlot() : "") + renderers[state.tab]();
+    if (state.tab === "expenses" && isAdmin()) {
+      const anchor = $("#view .text-import-strip") || $("#view .mt-money-actions") || $("#view .page-heading") || $("#view .mt-money-strip");
+      if (anchor) anchor.insertAdjacentHTML("afterend", quickExpenseAdminCard());
+    }
     maybeWelcome(); if (state.tab === "overview") loadWeather();
     if (state.tab === "itinerary" && planMapOpen()) { try { initPlanMap(); } catch (error) {} }
     try { applyLineIcons(); } catch {} try { updateTabbar(); } catch {}
@@ -2918,6 +2995,7 @@
     if (button.hasAttribute("data-all-trips")) return showAllTrips();
     if (button.hasAttribute("data-my-trips")) return showMyTrips();
     if (button.hasAttribute("data-announcement")) return showTripAnnouncementSettings();
+    if (button.hasAttribute("data-quick-expense-links")) return showQuickExpenseLinks();
     if (button.hasAttribute("data-security")) return showSecurity();
     if (button.hasAttribute("data-open-sticky")) return openStickyPanel();
     if (button.hasAttribute("data-open-quick-find")) return openQuickFind();
@@ -3723,6 +3801,8 @@
     if ($("#loginBackendVersion")) $("#loginBackendVersion").textContent = backendLabel;
     if ($("#dashboardVersion")) $("#dashboardVersion").textContent = `FE v${frontendVersion} · BE ${backendLabel}`;
     if ($("#hubVersion")) $("#hubVersion").textContent = `FE v${frontendVersion} · BE ${backendLabel}`;
+    if ($("#quickExpenseFrontendVersion")) $("#quickExpenseFrontendVersion").textContent = `v${frontendVersion}`;
+    if ($("#quickExpenseBackendVersion")) $("#quickExpenseBackendVersion").textContent = backendLabel;
   }
 
   function updateBackendStatus() {
@@ -5111,6 +5191,80 @@
   document.addEventListener("visibilitychange", () => { if (document.hidden) persistSession(true); });
   addEventListener("pageshow", (event) => { if (event.persisted && state.authenticated) checkIdleTimeout(); });
 
+  function quickExpenseDateDefault(info = quickExpenseInfo) {
+    const now = new Date(), today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const start = String(info?.trip?.startDate || ""), end = String(info?.trip?.endDate || "");
+    return (!start || today >= start) && (!end || today <= end) ? today : (start || today);
+  }
+
+  function quickExpenseShareFields(row) {
+    const members = quickExpenseInfo?.members || [];
+    const selected = String(row?.sharedBy || "").split("|").filter(Boolean);
+    const all = !selected.length;
+    if (!members.length) return "";
+    return `<details class="quick-expense-share"><summary><span><b>Shared by</b><small>${all ? "All trip travellers" : `${selected.length} selected`}</small></span><i>⌄</i></summary><div><p>Select who shares this expense. Leave everyone selected for a normal group expense.</p>${members.map((name) => `<label><input type="checkbox" name="sharedMember" value="${esc(name)}" ${all || selected.includes(name) ? "checked" : ""}><span>${avatarSlot({ name })}<b>${esc(name)}</b></span></label>`).join("")}</div></details>`;
+  }
+
+  function renderQuickExpensePublic() {
+    const slot = $("#quickExpenseContent"); if (!slot || !quickExpenseInfo) return;
+    const info = quickExpenseInfo, current = quickExpenseEditId ? (info.recent || []).find((item) => String(item.id) === String(quickExpenseEditId)) : null;
+    const categories = info.categories || ["Food", "Stay", "Travel", "Local travel", "Activities", "Shopping", "Other"];
+    const recent = (info.recent || []).map((item) => `<article class="quick-expense-recent-row${item.queued ? " queued" : ""}"><i>${esc(String(item.category || "Other").slice(0, 1))}</i><div><b>${esc(item.label || item.category || "Expense")}</b><small>${displayDate(item.date, { day: "numeric", month: "short" })} · ${esc(item.category || "Other")}${item.receiptUrl ? " · 🧾 Receipt" : ""}${item.queued ? " · Waiting to sync" : ""}</small></div><strong>${money.format(Number(item.amount || 0))}</strong>${item.canEdit && !item.queued ? `<span><button type="button" data-quick-edit="${esc(item.id)}">Edit</button><button type="button" class="delete" data-quick-delete="${esc(item.id)}">Delete</button></span>` : `<em>${item.queued ? "Queued" : "Saved"}</em>`}</article>`).join("");
+    slot.innerHTML = `<section class="quick-expense-shell"><div class="quick-expense-hero"><span>⚡ TRAVEL MODE · NO SIGN-IN</span><h1>${esc(info.trip.name)}</h1><p>${esc(info.trip.destination || "")}${info.trip.startDate ? ` · ${displayDate(info.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(info.trip.endDate, { day: "numeric", month: "short", year: "numeric" })}` : ""}</p><div><small>PERSONAL EXPENSE LINK FOR</small><b>${esc(info.traveller.name)}</b><em>${esc(info.traveller.travellerId)}</em></div></div><form class="quick-expense-form" id="quickExpenseForm"><header><span><small>${current ? "CORRECT RECENT ENTRY" : "ADD TO TRIP REGISTER"}</small><h2>${current ? "Edit expense" : "Quick expense"}</h2></span>${current ? `<button type="button" data-quick-cancel-edit>Cancel edit</button>` : `<em>Paid by <b>${esc(info.traveller.name)}</b></em>`}</header><label class="quick-expense-amount"><span>${esc(info.trip.currency === "INR" ? "₹" : info.trip.currency || "₹")}</span><input name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" value="${esc(current?.amount || "")}" placeholder="0" aria-label="Expense amount" required autofocus></label><label>What was it for?<input name="label" maxlength="180" value="${esc(current?.label || "")}" placeholder="e.g. Lunch, taxi, tickets" required></label><div class="quick-expense-two"><label>Category<select name="category">${categories.map((category) => `<option ${category === current?.category ? "selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label>Date<input name="date" type="date" value="${esc(current?.date || quickExpenseDateDefault(info))}" required></label></div><label>Note <small>(optional)</small><textarea name="notes" rows="2" maxlength="1000" placeholder="Any useful detail">${esc(current?.notes || "")}</textarea></label>${quickExpenseShareFields(current)}<label class="quick-expense-receipt">Receipt photo <small>(optional · JPEG, PNG or WebP)</small><input name="receipt" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><button class="quick-expense-save" type="submit">${current ? "Save correction" : "Save expense"}</button><button class="quick-expense-save-again" name="saveAgain" value="1" type="submit">${current ? "Save and finish" : "Save & add another"}</button><p class="quick-expense-security">🔒 This link can add expenses only for ${esc(info.traveller.name)}. It cannot open the trip dashboard or reveal passwords. Do not forward it.</p></form><section class="quick-expense-recent"><header><div><span>YOUR QUICK ENTRIES</span><h2>Recently added</h2></div><button type="button" data-quick-refresh>↻ Refresh</button></header><div>${recent || `<p class="quick-expense-empty">No expense has been added through this link yet.</p>`}</div><small class="quick-expense-window">Correction window: ${Number(info.pass.editMinutes || 0) ? `${Number(info.pass.editMinutes)} minutes after saving` : "Administrator only"} · Link expires ${displayDate(info.pass.expiresAt)}</small></section></section>`;
+    const dateInput = slot.querySelector('input[name="date"]');
+    if (dateInput) { dateInput.min = String(info.trip.startDate || "").slice(0, 10); dateInput.max = String(info.trip.endDate || "").slice(0, 10); }
+  }
+
+  async function refreshQuickExpensePublic(showNotice = false) {
+    if (!quickExpenseToken) return;
+    try { quickExpenseInfo = await api("getQuickExpenseInfo", { quickToken: quickExpenseToken }); quickExpenseEditId = ""; renderQuickExpensePublic(); if (showNotice) toast("Expense list refreshed"); }
+    catch (error) { const slot = $("#quickExpenseContent"); if (slot) slot.innerHTML = `<div class="quick-expense-error"><i>!</i><h1>This quick link cannot be used</h1><p>${esc(error.message)}</p><a href="./">Open MyTrip sign in</a></div>`; }
+  }
+
+  async function openQuickExpenseMode(token) {
+    quickExpenseToken = String(token || "").trim();
+    $("#accessScreen").classList.add("hidden"); $("#accountHub").classList.add("hidden"); $("#dashboard").classList.add("hidden");
+    $("#quickExpenseScreen").classList.remove("hidden"); document.body.classList.add("quick-expense-mode");
+    try { await ensureCurrentBackend(); await refreshQuickExpensePublic(); }
+    catch (error) { const slot = $("#quickExpenseContent"); slot.innerHTML = `<div class="quick-expense-error"><i>!</i><h1>Quick expense is unavailable</h1><p>${esc(error.message)}</p><a href="./">Open MyTrip sign in</a></div>`; }
+  }
+
+  $("#quickExpenseScreen").addEventListener("click", async (event) => {
+    const edit = event.target.closest("[data-quick-edit]");
+    if (edit) { quickExpenseEditId = edit.dataset.quickEdit; renderQuickExpensePublic(); scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (event.target.closest("[data-quick-cancel-edit]")) { quickExpenseEditId = ""; renderQuickExpensePublic(); return; }
+    if (event.target.closest("[data-quick-refresh]")) return refreshQuickExpensePublic(true);
+    const del = event.target.closest("[data-quick-delete]");
+    if (del) {
+      const item = (quickExpenseInfo.recent || []).find((row) => String(row.id) === String(del.dataset.quickDelete));
+      if (!item || !confirm(`Delete ${item.label} for ${money.format(item.amount)}?`)) return;
+      try { del.disabled = true; await api("quickDeleteExpense", { quickToken: quickExpenseToken, id: item.id }); quickExpenseInfo.recent = quickExpenseInfo.recent.filter((row) => String(row.id) !== String(item.id)); renderQuickExpensePublic(); toast("Expense deleted from the trip register"); } catch (error) { del.disabled = false; toast(error.message, true); }
+    }
+  });
+
+  $("#quickExpenseScreen").addEventListener("submit", async (event) => {
+    if (event.target.id !== "quickExpenseForm") return;
+    event.preventDefault(); const form = event.target, submitter = event.submitter, buttons = $$('button[type="submit"]', form); buttons.forEach((button) => button.disabled = true);
+    const values = new FormData(form), selected = values.getAll("sharedMember").map(String), allMembers = quickExpenseInfo.members || [];
+    if (allMembers.length && !selected.length) { buttons.forEach((button) => button.disabled = false); return toast("Choose at least one traveller to share this expense", true); }
+    const record = { id: quickExpenseEditId || uid(), amount: Number(values.get("amount")), label: String(values.get("label") || "").trim(), category: String(values.get("category") || "Other"), date: String(values.get("date") || ""), notes: String(values.get("notes") || "").trim(), sharedBy: selected.length === allMembers.length ? "" : selected.join("|") };
+    const receipt = form.elements.receipt.files && form.elements.receipt.files[0];
+    try {
+      const result = await api(quickExpenseEditId ? "quickUpdateExpense" : "quickAddExpense", { quickToken: quickExpenseToken, ...(quickExpenseEditId ? { id: quickExpenseEditId } : {}), record });
+      let saved = result.expense || { ...record, paidBy: quickExpenseInfo.traveller.name, createdAt: new Date().toISOString(), canEdit: true, queued: Boolean(result.queued) };
+      if (receipt && !result.queued) {
+        try { const prepared = await preparePhoto(receipt, false); const upload = await api("quickUploadExpenseReceipt", { quickToken: quickExpenseToken, id: saved.id, file: await readPhotoFile(prepared) }); saved.receiptUrl = upload.receiptUrl || ""; }
+        catch (photoError) { toast(`Expense saved, but receipt failed: ${photoError.message}`, true); }
+      }
+      const existing = (quickExpenseInfo.recent || []).findIndex((item) => String(item.id) === String(saved.id));
+      if (existing >= 0) quickExpenseInfo.recent[existing] = saved; else quickExpenseInfo.recent.unshift(saved);
+      quickExpenseInfo.recent = quickExpenseInfo.recent.slice(0, 5); quickExpenseEditId = ""; renderQuickExpensePublic();
+      toast(result.queued ? "Saved on this phone · will sync when online" : "Expense saved in the trip register");
+      if (submitter && submitter.name === "saveAgain") setTimeout(() => $("#quickExpenseForm input[name=amount]")?.focus(), 50);
+    } catch (error) { toast(error.message, true); }
+    finally { if (form.isConnected) buttons.forEach((button) => button.disabled = false); }
+  });
+
   const inviteQuery = new URLSearchParams(location.search);
   const invitedApi = inviteQuery.get("api");
   if (!validApiUrl(config.API_URL) && validApiUrl(invitedApi)) { apiUrl = invitedApi; saveStoredApiUrl(apiUrl); }
@@ -5120,7 +5274,10 @@
   setInterval(() => { if (!document.hidden) updateHeaderDateTime(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) updateHeaderDateTime(); });
   restoreSavedAccountLogin();
-  if (!new URLSearchParams(location.search).get("trip")) setTimeout(() => { resumeSession(); }, 0);
+  const quickExpenseMode = inviteQuery.get("quick-expense") === "1";
+  const quickExpenseHashToken = new URLSearchParams(location.hash.replace(/^#/, "")).get("qe") || "";
+  if (quickExpenseMode) setTimeout(() => openQuickExpenseMode(quickExpenseHashToken), 0);
+  else if (!new URLSearchParams(location.search).get("trip")) setTimeout(() => { resumeSession(); }, 0);
   if (inviteQuery.get("join")) setTimeout(() => showJoinByInvite(inviteQuery.get("join")), 700);
   const scheduleBackgroundTask = (task) => "requestIdleCallback" in window ? requestIdleCallback(task, { timeout: 1500 }) : setTimeout(task, 40);
   if (apiUrlReady()) scheduleBackgroundTask(() => ensureCurrentBackend().catch(() => {}));
