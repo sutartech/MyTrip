@@ -2938,7 +2938,7 @@ html body .permission-banner.admin .permission-banner-actions{grid-template-colu
 }
 @media print{html body .trip-announcement{display:none!important}}
 
-/* ---- v4.62.0 secure no-login quick-expense links ---- */
+/* ---- v4.62.1 secure no-login quick-expense links ---- */
 html body .quick-expense-admin-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;margin:14px 0;padding:16px 18px;border:1px solid #B5E1D8;border-radius:18px;background:linear-gradient(120deg,#E8FAF5,#F7F0FF 58%,#FFF4E5);box-shadow:0 8px 22px rgba(23,127,112,.1)}
 html body .quick-expense-admin-card>i{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#0A9586,#7251D4);color:#fff;font-size:23px;font-style:normal;box-shadow:0 7px 16px rgba(73,62,160,.24)}
 html body .quick-expense-admin-card h3{margin:2px 0 3px;color:#152A3A;font-family:Georgia,serif;font-size:21px}
@@ -2987,8 +2987,13 @@ html body .quick-expense-loading,html body .quick-expense-error{width:min(560px,
   html body .quick-expense-admin-card{grid-template-columns:auto minmax(0,1fr);padding:13px}.quick-expense-admin-card>i{width:42px;height:42px}.quick-expense-admin-card>button{grid-column:1/-1;width:100%}
   html body .quick-pass-row{grid-template-columns:1fr}.quick-pass-actions{justify-content:stretch}.quick-pass-actions button{flex:1}.quick-pass-share{grid-template-columns:1fr 1fr}.quick-pass-share input{grid-column:1/-1}
   html body .quick-expense-topbar{min-height:60px;padding:8px 12px}.quick-expense-topbar .brand{font-size:18px}.quick-expense-topbar .brand i{width:34px;height:34px}.quick-expense-login-link{padding:8px 9px;font-size:9px}.quick-expense-versions{display:none}
-  html body #quickExpenseContent{width:min(100% - 18px,620px);padding:11px 0 36px}.quick-expense-shell{grid-template-columns:1fr;gap:11px}.quick-expense-hero{grid-column:auto;padding:19px;border-radius:19px}.quick-expense-hero h1{font-size:34px}.quick-expense-hero>div{align-items:flex-start;flex-direction:column;gap:2px}
-  html body .quick-expense-form,html body .quick-expense-recent{padding:15px;border-radius:18px}.quick-expense-form h2,.quick-expense-recent h2{font-size:23px}.quick-expense-two{grid-template-columns:1fr 1fr}.quick-expense-share>div{grid-template-columns:1fr}.quick-expense-share>div>p{grid-column:auto}.quick-expense-amount input{font-size:34px!important}.quick-expense-receipt input{font-size:12px}
+  html body #quickExpenseContent{width:min(calc(100% - 18px),620px);padding:11px 0 36px;overflow:visible}
+  html body .quick-expense-shell{display:flex;flex-direction:column;width:100%;min-width:0;gap:11px;align-items:stretch}
+  html body .quick-expense-hero{order:1;grid-column:auto;width:100%;min-width:0;max-width:100%;padding:19px;border-radius:19px;box-sizing:border-box}.quick-expense-hero h1{font-size:34px}.quick-expense-hero>div{align-items:flex-start;flex-direction:column;gap:2px}
+  html body .quick-expense-form,html body .quick-expense-recent{position:relative;inset:auto;order:2;float:none;width:100%;min-width:0;max-width:100%;margin:0;padding:15px;border-radius:18px;box-sizing:border-box;transform:none}.quick-expense-recent{order:3!important}.quick-expense-form h2,.quick-expense-recent h2{font-size:23px}
+  html body .quick-expense-form>*,html body .quick-expense-recent>*{min-width:0;max-width:100%;box-sizing:border-box}
+  html body .quick-expense-form input,html body .quick-expense-form select,html body .quick-expense-form textarea{min-width:0;max-width:100%;box-sizing:border-box}
+  html body .quick-expense-two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.quick-expense-share>div{grid-template-columns:1fr}.quick-expense-share>div>p{grid-column:auto}.quick-expense-amount input{font-size:34px!important}.quick-expense-receipt input{font-size:12px}
 }
-@media(max-width:410px){html body .quick-expense-two{grid-template-columns:1fr}.quick-expense-form>header{align-items:flex-start}.quick-expense-form>header>em{max-width:130px}.quick-expense-recent-row{grid-template-columns:auto minmax(0,1fr)}.quick-expense-recent-row>strong{grid-column:2}.quick-expense-recent-row>span,.quick-expense-recent-row>em{grid-column:1/-1}}
+@media(max-width:410px){html body .quick-expense-two{grid-template-columns:minmax(0,1fr)}html body .quick-expense-form>header{align-items:flex-start}html body .quick-expense-form>header>em{max-width:130px}html body .quick-expense-recent-row{grid-template-columns:auto minmax(0,1fr)}html body .quick-expense-recent-row>strong{grid-column:2}html body .quick-expense-recent-row>span,html body .quick-expense-recent-row>em{grid-column:1/-1}}
 @media print{html body .quick-expense-screen,html body .quick-expense-admin-card{display:none!important}}
