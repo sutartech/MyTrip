@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.64.1";
-  const requiredBackendVersion = "4.31.0";
+  const frontendVersion = "4.64.2";
+  const requiredBackendVersion = "4.31.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -33,7 +33,10 @@
   let backendVerifiedUrl = "";
   let backendVerificationPromise = null;
   const backendVerificationTtlMs = 5 * 60 * 1000;
-  const requestTimeoutMs = 45000;
+  /* A failed deployment used to leave the interface waiting for 45 seconds.
+     Apps Script normally answers well inside this window; writes remain
+     protected by record ids and the offline queue. */
+  const requestTimeoutMs = 25000;
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: config.DEFAULT_CURRENCY || "INR", maximumFractionDigits: 0 });
@@ -380,8 +383,8 @@
       try { return await requestOnce(url, action, payload); }
       catch (error) {
         const msg = String(error && error.message || "");
-        const transient = /HTTP (404|408|429|500|502|503|504)|Failed to fetch|NetworkError|Load failed/i.test(msg);
-        if (!transient || attempt >= 2 || navigator.onLine === false) throw error;
+        const transient = /HTTP (408|429|500|502|503|504)|Failed to fetch|NetworkError|Load failed/i.test(msg);
+        if (!transient || attempt >= 1 || navigator.onLine === false) throw error;
         await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
       }
     }
@@ -396,6 +399,12 @@
       if (!response.ok) throw new Error(`Google backend returned HTTP ${response.status}.${response.status === 404 ? ` Google was busy — please try again in a moment. If it keeps happening, sign out of extra Google accounts in Chrome or reopen the dashboard.` : ""}`);
       const result = await response.json();
       if (!result.ok) throw new Error(result.error || "The request could not be completed.");
+      const reportedVersion = String(result.data && (result.data.backendVersion || (action === "ping" ? result.data.version : "")) || "");
+      if (reportedVersion) {
+        backendVersion = reportedVersion;
+        backendState = backendVersionAtLeast(reportedVersion, requiredBackendVersion) ? "ready" : "outdated";
+        updateBackendStatus();
+      }
       if (result.idleMinutes) applyIdleMinutes(result.idleMinutes);
       return result.data;
     } catch (error) {
@@ -4099,7 +4108,6 @@
 
   async function loadAllTrips(administratorSecret, demoMode, username = state.accountUsername || "administrator") {
     try {
-      if (!demoMode) await ensureCurrentBackend();
       state.accountUsername = String(username || "administrator").trim().toLowerCase(); state.pin = administratorSecret; state.administratorSecret = administratorSecret; state.demoMode = demoMode; state.authenticated = true; state.accessRole = "administrator";
       const result = demoMode ? { trips: demoTrips, account: { username: state.accountUsername, role: "administrator", email: "", phone: "", otpEnabled: false, emailOnlyOtp: true } } : await api("listTrips", { username: state.accountUsername, password: administratorSecret, pin: administratorSecret });
       state.accountProfile = result.account || state.accountProfile || {};
@@ -4115,7 +4123,6 @@
 
   async function loadMyTrips(pin, traveller, demoMode) {
     try {
-      if (!demoMode) await ensureCurrentBackend();
       state.accountUsername = String(traveller.travellerId || state.accountUsername || "").trim().toUpperCase(); state.pin = pin; state.demoMode = demoMode; state.authenticated = true; state.accessRole = "traveller"; state.travellerId = state.accountUsername;
       const result = demoMode ? { traveller, trips: demoTrips.filter((trip) => tripEnabled(trip) && traveller.tripIds.includes(trip.tripId)) } : await api("listMyTrips", { username: state.accountUsername, password: pin, travellerId: state.accountUsername, pin });
       state.accountProfile = result.traveller || state.accountProfile || {};
@@ -5112,10 +5119,15 @@
     const submit = form.querySelector('button[type="submit"]');
     submit.disabled = true; submit.textContent = "Signing in…";
     try {
-      const [result] = await Promise.all([api("login", { identifier, password }), ensureCurrentBackend()]);
+      /* The authenticated login response already contains the complete trip
+         list and backend version. Waiting for a second simultaneous ping made
+         Apps Script cold starts visibly slower without adding security. */
+      const result = await api("login", { identifier, password });
       completeAccountLogin(result, identifier);
+      $("#loginPassword").value = "";
     } catch (error) {
       state.pin = ""; state.accountUsername = ""; state.accountProfile = {}; state.authenticated = false;
+      setLoginPasswordVisible(false);
       toast(error.message, true);
     } finally {
       submit.disabled = false; submit.textContent = "Sign in";
@@ -5127,7 +5139,6 @@
     if (!identifier) { $("#loginUsername").focus(); return toast("Enter your username, mobile number or email first", true); }
     const button = $("#sendLoginOtp"); button.disabled = true; button.textContent = "Sending OTP…";
     try {
-      await ensureCurrentBackend();
       const result = await api("requestLoginOtp", { identifier, channel: "auto" });
       loginOtpChallengeId = String(result.challengeId || ""); loginOtpIdentifier = identifier;
       $("#otpDeliveryStatus").innerHTML = `<i>✦</i><p>OTP sent by email to <b>${esc(result.maskedDestination || "your registered email")}</b>. It expires in ${Number(result.expiresMinutes || 10)} minutes.</p>`;
@@ -5146,7 +5157,6 @@
     if (!loginOtpChallengeId || !loginOtpIdentifier) return toast("Request a new OTP first", true);
     const submit = form.querySelector('button[type="submit"]'); submit.disabled = true; submit.textContent = "Verifying…";
     try {
-      await ensureCurrentBackend();
       const result = await api("loginWithOtp", { identifier: loginOtpIdentifier, challengeId: loginOtpChallengeId, otp });
       completeAccountLogin(result, loginOtpIdentifier);
     } catch (error) { toast(error.message, true); }
@@ -5158,7 +5168,6 @@
     if (!identifier) { $("#loginUsername").focus(); return toast("Enter your username, mobile number or email first", true); }
     const button = $("#forgotPassword"); button.disabled = true; button.textContent = "Sending recovery OTP…";
     try {
-      await ensureCurrentBackend();
       const result = await api("requestPasswordResetOtp", { identifier, channel: "auto" });
       showModal("Reset your password", `<form class="modal-form password-recovery-form" id="passwordRecoveryForm"><div class="otp-delivery-status"><i>✓</i><p>A password-reset OTP was sent by email to <b>${esc(result.maskedDestination || "your verified email")}</b>. It expires in ${Number(result.expiresMinutes || 10)} minutes.</p></div><label>6-digit OTP<input name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="Enter OTP" required autofocus></label><label>New password<span class="password-input-wrap"><input name="newPassword" type="password" minlength="6" maxlength="64" autocomplete="new-password" placeholder="Create a strong new password" required><button type="button" data-show-reset-password>Show</button></span></label><label>Confirm new password<input name="confirmPassword" type="password" minlength="6" maxlength="64" autocomplete="new-password" placeholder="Type the new password again" required></label><p class="form-help">A previously verified email address is required. You may start recovery with your username, mobile number or email; the OTP is always delivered to the verified email. The old password and older sessions stop working immediately.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button class="primary" type="submit">Reset password &amp; sign in</button></div></form>`);
       const form = $("#passwordRecoveryForm");
@@ -5181,7 +5190,7 @@
   }
 
   $("#joinForm").addEventListener("submit", (event) => { if (!apiUrlReady()) { event.preventDefault(); event.stopImmediatePropagation(); showBackendSetup(() => $("#joinForm").requestSubmit()); } }, true);
-  $("#joinForm").addEventListener("submit", async (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); try { state.accountUsername = ""; const [trip] = await Promise.all([api("getTrip", { tripId: String(data.get("tripId")).trim().toUpperCase(), pin: String(data.get("pin")) }), ensureCurrentBackend()]); await openTrip(trip, String(data.get("pin")), false, "Shared traveller", "traveller", "", "shared"); } catch (error) { toast(error.message, true); } });
+  $("#joinForm").addEventListener("submit", async (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); try { state.accountUsername = ""; const trip = await api("getTrip", { tripId: String(data.get("tripId")).trim().toUpperCase(), pin: String(data.get("pin")) }); await openTrip(trip, String(data.get("pin")), false, "Shared traveller", "traveller", "", "shared"); } catch (error) { toast(error.message, true); } });
   $("#accountLoginForm").addEventListener("submit", loginAccount);
   $("#sendLoginOtp").addEventListener("click", requestAccountOtp);
   $("#forgotPassword").addEventListener("click", startPasswordRecovery);
@@ -5408,7 +5417,13 @@
   else if (!new URLSearchParams(location.search).get("trip")) setTimeout(() => { resumeSession(); }, 0);
   if (inviteQuery.get("join")) setTimeout(() => showJoinByInvite(inviteQuery.get("join")), 700);
   const scheduleBackgroundTask = (task) => "requestIdleCallback" in window ? requestIdleCallback(task, { timeout: 1500 }) : setTimeout(task, 40);
-  if (apiUrlReady()) scheduleBackgroundTask(() => ensureCurrentBackend().catch(() => {}));
+  if (apiUrlReady()) scheduleBackgroundTask(() => {
+    const verifyWhenQuiet = () => {
+      if (activeRequests > 0) return setTimeout(verifyWhenQuiet, 900);
+      ensureCurrentBackend().catch(() => {});
+    };
+    verifyWhenQuiet();
+  });
   /* Self-healing update: registers the worker, forces an update check, and
      reloads once when a newer build takes control — so a phone can never keep
      running an old cached app.js. */
