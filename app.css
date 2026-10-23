@@ -3037,3 +3037,55 @@ html body .account-hub-hero h1{color:#fff!important;-webkit-text-fill-color:#fff
 html body .account-hub-hero p{color:rgba(255,255,255,.86)!important;-webkit-text-fill-color:rgba(255,255,255,.86)!important}
 html body .account-hub-hero>div>span{color:#bff4e5!important;-webkit-text-fill-color:#bff4e5!important}
 html body .account-hub-hero>strong{color:#0f6e6a!important;-webkit-text-fill-color:#0f6e6a!important;background:#effbf8!important;border-color:rgba(255,255,255,.62)!important}
+
+/* ---- v4.64.3 complete traveller directory + prominent email verification ---- */
+html body .contact-verification-row{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0 6px}
+html body .contact-verified-badge,
+html body .contact-unverified-badge,
+html body .contact-email-missing-badge{display:inline-flex;align-items:center;min-height:30px;padding:7px 11px;border:2px solid;border-radius:999px;font-size:11px;font-weight:950;letter-spacing:.055em;line-height:1}
+html body .contact-verified-badge{border-color:#74cfad;background:#dff9ed;color:#056a51;box-shadow:0 4px 12px rgba(5,106,81,.11)}
+html body .contact-unverified-badge{border-color:#efbf55;background:#fff3c9;color:#865a00;box-shadow:0 4px 12px rgba(134,90,0,.1)}
+html body .contact-email-missing-badge{border-color:#ef9b8f;background:#fff0ed;color:#9e3f34}
+html body .profile-hero .contact-verification-row,
+html body .self-profile-card .contact-verification-row,
+html body .account-hub-hero .contact-verification-row{margin-top:11px}
+
+html body #modal:has(.traveller-manager)>section{width:min(1120px,calc(100vw - 30px))!important;overflow:hidden!important}
+html body #modal:has(.traveller-manager) #modalBody{display:flex!important;min-height:0;overflow:hidden!important}
+html body .traveller-manager{display:grid!important;grid-template-rows:auto auto auto minmax(0,1fr);width:100%;min-height:0;gap:12px!important}
+html body .traveller-manager .all-trips-summary{flex:0 0 auto;margin:0}
+html body .traveller-manager .directory-note{margin:0}
+html body .traveller-directory-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1.5px solid #cce0dc;border-radius:13px;background:linear-gradient(120deg,#f1faf7,#f7f4ff)}
+html body .traveller-directory-tools label{display:flex;align-items:center;flex:1;min-width:0;gap:9px}
+html body .traveller-directory-tools label>span{color:#0f6e6a;font-size:22px;font-weight:950}
+html body .traveller-directory-tools input{width:100%;min-width:0;min-height:42px;padding:9px 12px;border:1.5px solid #bfd5d2;border-radius:10px;background:#fff;color:#1c2430;font-size:14px;font-weight:750;outline:none}
+html body .traveller-directory-tools input:focus{border-color:#0f6e6a;box-shadow:0 0 0 3px rgba(15,110,106,.13)}
+html body .traveller-directory-tools>b{flex:none;padding:8px 11px;border-radius:999px;background:#0f6e6a;color:#fff;font-size:11px;font-weight:900;white-space:nowrap}
+html body .traveller-manager .account-list{min-height:0;max-height:none!important;height:100%;overflow-y:scroll!important;overscroll-behavior:contain;scrollbar-gutter:stable;padding:2px 8px 16px 2px}
+html body .traveller-manager .account-list::-webkit-scrollbar{width:13px}
+html body .traveller-manager .account-list::-webkit-scrollbar-track{border-radius:99px;background:#edf1ef}
+html body .traveller-manager .account-list::-webkit-scrollbar-thumb{border:3px solid #edf1ef;border-radius:99px;background:#6b8e88}
+html body .traveller-manager .account-card{grid-template-columns:54px minmax(0,1fr) minmax(390px,auto)!important;padding:14px 16px!important;gap:14px!important}
+html body .traveller-manager .account-actions{grid-template-columns:repeat(3,minmax(0,1fr))!important;width:390px!important;gap:7px!important}
+html body .traveller-manager .account-actions button{min-height:39px!important;padding:8px 9px!important;font-size:10.5px!important}
+html body .traveller-manager .account-profile>small{margin-top:3px}
+html body .traveller-manager .otp-status-pill{margin-top:5px}
+html body .traveller-manager .account-trip-status,
+html body .traveller-manager .trip-create-permission-status{display:inline-flex;margin-top:7px!important;margin-right:5px;padding:6px 9px!important}
+
+@media(max-width:900px){
+  html body .traveller-manager .account-card{grid-template-columns:48px minmax(0,1fr)!important}
+  html body .traveller-manager .account-actions{grid-column:1/-1;width:100%!important}
+}
+@media(max-width:760px){
+  html body #modal:has(.traveller-manager)>section{width:100%!important}
+  html body .traveller-manager{gap:9px!important}
+  html body .traveller-directory-tools{align-items:stretch;flex-direction:column;padding:9px}
+  html body .traveller-directory-tools>b{width:max-content;max-width:100%}
+  html body .traveller-manager .account-list{padding-right:4px}
+  html body .traveller-manager .account-actions{grid-template-columns:1fr 1fr!important}
+  html body .contact-verified-badge,
+  html body .contact-unverified-badge,
+  html body .contact-email-missing-badge{font-size:10px}
+}
+@media(max-width:420px){html body .traveller-manager .account-actions{grid-template-columns:1fr!important}}

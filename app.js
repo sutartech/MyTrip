@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.64.2";
+  const frontendVersion = "4.64.3";
   const requiredBackendVersion = "4.31.1";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -42,9 +42,11 @@
   const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: config.DEFAULT_CURRENCY || "INR", maximumFractionDigits: 0 });
   const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
   function contactVerificationBadges(account = {}) {
-    const badges = [];
-    if (account.email) badges.push(`<b class="${account.emailVerified ? "contact-verified-badge" : "contact-unverified-badge"}">${account.emailVerified ? "✓ Email verified" : "○ Email unverified"}</b>`);
-    return badges.length ? `<span class="contact-verification-row">${badges.join("")}</span>` : "";
+    const hasEmail = Boolean(String(account.email || "").trim());
+    const verified = hasEmail && Boolean(account.emailVerified);
+    const className = verified ? "contact-verified-badge" : (hasEmail ? "contact-unverified-badge" : "contact-email-missing-badge");
+    const label = verified ? "✓ EMAIL VERIFIED" : (hasEmail ? "○ EMAIL NOT VERIFIED" : "✉ EMAIL NOT ADDED");
+    return `<span class="contact-verification-row" role="status" aria-label="${esc(label)}"><b class="${className}">${label}</b></span>`;
   }
   /* Lightweight, safe rich text for experience notes: the stored value is
      still a plain string, always fully HTML-escaped first, so nothing a
@@ -4214,17 +4216,45 @@
   }
 
   function renderTravellerAccounts(travellers, trips, administratorSecret, demoMode) {
+    travellers = [...travellers].sort((a, b) => String(a.name || a.travellerId).localeCompare(String(b.name || b.travellerId), undefined, { sensitivity: "base" }));
     state.planCtx = { travellers, trips, administratorSecret, demoMode };
     showModal("Traveller profiles", `<div class="traveller-manager"><div class="all-trips-summary"><span><small>PERMANENT TRAVELLER DIRECTORY</small><b>${travellers.length} profiles</b></span><span class="summary-actions"><button id="backToAllTrips" class="secondary-action" type="button">← All trips</button><button id="proRulesToggle" type="button" class="secondary-action">Pro rules…</button><button id="createTravellerAccount" type="button">＋ Add traveller</button></span></div><p class="directory-note">Use <b>Edit details</b> to manage unique mobile/email login and email OTP access. Mobile numbers are saved but are not verified. Use <b>Trip limit</b> to cap how many trips a traveller may create.</p><div class="account-list">${travellers.map((traveller) => `<article class="account-card ${traveller.active ? "" : "inactive"}"><span class="account-avatar${isAdmin() || state.administratorSecret ? " avatar-edit" : ""}"${isAdmin() || state.administratorSecret ? ` data-photo-upload="${esc(traveller.travellerId)}" title="Change ${esc(traveller.name)}'s photo"` : ""}>${avatarSlot(traveller)}${isAdmin() || state.administratorSecret ? "<em>📷</em>" : ""}</span><div class="account-profile"><span>${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email].filter(Boolean).map(esc).join(" · ") || "Contact details not added"}</p><small>${[traveller.city, traveller.emergencyContact ? `Emergency: ${traveller.emergencyContact}` : ""].filter(Boolean).map(esc).join(" · ") || "City and emergency contact not added"}</small><b class="otp-status-pill ${traveller.otpEnabled ? "enabled" : ""}">${traveller.otpEnabled ? "EMAIL OTP ENABLED" : "EMAIL OTP DISABLED"}</b><div class="account-trip-status ${Number(traveller.tripCount || 0) ? "assigned" : "unassigned"}">${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned ${Number(traveller.tripCount) === 1 ? "trip" : "trips"}: ${(traveller.tripIds || []).map(esc).join(", ")}` : "NO TRIP ASSIGNED"}</div></div><div class="account-actions"><button data-view-account="${esc(traveller.travellerId)}">View profile</button><button data-account-trips="${esc(traveller.travellerId)}">Assign trips</button><button class="pin-account-control" data-edit-account-login="${esc(traveller.travellerId)}">✎ Edit login</button><button class="plan-account-control${traveller.plan === "pro" ? " is-pro" : ""}" data-account-plan="${esc(traveller.travellerId)}">${traveller.plan === "pro" ? `<span class="pro-coin" aria-hidden="true">✦</span>PRO MEMBER` : "Free · tap to give Pro"}${traveller.plan === "pro" && traveller.planExpires ? ` · till ${esc(traveller.planExpires)}` : ""}</button><button class="global-profile-control" data-toggle-account="${esc(traveller.travellerId)}" data-active="${Boolean(traveller.active)}">${traveller.active ? "Disable everywhere" : "Enable profile"}</button><button class="delete-profile-control" data-delete-account="${esc(traveller.travellerId)}">Delete profile</button></div></article>`).join("") || `<div class="empty-trips"><b>No traveller profiles</b><p>Add a traveller profile now. A trip does not need to be assigned.</p></div>`}</div></div>`);
+    const directorySummary = $(".traveller-manager .all-trips-summary b");
+    if (directorySummary) directorySummary.textContent = `All ${travellers.length} profiles loaded`;
+    const directoryNote = $(".traveller-manager .directory-note");
+    if (directoryNote) directoryNote.innerHTML = `<b>Every permanent login profile is listed below.</b> Search by name, username, mobile, email, city or Trip ID. Names added only inside one trip are trip members—not permanent login profiles—until an account is created for them.`;
+    const directoryList = $(".traveller-manager .account-list");
+    if (directoryList) {
+      directoryList.id = "travellerDirectoryList";
+      directoryList.insertAdjacentHTML("beforebegin", `<div class="traveller-directory-tools"><label><span>⌕</span><input id="travellerDirectorySearch" type="search" autocomplete="off" placeholder="Search all traveller profiles…" aria-label="Search all traveller profiles"></label><b id="travellerDirectoryCount">Showing all ${travellers.length} profiles</b></div>`);
+      directoryList.insertAdjacentHTML("beforeend", `<div class="empty-trips hidden" id="travellerDirectoryEmpty"><b>No matching profile</b><p>Clear the search to show all ${travellers.length} profiles.</p></div>`);
+    }
     travellers.forEach((traveller) => {
       const viewButton = $$('[data-view-account]').find((button) => button.dataset.viewAccount === traveller.travellerId);
       const card = viewButton?.closest(".account-card");
       if (!card) return;
+      card.dataset.directoryCard = "true";
+      card.dataset.directorySearch = [traveller.name, traveller.travellerId, traveller.phone, traveller.email, traveller.city, ...(traveller.tripIds || [])].filter(Boolean).join(" ").toLowerCase();
       card.querySelector(".account-profile>p")?.insertAdjacentHTML("afterend", contactVerificationBadges(traveller));
       const quota = travellerTripQuotaInfo(traveller);
       card.querySelector(".account-profile")?.insertAdjacentHTML("beforeend", `<span class="trip-create-permission-status ${quota.canCreateAnother ? "allowed" : ""}">${esc(travellerTripQuotaLabel(quota))}</span>`);
       card.querySelector(".account-actions")?.insertAdjacentHTML("afterbegin", `<button class="trip-create-permission-control ${quota.enabled ? "allowed" : ""}" data-set-trip-limit="${esc(traveller.travellerId)}">Set trip limit</button>`);
     });
+    const directorySearch = $("#travellerDirectorySearch");
+    const updateDirectoryFilter = () => {
+      const query = String(directorySearch?.value || "").trim().toLowerCase();
+      let shown = 0;
+      $$('[data-directory-card]').forEach((card) => {
+        const visible = !query || String(card.dataset.directorySearch || "").includes(query);
+        card.classList.toggle("hidden", !visible);
+        if (visible) shown++;
+      });
+      const count = $("#travellerDirectoryCount");
+      if (count) count.textContent = query ? `Showing ${shown} of ${travellers.length} profiles` : `Showing all ${travellers.length} profiles`;
+      $("#travellerDirectoryEmpty")?.classList.toggle("hidden", shown !== 0 || travellers.length === 0);
+      if (query && $("#travellerDirectoryList")) $("#travellerDirectoryList").scrollTop = 0;
+    };
+    directorySearch?.addEventListener("input", updateDirectoryFilter);
     $("#backToAllTrips").addEventListener("click", () => renderAllTrips(trips, administratorSecret, demoMode));
     $("#createTravellerAccount").addEventListener("click", () => showCreateTravellerAccount(trips, administratorSecret, demoMode));
     $$('[data-view-account]').forEach((button) => button.addEventListener("click", () => showTravellerProfile(travellers.find((item) => item.travellerId === button.dataset.viewAccount), trips, administratorSecret, demoMode)));
