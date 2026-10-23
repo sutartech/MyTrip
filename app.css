@@ -1051,6 +1051,31 @@ button:disabled{cursor:wait;opacity:.65}
 .feature-access-option:last-child em{color:#6650ae}
 .account-login-form{display:grid;gap:12px;margin-top:16px}
 .account-login-form button{width:100%;min-height:46px}
+.account-login-actions{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:10px}
+.account-login-actions .login-submit{margin:0}
+.forgot-password-button{width:100%;min-height:38px!important;margin-top:-3px;border:0!important;background:transparent!important;color:#684fc0!important;font-size:11px!important;font-weight:900!important;text-decoration:underline;text-underline-offset:3px;box-shadow:none!important;cursor:pointer}
+.forgot-password-button:hover{color:#194f85!important;background:#ffffff90!important}
+.password-recovery-form .otp-delivery-status{margin-bottom:2px}
+.password-recovery-form .password-input-wrap button{min-width:58px}
+.disabled-field{opacity:.48}
+.disabled-field input{cursor:not-allowed}
+.otp-send-button{border:1.5px solid #8b73d8;border-radius:12px;background:linear-gradient(145deg,#f4f0ff,#eafafa);color:#5a43a9;cursor:pointer}
+.otp-login-form{display:grid;gap:13px!important;margin-top:12px!important;padding:15px;border:1px solid #c9eadf;border-radius:16px;background:linear-gradient(145deg,#effdf7,#f8f3ff);box-shadow:0 10px 25px rgba(40,126,115,.09)}
+.otp-delivery-status{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:center;padding:9px;border-radius:12px;background:#fff;border:1px solid #d9ede7}
+.otp-delivery-status i{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:linear-gradient(145deg,#17a890,#7660d2);color:#fff;font-style:normal}
+.otp-delivery-status p{margin:0!important;color:#315c58!important;font-size:10px!important;font-weight:800!important;line-height:1.4!important}
+.otp-login-actions{display:grid;grid-template-columns:minmax(0,.75fr) minmax(0,1.35fr);gap:10px}
+.otp-login-actions>button{min-height:46px;border:1px solid #cbdde0;border-radius:11px;background:#fff;color:#395569;font-weight:900;cursor:pointer}
+.otp-login-actions>.primary{border:0;color:#fff;background:linear-gradient(110deg,#1295be,#7653cf 62%,#df5289)}
+.modal-form .otp-admin-toggle{display:flex;grid-template-columns:none;align-items:flex-start;gap:11px;padding:13px;border:1px solid #c9e8df;border-radius:13px;background:linear-gradient(145deg,#f1fff9,#f6f2ff);cursor:pointer}
+.modal-form .otp-admin-toggle>input{flex:0 0 20px;width:20px;height:20px;min-height:0;margin-top:2px;padding:0;accent-color:#168f7e}
+.otp-admin-toggle>span{display:grid;gap:3px}.otp-admin-toggle b{color:#21485b;font-size:12px}.otp-admin-toggle small{color:#6f808b;font-size:9px;line-height:1.45}
+.otp-status-pill{display:inline-flex;align-items:center;width:max-content;margin-top:6px;padding:5px 9px;border-radius:999px;background:#fff0ed;color:#a85b4e;font-size:8px;font-weight:900;letter-spacing:.4px}
+.otp-status-pill.enabled{background:#e8fbf4;color:#087a68}
+.contact-verification-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.contact-verified-badge,.contact-unverified-badge{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:999px;font-size:8px;font-weight:900;letter-spacing:.25px}
+.contact-verified-badge{background:#e4fbf1;color:#08775f;border:1px solid #b6ead7}
+.contact-unverified-badge{background:#fff5e4;color:#9a6710;border:1px solid #f3dca9}
 .shared-trip-login{margin-top:12px;border:1px solid #dce5e9;border-radius:11px;background:#f8fbfb}
 .shared-trip-login summary{padding:11px 13px;color:#526c7b;font-size:9px;font-weight:900;cursor:pointer}
 .shared-trip-login form{display:grid;gap:10px;padding:0 13px 13px}
@@ -1282,6 +1307,7 @@ body{font-weight:600}
 @media(max-height:820px) and (min-width:901px){.access-screen{padding:10px 18px}.access-shell{height:calc(100svh - 20px);min-height:0}.access-shell>.access-art{padding-block:34px}.access-shell>.access-panel{padding:18px 38px}.access-shell .access-card h2{font-size:42px}.access-shell .access-card>p{font-size:13px}.access-shell .account-login-form{gap:11px;margin-top:18px}.access-shell .access-card input{min-height:48px}.access-shell .login-submit{min-height:48px!important}.access-shell .login-save-option small{display:none}.visible-shared-access{margin-top:8px}.login-section-divider{height:17px}.login-section-divider span{top:11px}.visible-shared-access>header{margin-top:13px;padding:7px 10px 5px}.visible-shared-access>header>i{width:29px;height:29px}.access-shell .visible-shared-form{gap:7px;padding:7px 10px 9px}.access-shell .visible-shared-form input{min-height:40px}.access-shell .visible-shared-form>button{min-height:38px}.access-shell .version-strip{margin-top:8px}.access-shell .cache-clear-button{min-height:36px;margin-top:6px;padding-block:6px}.login-more-options{margin-top:5px}.login-more-options>summary{padding-top:6px}.access-shell .access-note{margin-top:6px!important}}
 @media(max-width:900px){.access-screen{grid-template-columns:minmax(0,1fr);padding:16px}.access-shell{grid-template-columns:minmax(0,1fr);width:min(680px,100%);height:auto;min-height:0}.access-shell>.access-panel{overflow:visible}.access-shell .access-card{width:min(520px,100%)}}
 @media(max-width:520px){.access-screen{display:grid;grid-template-columns:minmax(0,1fr);place-items:center;padding:0}.access-shell{width:100%;margin:0}.access-shell .access-card h2{font-size:42px}.access-shell .access-card>p{font-size:14px}.access-shell .access-copy h1{font-size:30px}.access-shell .access-copy p{font-size:11px}.access-shell .visible-shared-form label{font-size:11px}}
+@media(max-width:420px){.account-login-actions,.otp-login-actions{grid-template-columns:1fr}.otp-login-actions>button{min-height:48px}}
 .access-screen{background:radial-gradient(circle at 8% 12%,rgba(55,181,238,.34),transparent 30%),radial-gradient(circle at 94% 8%,rgba(141,101,224,.24),transparent 28%),radial-gradient(circle at 88% 92%,rgba(51,205,169,.27),transparent 30%),radial-gradient(circle at 10% 92%,rgba(255,154,105,.22),transparent 25%),linear-gradient(140deg,#effaff 0%,#fbf7ff 49%,#effcf7 100%)}
 .access-shell{border:2px solid rgba(255,255,255,.92);background:linear-gradient(135deg,#fff,#f7fbff);box-shadow:0 30px 80px rgba(31,64,106,.24),0 0 0 1px rgba(90,128,175,.2)}
 .access-shell>.access-art{background:radial-gradient(circle at 96% 4%,rgba(81,213,223,.32) 0 170px,transparent 172px),radial-gradient(circle at 7% 88%,rgba(255,157,91,.2) 0 120px,transparent 122px),linear-gradient(145deg,#073b68 0%,#394a9d 45%,#087f83 100%)}
@@ -2938,7 +2964,7 @@ html body .permission-banner.admin .permission-banner-actions{grid-template-colu
 }
 @media print{html body .trip-announcement{display:none!important}}
 
-/* ---- v4.62.1 secure no-login quick-expense links ---- */
+/* ---- v4.64.0 secure email OTP + no-login quick-expense links ---- */
 html body .quick-expense-admin-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;margin:14px 0;padding:16px 18px;border:1px solid #B5E1D8;border-radius:18px;background:linear-gradient(120deg,#E8FAF5,#F7F0FF 58%,#FFF4E5);box-shadow:0 8px 22px rgba(23,127,112,.1)}
 html body .quick-expense-admin-card>i{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#0A9586,#7251D4);color:#fff;font-size:23px;font-style:normal;box-shadow:0 7px 16px rgba(73,62,160,.24)}
 html body .quick-expense-admin-card h3{margin:2px 0 3px;color:#152A3A;font-family:Georgia,serif;font-size:21px}

@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.62.1";
-  const requiredBackendVersion = "4.29.0";
+  const frontendVersion = "4.64.0";
+  const requiredBackendVersion = "4.31.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -38,6 +38,11 @@
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: config.DEFAULT_CURRENCY || "INR", maximumFractionDigits: 0 });
   const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
+  function contactVerificationBadges(account = {}) {
+    const badges = [];
+    if (account.email) badges.push(`<b class="${account.emailVerified ? "contact-verified-badge" : "contact-unverified-badge"}">${account.emailVerified ? "✓ Email verified" : "○ Email unverified"}</b>`);
+    return badges.length ? `<span class="contact-verification-row">${badges.join("")}</span>` : "";
+  }
   /* Lightweight, safe rich text for experience notes: the stored value is
      still a plain string, always fully HTML-escaped first, so nothing a
      traveller types can ever inject real markup. A small bold / colour /
@@ -94,17 +99,17 @@
       let username = String(localStorage.getItem(savedUsernameStorageKey) || "");
       const legacy = JSON.parse(localStorage.getItem(legacySavedLoginStorageKey) || "null");
       if (!username && legacy && typeof legacy.username === "string") username = legacy.username;
-      if (username) localStorage.setItem(savedUsernameStorageKey, username.slice(0, 40));
+      if (username) localStorage.setItem(savedUsernameStorageKey, username.slice(0, 120));
       localStorage.removeItem(legacySavedLoginStorageKey);
       sessionStorage.removeItem(obsoleteTabPasswordStorageKey);
       if (!username) return null;
-      return { username: username.slice(0, 40) };
+      return { username: username.slice(0, 120) };
     } catch { return null; }
   }
 
   function saveAccountLogin(username) {
     try {
-      localStorage.setItem(savedUsernameStorageKey, String(username || "").slice(0, 40));
+      localStorage.setItem(savedUsernameStorageKey, String(username || "").slice(0, 120));
       localStorage.removeItem(legacySavedLoginStorageKey);
       sessionStorage.removeItem(obsoleteTabPasswordStorageKey);
     }
@@ -179,7 +184,7 @@
     ]
   };
 
-  const state = { data: null, tab: "overview", pin: "", accountUsername: "", authenticated: false, travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "", mapTripId: "", currentUser: "Traveller", accessRole: "traveller", permissions: {}, expenseRowEditId: "", plan: "free", planSource: "free", proEnforced: false, ratingStatus: {} };
+  const state = { data: null, tab: "overview", pin: "", accountUsername: "", accountProfile: {}, authenticated: false, travellerId: "", loginMode: "trip", demoMode: false, mapQuery: "", mapTripId: "", currentUser: "Traveller", accessRole: "traveller", permissions: {}, expenseRowEditId: "", plan: "free", planSource: "free", proEnforced: false, ratingStatus: {} };
   let quickExpenseToken = "", quickExpenseInfo = null, quickExpenseEditId = "";
   const quickGeneratedLinks = new Map();
   const stickyStoragePrefix = "mytrip_trip_stickies_v1";
@@ -417,7 +422,7 @@
 
   function backendUpgradeError(version) {
     const shownVersion = version ? `version ${version}` : "an old version";
-    const error = new Error(`Your Google backend is ${shownVersion}, but a required account, trip announcement, rating grace, Drive photo-gallery, Administrator-login editing, Sticky Note Diary or traveller-login editing capability is missing. Replace Code.gs with the supplied MyTrip ${requiredBackendVersion} build, run setupMyTrip(), then deploy a New version in Apps Script.`);
+    const error = new Error(`Your Google backend is ${shownVersion}, but a required username/mobile/email login, email OTP, verification badge, trip announcement, Drive photo-gallery, Sticky Note Diary or traveller-management capability is missing. Replace Code.gs with the supplied MyTrip ${requiredBackendVersion} build, run setupMyTrip(), then deploy a New version in Apps Script.`);
     error.code = "BACKEND_UPGRADE_REQUIRED";
     return error;
   }
@@ -425,7 +430,7 @@
   async function verifyBackendVersion(url = apiUrl) {
     const info = await requestAt(url, "ping");
     backendVersion = String(info && info.version || "");
-    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.sharedTripList !== true || info.accountLogin !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true || info.tripAnnouncements !== true || info.ratingProGrace !== true || info.quickExpenseLinks !== true || info.quickExpenseAnyPayer !== true) throw backendUpgradeError(backendVersion);
+    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.sharedTripList !== true || info.accountLogin !== true || info.identifierLogin !== true || info.otpLogin !== true || info.otpEmail !== true || info.emailOnlyOtp !== true || info.contactVerification !== true || info.passwordResetOtp !== true || info.batchedSheetIO !== true || info.singleDriveRoot !== true || info.originalPhotos20MB !== true || info.quickExpenseNoExpiry !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true || info.tripAnnouncements !== true || info.ratingProGrace !== true || info.quickExpenseLinks !== true || info.quickExpenseAnyPayer !== true) throw backendUpgradeError(backendVersion);
     return info;
   }
 
@@ -588,13 +593,14 @@
     try { hideTabbar(); } catch (error) {}
     clearSession(); clearOfflineTripCaches();
     stopIdleTimer();
-    state.data = null; state.pin = ""; state.accountUsername = ""; state.authenticated = false; state.travellerId = ""; state.loginMode = "trip"; state.expenseRowEditId = "";
+    state.data = null; state.pin = ""; state.accountUsername = ""; state.accountProfile = {}; state.authenticated = false; state.travellerId = ""; state.loginMode = "trip"; state.expenseRowEditId = "";
     state.demoMode = false; state.currentUser = "Traveller"; state.accessRole = "traveller"; state.permissions = {};
     stickyNotes = [];
     closeStickyPanel(); closeQuickFind(); setStickyControlsVisible(false); closeModal();
     $("#floatingStickyLayer").innerHTML = ""; $("#floatingStickyLayer").classList.add("hidden");
     $("#dashboard").classList.add("hidden"); $("#accountHub").classList.add("hidden"); $("#accessScreen").classList.remove("hidden");
     $("#joinForm").reset(); $("#accountLoginForm").reset();
+    resetOtpLogin();
     setLoginPasswordVisible(false); restoreSavedAccountLogin();
     try { history.replaceState({}, "", location.pathname); } catch {}
     toast(message);
@@ -676,7 +682,7 @@
   function canViewPlaces() { return isAdmin() || state.permissions.viewPlaces !== false; }
   function canViewExpenses() { return isAdmin() || state.permissions.viewExpenses !== false; }
   function canViewTravellers() { return isAdmin() || state.permissions.viewTravellers !== false; }
-  const PRO_FEATURES = [["personPrint", "Person-wise expense print", "Print each traveller's expenses separately"], ["originalPhotos", "Original-quality photos", "Upload full-size photos up to 15 MB"], ["unlimitedTrips", "Unlimited trips & travellers", "No trip or group-size cap"], ["familyGroups", "Family groups", "Split expenses by family"], ["exportPlus", "PDF & Excel export", "Share clean reports with everyone"], ["themes", "Extra themes", "More colours and looks"]];
+  const PRO_FEATURES = [["personPrint", "Person-wise expense print", "Print each traveller's expenses separately"], ["originalPhotos", "Original-quality photos", "Upload full-size photos up to 20 MB"], ["unlimitedTrips", "Unlimited trips & travellers", "No trip or group-size cap"], ["familyGroups", "Family groups", "Split expenses by family"], ["exportPlus", "PDF & Excel export", "Share clean reports with everyone"], ["themes", "Extra themes", "More colours and looks"]];
   function isPro() { return isAdmin() || state.plan === "pro"; }
   function proLocked(feature) { return Boolean(state.proEnforced) && !isPro(); }
   function requirePro(feature) { if (!proLocked(feature)) return true; showUpgradeSheet(feature); return false; }
@@ -2098,11 +2104,11 @@
     const rows = (data.travellers || []).map((traveller) => {
       const latest = passes.filter((p) => String(p.travellerId).toUpperCase() === String(traveller.travellerId).toUpperCase()).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
       const generated = quickGeneratedLinks.get(String(traveller.travellerId).toUpperCase());
-      const expired = latest && String(latest.expiresAt || "") < now;
+      const expired = Boolean(latest && latest.expiresAt && String(latest.expiresAt) < now);
       const status = !latest ? "Not created" : expired ? "Expired" : latest.enabled ? "Active" : "Disabled";
       const statusClass = !latest ? "new" : expired ? "expired" : latest.enabled ? "active" : "disabled";
       const unavailable = !traveller.active || !traveller.expenseAccess;
-      const reason = !traveller.active ? "Traveller account inactive" : !traveller.expenseAccess ? "Expense access disabled" : latest ? `Expires ${displayDate(latest.expiresAt)} · ${latest.dailyLimit}/day · edit ${latest.editMinutes} min · ${latest.allowAnyPayer ? "any payer" : "payer locked"}` : "No expense-only link yet";
+      const reason = !traveller.active ? "Traveller account inactive" : !traveller.expenseAccess ? "Expense access disabled" : latest ? `${latest.expiresAt ? `Expires ${displayDate(latest.expiresAt)}` : "Valid until disabled"} · ${latest.dailyLimit}/day · edit ${latest.editMinutes} min · ${latest.allowAnyPayer ? "any payer" : "payer locked"}` : "No expense-only link yet";
       const share = generated && latest && generated.passId === latest.id ? `<div class="quick-pass-share"><input value="${esc(generated.link)}" readonly aria-label="Quick expense link"><button type="button" data-quick-copy="${esc(traveller.travellerId)}">Copy</button><button type="button" data-quick-share="${esc(traveller.travellerId)}">Share</button><small>Shown only now. Regenerate later if this copy is lost.</small></div>` : "";
       return `<article class="quick-pass-row ${statusClass}"><div class="quick-pass-person">${avatarSlot(traveller)}<span><b>${esc(traveller.name)}</b><small>${esc(traveller.travellerId)}</small></span></div><div class="quick-pass-status"><b>${status}</b><small>${esc(reason)}</small></div><div class="quick-pass-actions">${latest && !expired ? `<button type="button" data-quick-toggle="${esc(latest.id)}" data-enabled="${latest.enabled ? "false" : "true"}">${latest.enabled ? "Disable" : "Enable"}</button>` : ""}<button type="button" class="primary" data-quick-create="${esc(traveller.travellerId)}" ${unavailable ? "disabled" : ""}>${latest ? "Regenerate" : "Create link"}</button></div>${share}</article>`;
     }).join("");
@@ -2117,14 +2123,16 @@
   }
 
   function showQuickExpensePassForm(travellerId) {
-    showModal("Create no-login expense link", `<form class="modal-form quick-pass-form" id="quickExpensePassForm"><div class="profile-id-banner"><span>LINK OWNER / AUDIT TRAIL</span><b>${esc(travellerId)}</b><small>This account identifies which link submitted each entry</small></div><label class="quick-pass-payer-option"><input name="allowAnyPayer" type="checkbox" value="true"><span><b>Allow expense in the name of any traveller</b><small>Anyone holding this no-login link can choose any assigned traveller in the <b>Paid by</b> field.</small></span></label><label>Link valid until<input name="expiresAt" type="date" min="${esc(localDateKey())}" value="${esc(quickExpenseDefaultExpiry())}" required></label><div class="form-row"><label>Maximum new entries per day<input name="dailyLimit" type="number" min="1" max="100" value="30" required></label><label>Link user may correct/delete for<input name="editMinutes" type="number" min="0" max="1440" value="30" required><small>minutes after saving · 0 disables correction</small></label></div><div class="security-note"><i>!</i><p>Anyone who receives this link can use it without signing in. Regenerating disables every older active quick link for this traveller. The new link is shown once for copying or sharing.</p></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Generate secure link</button></div></form>`);
+    showModal("Create no-login expense link", `<form class="modal-form quick-pass-form" id="quickExpensePassForm"><div class="profile-id-banner"><span>LINK OWNER / AUDIT TRAIL</span><b>${esc(travellerId)}</b><small>This account identifies which link submitted each entry</small></div><label class="quick-pass-payer-option"><input name="allowAnyPayer" type="checkbox" value="true"><span><b>Allow expense in the name of any traveller</b><small>Anyone holding this no-login link can choose any assigned traveller in the <b>Paid by</b> field.</small></span></label><label class="quick-pass-payer-option"><input name="neverExpires" type="checkbox" value="true"><span><b>Keep valid until Administrator disables it</b><small>No calendar expiry. Trip/account/expense permission controls and the Disable button still stop access immediately.</small></span></label><label data-quick-expiry-field>Link valid until<input name="expiresAt" type="date" min="${esc(localDateKey())}" value="${esc(quickExpenseDefaultExpiry())}" required></label><div class="form-row"><label>Maximum new entries per day<input name="dailyLimit" type="number" min="1" max="100" value="30" required></label><label>Link user may correct/delete for<input name="editMinutes" type="number" min="0" max="1440" value="30" required><small>minutes after saving · 0 disables correction</small></label></div><div class="security-note"><i>!</i><p>Anyone who receives this link can use it without signing in. Regenerating disables every older active quick link for this traveller. The new link is shown once for copying or sharing.</p></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Generate secure link</button></div></form>`);
     $("[data-cancel]").addEventListener("click", showQuickExpenseLinks);
+    const expiryToggle = $("#quickExpensePassForm input[name=neverExpires]");
+    expiryToggle.addEventListener("change", () => { const input = $("#quickExpensePassForm input[name=expiresAt]"); input.disabled = expiryToggle.checked; input.required = !expiryToggle.checked; $("[data-quick-expiry-field]").classList.toggle("disabled-field", expiryToggle.checked); });
     $("#quickExpensePassForm").addEventListener("submit", async (event) => {
       event.preventDefault(); const form = event.currentTarget, submit = form.querySelector('button[type="submit"]'); submit.disabled = true; submit.textContent = "Generating…";
       const values = Object.fromEntries(new FormData(form).entries()); const token = createQuickExpenseToken(); const passId = uid();
       try {
-        const allowAnyPayer = form.elements.allowAnyPayer.checked;
-        const result = state.demoMode ? { pass: { id: passId, allowAnyPayer } } : await api("createQuickExpensePass", authPayload({ travellerId, quickToken: token, settings: { id: passId, expiresAt: values.expiresAt, dailyLimit: Number(values.dailyLimit), editMinutes: Number(values.editMinutes), allowAnyPayer } }));
+        const allowAnyPayer = form.elements.allowAnyPayer.checked, neverExpires = form.elements.neverExpires.checked;
+        const result = state.demoMode ? { pass: { id: passId, allowAnyPayer } } : await api("createQuickExpensePass", authPayload({ travellerId, quickToken: token, settings: { id: passId, expiresAt: neverExpires ? "" : values.expiresAt, neverExpires, dailyLimit: Number(values.dailyLimit), editMinutes: Number(values.editMinutes), allowAnyPayer } }));
         quickGeneratedLinks.set(travellerId.toUpperCase(), { passId: result.pass.id, link: quickExpensePublicLink(token), allowAnyPayer: Boolean(result.pass.allowAnyPayer) });
         toast("Secure quick-expense link created"); await showQuickExpenseLinks();
       } catch (error) { submit.disabled = false; submit.textContent = "Generate secure link"; toast(error.message, true); }
@@ -3816,7 +3824,7 @@
   }
 
   function showBackendSetup(afterConnect) {
-    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v${requiredBackendVersion} or newer required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This enables common login, traveller trip-creation permission, the Drive photo gallery, settlement records and the <code>StickyNoteDiary</code> Google Sheet.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. Account login, traveller credentials, photo gallery, settlement, version and Sticky Note Diary capabilities are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test and connect</button></div></form>`);
+    showModal("Connect Google backend", `<form class="modal-form" id="backendForm"><div class="setup-note"><i>G</i><div><b>MyTrip backend v${requiredBackendVersion} or newer required</b><p>Replace Apps Script <code>Code.gs</code>, run <code>setupMyTrip()</code>, and deploy a <b>New version</b>. This enables username/mobile/email login, email OTP, email verification, trip permissions, Drive photos and the Google Sheet registers.</p></div></div><label>Google Apps Script Web App URL<input name="apiUrl" type="url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url" required></label><p class="form-help">Use the deployed <b>/exec</b> URL, not the testing <b>/dev</b> URL. Login, OTP, traveller credentials, photo gallery, version and data capabilities are checked before saving.</p><a class="setup-guide-link" href="SETUP-GUIDE.md" target="_blank" rel="noreferrer">Open the Google setup guide ↗</a><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Test and connect</button></div></form>`);
     const form = $("#backendForm");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -4002,6 +4010,7 @@
     loadProfilePhotos();
     const items = visibleLibraryTrips(trips);
     $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="all-trips-summary"><i class="avatar-edit admin-avatar" data-photo-upload="admin" title="Change the Administrator photo">${avatarSlot({ name: state.currentUser || "Administrator", isAdmin: true })}<em>📷</em></i><span><small>ADMINISTRATOR LIBRARY</small><b>${items.length} ${items.length === 1 ? "trip" : "trips"}</b></span><span class="summary-actions"><button id="changeAdministratorLogin" class="secondary-action" type="button">⚿ Change login</button><button id="idleSignoutSetting" class="secondary-action" type="button">⏻ Auto sign-out: ${idleLabel(idleMinutes)}</button><button id="manageTravellerAccounts" class="secondary-action" type="button">♙ Traveller profiles</button>${hiddenTripsBar(trips)}<button id="resetTripOrder" class="secondary-action" type="button">↕ Reset order</button><button id="createFromTrips" type="button">＋ Create trip</button></span></div><div class="trip-library admin-library">${items.map((trip, position) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}">${libraryCover(trip)}${tripCardTools(trip, position, items.length)}<div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button data-open-admin-trip="${esc(trip.tripId)}" type="button">Open</button><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">Edit</button><button data-assign-trip="${esc(trip.tripId)}" type="button">Travellers</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "Disable" : "Enable"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete</button></div></article>`).join("") || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip with this Administrator account.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
+    $(".account-hub-hero.admin>div")?.insertAdjacentHTML("beforeend", contactVerificationBadges(state.accountProfile || {}));
     $$('[data-move-trip]').forEach((button) => button.addEventListener("click", async () => {
       button.disabled = true;
       if (await moveTripInOrder(button.dataset.moveTrip, Number(button.dataset.direction), items)) { renderAllTrips(state.libraryTrips, administratorSecret, demoMode); toast("Trip order saved for everyone"); }
@@ -4030,20 +4039,22 @@
   }
 
   function showAdministratorLoginChange(currentPassword, trips, demoMode) {
-    showModal("Change Administrator login", `<form class="modal-form" id="administratorLoginForm"><div class="security-note"><i>⚿</i><p>Choose your permanent Administrator username and password. The old login will stop working immediately after saving.</p></div><label>New Administrator username<input name="newUsername" minlength="3" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,39}" value="${esc(state.accountUsername)}" autocomplete="username" required></label><div class="form-row"><label>New password<input name="newPassword" type="password" minlength="6" maxlength="64" autocomplete="new-password" placeholder="6–64 characters" required></label><label>Confirm new password<input name="confirmPassword" type="password" minlength="6" maxlength="64" autocomplete="new-password" required></label></div><p class="form-help">This changes the global Administrator login only. Shared trip passwords and Traveller passwords are not changed.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save new login</button></div></form>`);
+    const profile = state.accountProfile || {};
+    showModal("Administrator login & email OTP", `<form class="modal-form" id="administratorLoginForm"><div class="security-note"><i>⚿</i><p>Choose the Administrator username and password, and control email OTP login. Old login details stop working immediately after saving.</p></div><label>Administrator username<input name="newUsername" minlength="3" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,39}" value="${esc(state.accountUsername)}" autocomplete="username" required></label><div class="form-row"><label>Mobile number <small>(contact and password login only)</small><input name="phone" type="tel" maxlength="30" value="${esc(profile.phone || "")}" placeholder="e.g. +91 98765 43210"></label><label>Email address <small>(OTP and recovery)</small><input name="email" type="email" maxlength="120" value="${esc(profile.email || "")}" placeholder="name@example.com"></label></div><label class="otp-admin-toggle"><input name="otpEnabled" type="checkbox"${profile.otpEnabled ? " checked" : ""}><span><b>Allow email OTP login</b><small>Every verification and password-reset code is sent only to this email. Mobile verification and SMS are not used.</small></span></label><div class="form-row"><label>New password<input name="newPassword" type="password" minlength="6" maxlength="64" autocomplete="new-password" placeholder="6–64 characters" required></label><label>Confirm new password<input name="confirmPassword" type="password" minlength="6" maxlength="64" autocomplete="new-password" required></label></div><p class="form-help">The same account can sign in with its username, registered mobile number or email. Shared trip passwords and Traveller passwords are not changed.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save login & OTP</button></div></form>`);
     $("#administratorLoginForm").addEventListener("submit", async (event) => {
       event.preventDefault();
-      const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const formData = new FormData(event.currentTarget), values = Object.fromEntries(formData.entries()); values.otpEnabled = formData.has("otpEnabled");
       if (values.newPassword !== values.confirmPassword) return toast("The two password entries do not match", true);
       try {
-        if (!demoMode) await api("changeAdministratorLogin", { username: state.accountUsername, password: currentPassword, newUsername: values.newUsername, newPassword: values.newPassword });
+        const updated = demoMode ? { account: { username: values.newUsername, email: values.email, phone: values.phone, otpEnabled: values.otpEnabled, role: "administrator" } } : await api("changeAdministratorLogin", { username: state.accountUsername, password: currentPassword, newUsername: values.newUsername, newPassword: values.newPassword, email: values.email, phone: values.phone, otpEnabled: values.otpEnabled });
         const savedLogin = readSavedAccountLogin();
         state.accountUsername = String(values.newUsername || "").trim().toLowerCase();
+        state.accountProfile = updated.account || { username: state.accountUsername, email: values.email, phone: values.phone, otpEnabled: values.otpEnabled, role: "administrator" };
         state.pin = String(values.newPassword);
         if (savedLogin) saveAccountLogin(state.accountUsername);
         closeModal();
         renderAllTrips(trips, state.pin, demoMode);
-        toast("Administrator username and password updated");
+        toast(`Administrator login updated · OTP ${values.otpEnabled ? "enabled" : "disabled"}`);
       } catch (error) { toast(error.message, true); }
     });
     $('[data-cancel]').addEventListener("click", closeModal);
@@ -4067,7 +4078,9 @@
     try {
       if (!demoMode) await ensureCurrentBackend();
       state.accountUsername = String(username || "administrator").trim().toLowerCase(); state.pin = administratorSecret; state.administratorSecret = administratorSecret; state.demoMode = demoMode; state.authenticated = true; state.accessRole = "administrator";
-      const trips = demoMode ? demoTrips : (await api("listTrips", { username: state.accountUsername, password: administratorSecret, pin: administratorSecret })).trips;
+      const result = demoMode ? { trips: demoTrips, account: { username: state.accountUsername, role: "administrator", email: "", phone: "", otpEnabled: false, emailOnlyOtp: true } } : await api("listTrips", { username: state.accountUsername, password: administratorSecret, pin: administratorSecret });
+      state.accountProfile = result.account || state.accountProfile || {};
+      const trips = result.trips || [];
       renderAllTrips(trips, administratorSecret, demoMode);
     } catch (error) { toast(error.message, true); }
   }
@@ -4082,6 +4095,7 @@
       if (!demoMode) await ensureCurrentBackend();
       state.accountUsername = String(traveller.travellerId || state.accountUsername || "").trim().toUpperCase(); state.pin = pin; state.demoMode = demoMode; state.authenticated = true; state.accessRole = "traveller"; state.travellerId = state.accountUsername;
       const result = demoMode ? { traveller, trips: demoTrips.filter((trip) => tripEnabled(trip) && traveller.tripIds.includes(trip.tripId)) } : await api("listMyTrips", { username: state.accountUsername, password: pin, travellerId: state.accountUsername, pin });
+      state.accountProfile = result.traveller || state.accountProfile || {};
       renderMyTrips(result.trips || [], pin, result.traveller || traveller, demoMode);
     } catch (error) { toast(error.message, true); }
   }
@@ -4117,6 +4131,7 @@
       return `<article class="trip-library-card"><i>♙</i><div><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>${details.join(" · ")}</small></div><button data-open-my-trip="${esc(trip.tripId)}" type="button">Open →</button></article>`;
     }).join("");
     $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero traveller"><div><span>MY TRAVEL DASHBOARD</span><h1>Every permitted trip</h1><p>Signed in as <b>${esc(traveller.travellerId)}</b>. Open a trip to view and manage every feature allowed by the Administrator.</p></div><strong>${trips.length} ${trips.length === 1 ? "TRIP" : "TRIPS"}</strong></div><div class="all-trips-modal"><div class="self-profile-card"><i class="avatar-edit" data-photo-upload="${esc(traveller.travellerId)}" title="Change my photo">${avatarSlot(traveller)}<em>📷</em></i><div><span>USERNAME · ${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email, traveller.city].filter(Boolean).map(esc).join(" · ") || "Personal traveller profile"}</p></div><b class="${canCreateAnotherTrip ? "trip-creation-allowed" : ""}">${travellerTripQuotaLabel(quota)}</b></div>${proMemberCard(traveller)}<div class="pw-tools"><button type="button" class="secondary-action" data-change-my-pw>⚿ Change my password</button><button type="button" class="secondary-action" data-owner-reset-pw>♙ Reset traveller password</button></div><div class="profile-trip-heading self"><div><span class="kicker">ALL MY TRIPS</span><h3>Trips available with this account</h3></div>${canCreateAnotherTrip ? `<button id="createTravellerTrip" type="button">＋ Create trip (${quota.remaining} left)</button>` : ""}</div><div class="trip-library">${tripCards || `<div class="empty-trips"><b>No active trips assigned</b><p>${canCreateAnotherTrip ? "Create a new trip using the button above." : `Ask the Administrator to assign trips or increase the creation limit for username ${esc(traveller.travellerId)}.`}</p></div>`}</div><p class="global-access-note">♙ ${canCreateTrips ? (canCreateAnotherTrip ? `The Global Administrator allows up to ${quota.limit} created ${quota.limit === 1 ? "trip" : "trips"}; ${quota.remaining} ${quota.remaining === 1 ? "slot remains" : "slots remain"}.` : `Your creation limit is ${quota.limit}; existing trips are preserved, but no new trip can be created until the Administrator increases the limit.`) : "Trip creation is disabled. This account still shows every active trip assigned now or in the future."}</p></div></section>`;
+    $(".self-profile-card>div")?.insertAdjacentHTML("beforeend", contactVerificationBadges(traveller));
 
     showAccountHub("traveller", `TRAVELLER · ${traveller.travellerId}`);
     $$('[data-open-my-trip]').forEach((button) => button.addEventListener("click", () => openListedTrip(button.dataset.openMyTrip, pin, demoMode, "traveller", traveller)));
@@ -4170,11 +4185,12 @@
 
   function renderTravellerAccounts(travellers, trips, administratorSecret, demoMode) {
     state.planCtx = { travellers, trips, administratorSecret, demoMode };
-    showModal("Traveller profiles", `<div class="traveller-manager"><div class="all-trips-summary"><span><small>PERMANENT TRAVELLER DIRECTORY</small><b>${travellers.length} profiles</b></span><span class="summary-actions"><button id="backToAllTrips" class="secondary-action" type="button">← All trips</button><button id="proRulesToggle" type="button" class="secondary-action">Pro rules…</button><button id="createTravellerAccount" type="button">＋ Add traveller</button></span></div><p class="directory-note">Use <b>Trip limit</b> to cap, increase, reduce or disable how many trips a traveller may create. Assigned trips do not consume this limit.</p><div class="account-list">${travellers.map((traveller) => `<article class="account-card ${traveller.active ? "" : "inactive"}"><span class="account-avatar${isAdmin() || state.administratorSecret ? " avatar-edit" : ""}"${isAdmin() || state.administratorSecret ? ` data-photo-upload="${esc(traveller.travellerId)}" title="Change ${esc(traveller.name)}'s photo"` : ""}>${avatarSlot(traveller)}${isAdmin() || state.administratorSecret ? "<em>📷</em>" : ""}</span><div class="account-profile"><span>${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email].filter(Boolean).map(esc).join(" · ") || "Contact details not added"}</p><small>${[traveller.city, traveller.emergencyContact ? `Emergency: ${traveller.emergencyContact}` : ""].filter(Boolean).map(esc).join(" · ") || "City and emergency contact not added"}</small><div class="account-trip-status ${Number(traveller.tripCount || 0) ? "assigned" : "unassigned"}">${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned ${Number(traveller.tripCount) === 1 ? "trip" : "trips"}: ${(traveller.tripIds || []).map(esc).join(", ")}` : "NO TRIP ASSIGNED"}</div></div><div class="account-actions"><button data-view-account="${esc(traveller.travellerId)}">View profile</button><button data-account-trips="${esc(traveller.travellerId)}">Assign trips</button><button class="pin-account-control" data-edit-account-login="${esc(traveller.travellerId)}">✎ Edit login</button><button class="plan-account-control${traveller.plan === "pro" ? " is-pro" : ""}" data-account-plan="${esc(traveller.travellerId)}">${traveller.plan === "pro" ? `<span class="pro-coin" aria-hidden="true">✦</span>PRO MEMBER` : "Free · tap to give Pro"}${traveller.plan === "pro" && traveller.planExpires ? ` · till ${esc(traveller.planExpires)}` : ""}</button><button class="global-profile-control" data-toggle-account="${esc(traveller.travellerId)}" data-active="${Boolean(traveller.active)}">${traveller.active ? "Disable everywhere" : "Enable profile"}</button><button class="delete-profile-control" data-delete-account="${esc(traveller.travellerId)}">Delete profile</button></div></article>`).join("") || `<div class="empty-trips"><b>No traveller profiles</b><p>Add a traveller profile now. A trip does not need to be assigned.</p></div>`}</div></div>`);
+    showModal("Traveller profiles", `<div class="traveller-manager"><div class="all-trips-summary"><span><small>PERMANENT TRAVELLER DIRECTORY</small><b>${travellers.length} profiles</b></span><span class="summary-actions"><button id="backToAllTrips" class="secondary-action" type="button">← All trips</button><button id="proRulesToggle" type="button" class="secondary-action">Pro rules…</button><button id="createTravellerAccount" type="button">＋ Add traveller</button></span></div><p class="directory-note">Use <b>Edit details</b> to manage unique mobile/email login and email OTP access. Mobile numbers are saved but are not verified. Use <b>Trip limit</b> to cap how many trips a traveller may create.</p><div class="account-list">${travellers.map((traveller) => `<article class="account-card ${traveller.active ? "" : "inactive"}"><span class="account-avatar${isAdmin() || state.administratorSecret ? " avatar-edit" : ""}"${isAdmin() || state.administratorSecret ? ` data-photo-upload="${esc(traveller.travellerId)}" title="Change ${esc(traveller.name)}'s photo"` : ""}>${avatarSlot(traveller)}${isAdmin() || state.administratorSecret ? "<em>📷</em>" : ""}</span><div class="account-profile"><span>${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email].filter(Boolean).map(esc).join(" · ") || "Contact details not added"}</p><small>${[traveller.city, traveller.emergencyContact ? `Emergency: ${traveller.emergencyContact}` : ""].filter(Boolean).map(esc).join(" · ") || "City and emergency contact not added"}</small><b class="otp-status-pill ${traveller.otpEnabled ? "enabled" : ""}">${traveller.otpEnabled ? "EMAIL OTP ENABLED" : "EMAIL OTP DISABLED"}</b><div class="account-trip-status ${Number(traveller.tripCount || 0) ? "assigned" : "unassigned"}">${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned ${Number(traveller.tripCount) === 1 ? "trip" : "trips"}: ${(traveller.tripIds || []).map(esc).join(", ")}` : "NO TRIP ASSIGNED"}</div></div><div class="account-actions"><button data-view-account="${esc(traveller.travellerId)}">View profile</button><button data-account-trips="${esc(traveller.travellerId)}">Assign trips</button><button class="pin-account-control" data-edit-account-login="${esc(traveller.travellerId)}">✎ Edit login</button><button class="plan-account-control${traveller.plan === "pro" ? " is-pro" : ""}" data-account-plan="${esc(traveller.travellerId)}">${traveller.plan === "pro" ? `<span class="pro-coin" aria-hidden="true">✦</span>PRO MEMBER` : "Free · tap to give Pro"}${traveller.plan === "pro" && traveller.planExpires ? ` · till ${esc(traveller.planExpires)}` : ""}</button><button class="global-profile-control" data-toggle-account="${esc(traveller.travellerId)}" data-active="${Boolean(traveller.active)}">${traveller.active ? "Disable everywhere" : "Enable profile"}</button><button class="delete-profile-control" data-delete-account="${esc(traveller.travellerId)}">Delete profile</button></div></article>`).join("") || `<div class="empty-trips"><b>No traveller profiles</b><p>Add a traveller profile now. A trip does not need to be assigned.</p></div>`}</div></div>`);
     travellers.forEach((traveller) => {
       const viewButton = $$('[data-view-account]').find((button) => button.dataset.viewAccount === traveller.travellerId);
       const card = viewButton?.closest(".account-card");
       if (!card) return;
+      card.querySelector(".account-profile>p")?.insertAdjacentHTML("afterend", contactVerificationBadges(traveller));
       const quota = travellerTripQuotaInfo(traveller);
       card.querySelector(".account-profile")?.insertAdjacentHTML("beforeend", `<span class="trip-create-permission-status ${quota.canCreateAnother ? "allowed" : ""}">${esc(travellerTripQuotaLabel(quota))}</span>`);
       card.querySelector(".account-actions")?.insertAdjacentHTML("afterbegin", `<button class="trip-create-permission-control ${quota.enabled ? "allowed" : ""}" data-set-trip-limit="${esc(traveller.travellerId)}">Set trip limit</button>`);
@@ -4348,11 +4364,11 @@
   }
 
   function showCreateTravellerAccount(trips, administratorSecret, demoMode) {
-    showModal("Add traveller account", `<form class="modal-form" id="createTravellerAccountForm"><div class="security-note traveller-note"><i>♙</i><p>This creates an independent username and password. <b>No trip will be assigned automatically.</b></p></div><div class="form-row"><label>Traveller name<input name="name" maxlength="80" placeholder="e.g. Anita Sutar" required></label><label>Username <small>(optional)</small><input name="travellerId" maxlength="30" placeholder="Generated if blank"></label></div><div class="form-row"><label>Phone<input name="phone" type="tel" maxlength="30" placeholder="e.g. +91 98765 43210"></label><label>Email<input name="email" type="email" maxlength="120" placeholder="name@example.com"></label></div><label>City or location<input name="city" maxlength="80" placeholder="e.g. Bengaluru"></label><label>Emergency contact<input name="emergencyContact" maxlength="120" placeholder="Name and phone number"></label><label>Notes<textarea name="notes" rows="3" maxlength="1000" placeholder="Food preference, accessibility requirement or other useful note"></textarea></label><label>Personal password<input name="pin" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="4–64 characters" required></label><p class="form-help">The permanent username is the Traveller ID. After saving, assign one or more trips when required.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Create account</button></div></form>`);
+    showModal("Add traveller account", `<form class="modal-form" id="createTravellerAccountForm"><div class="security-note traveller-note"><i>♙</i><p>This creates an independent username and password. <b>No trip will be assigned automatically.</b></p></div><div class="form-row"><label>Traveller name<input name="name" maxlength="80" placeholder="e.g. Anita Sutar" required></label><label>Username <small>(optional)</small><input name="travellerId" maxlength="30" placeholder="Generated if blank"></label></div><div class="form-row"><label>Mobile number <small>(no verification)</small><input name="phone" type="tel" maxlength="30" placeholder="e.g. +91 98765 43210"></label><label>Email <small>(OTP and recovery)</small><input name="email" type="email" maxlength="120" placeholder="name@example.com"></label></div><label class="otp-admin-toggle"><input name="otpEnabled" type="checkbox"><span><b>Allow email OTP login for this traveller</b><small>An email address is required. MyTrip does not send SMS or verify mobile numbers.</small></span></label><label>City or location<input name="city" maxlength="80" placeholder="e.g. Bengaluru"></label><label>Emergency contact<input name="emergencyContact" maxlength="120" placeholder="Name and phone number"></label><label>Notes<textarea name="notes" rows="3" maxlength="1000" placeholder="Food preference, accessibility requirement or other useful note"></textarea></label><label>Personal password<input name="pin" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="4–64 characters" required></label><p class="form-help">This account may sign in with its username, unique mobile number or unique email. The Administrator controls email OTP access.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Create account</button></div></form>`);
     const createForm = $("#createTravellerAccountForm");
     createForm.querySelector(".form-actions").insertAdjacentHTML("beforebegin", `<label>Trip-creation limit<input type="number" name="tripCreationLimit" min="0" max="100" step="1" value="0" required><small>Use 0 to disable creation. The Administrator can increase or reduce this limit later.</small></label>`);
     createForm.addEventListener("submit", async (event) => {
-      event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); values.tripCreationLimit = Number(values.tripCreationLimit); values.canCreateTrips = values.tripCreationLimit > 0;
+      event.preventDefault(); const formData = new FormData(event.currentTarget), values = Object.fromEntries(formData.entries()); values.otpEnabled = formData.has("otpEnabled"); values.tripCreationLimit = Number(values.tripCreationLimit); values.canCreateTrips = values.tripCreationLimit > 0;
       try {
         let created;
         if (demoMode) { created = { ...values, travellerId: String(values.travellerId || `TRV-${Math.floor(100 + Math.random() * 900)}`).toUpperCase(), active: true, tripCount: 0, tripIds: [] }; delete created.pin; demoTravellerAccounts.push(created); }
@@ -4368,7 +4384,8 @@
     const allowed = (traveller.tripIds || []).map((tripId) => trips.find((trip) => trip.tripId === tripId)).filter(Boolean);
     showModal("Traveller profile", `<div class="traveller-profile-view"><div class="profile-hero"><i class="avatar-edit" data-photo-upload="${esc(traveller.travellerId)}" title="Change this traveller's photo">${avatarSlot(traveller)}<em>📷</em></i><div><span>${esc(traveller.travellerId)}</span><h2>${esc(traveller.name)}</h2><p>${traveller.active ? "Active personal access" : "Inactive personal access"}</p></div></div><div class="profile-detail-grid"><span><small>PHONE</small><b>${esc(traveller.phone || "Not added")}</b></span><span><small>EMAIL</small><b>${esc(traveller.email || "Not added")}</b></span><span><small>CITY</small><b>${esc(traveller.city || "Not added")}</b></span><span><small>EMERGENCY CONTACT</small><b>${esc(traveller.emergencyContact || "Not added")}</b></span></div>${traveller.notes ? `<div class="profile-notes"><small>NOTES</small><p>${esc(traveller.notes)}</p></div>` : ""}<div class="profile-trip-heading"><div><span class="kicker">ALLOWED TRIPS</span><h3>${allowed.length} ${allowed.length === 1 ? "trip" : "trips"} in this profile</h3></div><button id="profileAssignTrips" type="button">Manage trips</button></div><div class="profile-trip-list">${allowed.map((trip) => `<article><div><span>TRIP ID · ${esc(trip.tripId)}</span><h4>${esc(trip.name)}</h4><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p></div><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></article>`).join("") || `<div class="empty-profile-trips"><b>No trip assigned</b><p>This permanent profile is ready. Trips can be added later.</p></div>`}</div><div class="form-actions profile-actions"><button id="profileBack" type="button">← Back</button><button id="profileTripLimit" type="button">Trip limit</button><button id="profileEdit" type="button">Edit details</button><button id="profileEditLogin" class="pin-primary-action" type="button">✎ Edit login</button></div></div>`);
     const quota = travellerTripQuotaInfo(traveller);
-    $(".profile-detail-grid")?.insertAdjacentHTML("beforeend", `<span class="trip-creation-detail ${quota.canCreateAnother ? "allowed" : ""}"><small>TRIP CREATION</small><b>${esc(travellerTripQuotaLabel(quota))}</b></span>`);
+    $(".profile-hero>div")?.insertAdjacentHTML("beforeend", contactVerificationBadges(traveller));
+    $(".profile-detail-grid")?.insertAdjacentHTML("beforeend", `<span><small>EMAIL OTP</small><b>${traveller.otpEnabled ? "ENABLED" : "DISABLED"}</b></span><span class="trip-creation-detail ${quota.canCreateAnother ? "allowed" : ""}"><small>TRIP CREATION</small><b>${esc(travellerTripQuotaLabel(quota))}</b></span>`);
     $("#profileAssignTrips").addEventListener("click", () => showTravellerTripAssignments(traveller, trips, administratorSecret, demoMode));
     $("#profileTripLimit").addEventListener("click", () => showTravellerTripCreationLimit(traveller, trips, administratorSecret, demoMode));
     $("#profileEdit").addEventListener("click", () => showEditTravellerAccount(traveller, trips, administratorSecret, demoMode));
@@ -4378,9 +4395,9 @@
 
   function showEditTravellerAccount(traveller, trips, administratorSecret, demoMode) {
     if (!traveller) return toast("Traveller profile not found", true);
-    showModal("Edit traveller details", `<form class="modal-form" id="editTravellerAccountForm"><div class="profile-id-banner"><span>TRAVELLER ID</span><b>${esc(traveller.travellerId)}</b><small>${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned trips` : "No trip assigned"}</small></div><label>Traveller name<input name="name" maxlength="80" value="${esc(traveller.name)}" required></label><div class="form-row"><label>Phone<input name="phone" type="tel" maxlength="30" value="${esc(traveller.phone || "")}"></label><label>Email<input name="email" type="email" maxlength="120" value="${esc(traveller.email || "")}"></label></div><label>City or location<input name="city" maxlength="80" value="${esc(traveller.city || "")}"></label><label>Emergency contact<input name="emergencyContact" maxlength="120" value="${esc(traveller.emergencyContact || "")}"></label><label>Notes<textarea name="notes" rows="3" maxlength="1000">${esc(traveller.notes || "")}</textarea></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save details</button></div></form>`);
+    showModal("Edit traveller details & email OTP", `<form class="modal-form" id="editTravellerAccountForm"><div class="profile-id-banner"><span>TRAVELLER ID</span><b>${esc(traveller.travellerId)}</b><small>${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned trips` : "No trip assigned"}</small></div><label>Traveller name<input name="name" maxlength="80" value="${esc(traveller.name)}" required></label><div class="form-row"><label>Mobile number <small>(no verification)</small><input name="phone" type="tel" maxlength="30" value="${esc(traveller.phone || "")}"></label><label>Email <small>(OTP and recovery)</small><input name="email" type="email" maxlength="120" value="${esc(traveller.email || "")}"></label></div><label class="otp-admin-toggle"><input name="otpEnabled" type="checkbox"${traveller.otpEnabled ? " checked" : ""}><span><b>Allow email OTP login</b><small>An email address is required. Mobile and email must remain unique, but only email is verified.</small></span></label><label>City or location<input name="city" maxlength="80" value="${esc(traveller.city || "")}"></label><label>Emergency contact<input name="emergencyContact" maxlength="120" value="${esc(traveller.emergencyContact || "")}"></label><label>Notes<textarea name="notes" rows="3" maxlength="1000">${esc(traveller.notes || "")}</textarea></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save details & OTP</button></div></form>`);
     $("#editTravellerAccountForm").addEventListener("submit", async (event) => {
-      event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+      event.preventDefault(); const formData = new FormData(event.currentTarget), values = Object.fromEntries(formData.entries()); values.otpEnabled = formData.has("otpEnabled");
       try {
         if (demoMode) Object.assign(traveller, values);
         else await api("updateTravellerAccount", { ...adminAuth(administratorSecret), travellerId: traveller.travellerId, traveller: values });
@@ -4539,7 +4556,7 @@
       : (String(assignment.canWriteStickyNotes).toUpperCase() === "TRUE" ? "edit" : "view");
     showModal("Control traveller access", `<form class="modal-form" id="featureAccessForm"><div class="profile-id-banner"><span>TRAVELLER ID</span><b>${esc(member.travellerId)}</b><small>${esc(member.name)}</small></div><div class="security-note"><i>◆</i><p>Choose exactly what this personal Traveller ID can see or write in <b>${esc(state.data.trip.name)}</b>. Sticky writing is off until the Administrator enables it. Shared trip-PIN users remain view-only for sticky notes.</p></div><div class="feature-access-list">${options.map(([permission, field, label, help]) => `<label class="feature-access-option"><input type="checkbox" name="${permission}" ${assignmentAllows(assignment, field) ? "checked" : ""}><span><b>${label}</b><small>${help}</small></span><em>ALLOW</em></label>`).join("")}</div><div class="feature-access-actions"><button type="button" id="allowAllFeatures">Allow all</button><button type="button" id="hideAllFeatures">Hide all</button></div><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save access</button></div></form>`);
     const form = $("#featureAccessForm");
-    form.querySelector(".feature-access-actions").insertAdjacentHTML("beforebegin", `<label class="sticky-level-control"><span><b>Pinned sticky notes</b><small>Everyone sees the pinned board. Choose whether this traveller may edit it.</small></span><select name="stickyAccess">${stickyLevels.map((level) => `<option value="${level}" ${currentStickyLevel === level ? "selected" : ""}>${stickyAccessLabel(level)}</option>`).join("")}</select></label><label class="photo-limit-control"><span><b>Maximum photos this traveller may add</b><small>${currentPhotoCount} currently stored · enter 0 to disable photo addition for this traveller · maximum 50</small></span><input name="photoLimit" type="number" min="0" max="50" step="1" value="${currentPhotoLimit}" required></label><label class="photo-limit-control"><span><b>Photo quality for this traveller</b><small>Compressed ≈ 1 MB (fast, saves Drive space) · Original = full size up to 15 MB</small></span><select name="photoQuality">${[["choice", "Traveller chooses"], ["compressed", "Compressed only"], ["original", "Original only"]].map(([v, l]) => `<option value="${v}" ${(String(assignment.photoQuality || "choice").toLowerCase()) === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>`);
+    form.querySelector(".feature-access-actions").insertAdjacentHTML("beforebegin", `<label class="sticky-level-control"><span><b>Pinned sticky notes</b><small>Everyone sees the pinned board. Choose whether this traveller may edit it.</small></span><select name="stickyAccess">${stickyLevels.map((level) => `<option value="${level}" ${currentStickyLevel === level ? "selected" : ""}>${stickyAccessLabel(level)}</option>`).join("")}</select></label><label class="photo-limit-control"><span><b>Maximum photos this traveller may add</b><small>${currentPhotoCount} currently stored · enter 0 to disable photo addition for this traveller · maximum 50</small></span><input name="photoLimit" type="number" min="0" max="50" step="1" value="${currentPhotoLimit}" required></label><label class="photo-limit-control"><span><b>Photo quality for this traveller</b><small>Compressed ≈ 1 MB (fast, saves Drive space) · Original = full size up to 20 MB</small></span><select name="photoQuality">${[["choice", "Traveller chooses"], ["compressed", "Compressed only"], ["original", "Original only"]].map(([v, l]) => `<option value="${v}" ${(String(assignment.photoQuality || "choice").toLowerCase()) === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>`);
     $("#allowAllFeatures").addEventListener("click", () => $$('input[type="checkbox"]', form).forEach((input) => { input.checked = true; }));
     $("#hideAllFeatures").addEventListener("click", () => $$('input[type="checkbox"]', form).forEach((input) => { input.checked = false; }));
     form.addEventListener("submit", async (event) => {
@@ -4576,10 +4593,10 @@
   }
 
   /* Shrink big phone photos before upload (keeps them sharp: max 2048px, JPEG ~85%). */
-  const photoOriginalMax = 15728640;
+  const photoOriginalMax = 20971520;
   function keepOriginalPref(value) { try { if (typeof value === "boolean") localStorage.setItem("mytrip_photo_original", value ? "1" : "0"); return localStorage.getItem("mytrip_photo_original") !== "0"; } catch { return true; } }
   function adminPhotoQuality() { if (isAdmin()) return "choice"; const q = String((state.permissions || {}).photoQuality || "choice").toLowerCase(); return q === "compressed" || q === "original" ? q : "choice"; }
-  function originalToggle() { const aq = adminPhotoQuality(); if (aq !== "choice") return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><input type="hidden" name="photoQuality" value="${aq === "original" ? "original" : "smaller"}"><p class="pq-fixed">${aq === "original" ? "<b>Original quality</b> · set by the Administrator (up to 15 MB)" : "<b>Compressed</b> · about 1 MB · set by the Administrator"}</p></fieldset>`; if (proLocked("originalPhotos")) return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><label><input type="radio" name="photoQuality" value="smaller" checked><span><b>Smaller</b><small>About 1 MB · faster, saves space</small></span></label><button type="button" class="pro-inline" data-pro-feature="originalPhotos">🔒 Original quality is a Pro feature</button></fieldset>`; const o = keepOriginalPref(); return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><label><input type="radio" name="photoQuality" value="original" ${o ? "checked" : ""}><span><b>Original</b><small>Full size, up to 15 MB · best for printing</small></span></label><label><input type="radio" name="photoQuality" value="smaller" ${o ? "" : "checked"}><span><b>Smaller</b><small>About 1 MB · faster, saves space</small></span></label></fieldset>`; }
+  function originalToggle() { const aq = adminPhotoQuality(); if (aq !== "choice") return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><input type="hidden" name="photoQuality" value="${aq === "original" ? "original" : "smaller"}"><p class="pq-fixed">${aq === "original" ? "<b>Original quality</b> · set by the Administrator (up to 20 MB)" : "<b>Compressed</b> · about 1 MB · set by the Administrator"}</p></fieldset>`; if (proLocked("originalPhotos")) return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><label><input type="radio" name="photoQuality" value="smaller" checked><span><b>Smaller</b><small>About 1 MB · faster, saves space</small></span></label><button type="button" class="pro-inline" data-pro-feature="originalPhotos">🔒 Original quality is a Pro feature</button></fieldset>`; const o = keepOriginalPref(); return `<fieldset class="photo-quality-choice"><legend>Photo quality</legend><label><input type="radio" name="photoQuality" value="original" ${o ? "checked" : ""}><span><b>Original</b><small>Full size, up to 20 MB · best for printing</small></span></label><label><input type="radio" name="photoQuality" value="smaller" ${o ? "" : "checked"}><span><b>Smaller</b><small>About 1 MB · faster, saves space</small></span></label></fieldset>`; }
   const mtFileCache = new WeakMap();
   document.addEventListener("change", (e) => {
     const input = e.target;
@@ -4610,7 +4627,7 @@
     keepOriginalPref(Boolean(keepOriginal));
     const okType = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
     if (keepOriginal && okType && file.size <= photoOriginalMax) return file;
-    if (keepOriginal && okType && file.size > photoOriginalMax) toast("Photo is over 15 MB, so it was reduced slightly");
+    if (keepOriginal && okType && file.size > photoOriginalMax) toast("Photo is over 20 MB, so it was reduced slightly");
     return shrinkPhoto(file, keepOriginal ? 4096 : 2048, keepOriginal ? 14000000 : 2800000);
   }
   async function shrinkPhoto(file, maxSide = 2048, maxBytes = 2800000) {
@@ -4656,7 +4673,7 @@
   function showTripGalleryPhotoEditor(photo = null) {
     if (!isAdmin() && (!state.travellerId || (photo ? !mayReplacePhoto(photo) : state.permissions.addPhotos !== true))) return toast("Photo addition or replacement is not allowed for this account", true);
     const replacing = Boolean(photo);
-    showModal(replacing ? "Replace trip photo" : "Add trip photo", `<form class="modal-form trip-gallery-photo-form" id="tripGalleryPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>${replacing ? "The new image will replace this photo without using another allowance slot." : "Upload one selected trip photo. It will be stored in Google Drive."} JPEG, PNG or WebP · up to 15 MB.</p></div>${replacing ? `<div class="photo-preview"><img loading="lazy" decoding="async" src="${esc(photo.photoUrl)}" alt="Current photo"></div>` : ""}<label>${replacing ? "Replacement photo" : "Photo from this device"}<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp" required></label>${originalToggle()}<label>Caption <small>(optional)</small><input name="caption" maxlength="240" value="${esc(photo?.caption || "")}" placeholder="What should everyone remember about this photo?"></label><p class="form-help">Travellers can replace only their own photos. The Administrator can replace any photo.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">${replacing ? "Replace photo" : "Save photo"}</button></div></form>`);
+    showModal(replacing ? "Replace trip photo" : "Add trip photo", `<form class="modal-form trip-gallery-photo-form" id="tripGalleryPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>${replacing ? "The new image will replace this photo without using another allowance slot." : "Upload one selected trip photo. It will be stored in Google Drive."} JPEG, PNG or WebP · original up to 20 MB · fast thumbnail in the dashboard.</p></div>${replacing ? `<div class="photo-preview"><img loading="lazy" decoding="async" src="${esc(photo.photoUrl)}" alt="Current photo"></div>` : ""}<label>${replacing ? "Replacement photo" : "Photo from this device"}<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp" required></label>${originalToggle()}<label>Caption <small>(optional)</small><input name="caption" maxlength="240" value="${esc(photo?.caption || "")}" placeholder="What should everyone remember about this photo?"></label><p class="form-help">Travellers can replace only their own photos. The Administrator can replace any photo.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">${replacing ? "Replace photo" : "Save photo"}</button></div></form>`);
     const form = $("#tripGalleryPhotoForm");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -4743,7 +4760,7 @@
   function showTripPhotoSettings() {
     if (!isAdmin()) return toast("Administrator access required to change the trip photo", true);
     const current = String(state.data.trip.photoUrl || "");
-    showModal(current ? "Change trip photo" : "Add trip photo", `<form class="modal-form" id="tripPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>Upload any JPEG, PNG or WebP photo up to 15 MB. It will be stored in your Google Drive by the MyTrip backend. You can alternatively paste a public HTTPS image link.</p></div><label>Upload from this device<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp"></label>${originalToggle()}<div class="or"><span>or</span></div><label>Public photo link <small>(optional)</small><input name="photoUrl" type="url" value="${esc(current)}" placeholder="https://…"></label>${current ? `<div class="photo-preview"><img loading="lazy" decoding="async" src="${esc(tripPhotoUrl(current))}" alt="Current trip photo"></div>` : ""}<div class="form-actions">${current ? `<button type="button" id="removeTripPhoto" class="danger-link">Remove photo</button>` : `<button type="button" data-cancel>Cancel</button>`}<button type="submit">Save photo</button></div></form>`);
+    showModal(current ? "Change trip photo" : "Add trip photo", `<form class="modal-form" id="tripPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>Upload any JPEG, PNG or WebP original up to 20 MB. The original is stored in Google Drive; the dashboard loads a smaller thumbnail for speed. You can alternatively paste a public HTTPS image link.</p></div><label>Upload from this device<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp"></label>${originalToggle()}<div class="or"><span>or</span></div><label>Public photo link <small>(optional)</small><input name="photoUrl" type="url" value="${esc(current)}" placeholder="https://…"></label>${current ? `<div class="photo-preview"><img loading="lazy" decoding="async" src="${esc(tripPhotoUrl(current))}" alt="Current trip photo"></div>` : ""}<div class="form-actions">${current ? `<button type="button" id="removeTripPhoto" class="danger-link">Remove photo</button>` : `<button type="button" data-cancel>Cancel</button>`}<button type="submit">Save photo</button></div></form>`);
     const form = $("#tripPhotoForm");
     const savePhoto = async () => {
       try {
@@ -5034,39 +5051,119 @@
     $('[data-cancel]').addEventListener("click", closeModal);
   }
 
+  let loginOtpChallengeId = "", loginOtpIdentifier = "";
+
+  function resetOtpLogin() {
+    loginOtpChallengeId = ""; loginOtpIdentifier = "";
+    const form = $("#otpLoginForm");
+    if (form) { form.reset(); form.classList.add("hidden"); }
+    const password = $("#loginPassword");
+    if (password) password.required = true;
+  }
+
+  function completeAccountLogin(result, rememberedIdentifier) {
+    const sessionSecret = String(result.sessionSecret || "");
+    if (!sessionSecret) throw new Error("The backend did not create a secure login session. Deploy the latest Code.gs.");
+    if ($("#rememberLogin").checked) saveAccountLogin(rememberedIdentifier); else clearSavedAccountLogin();
+    state.accountProfile = result.account || {};
+    state.accountUsername = String(result.account && result.account.username || rememberedIdentifier);
+    state.pin = sessionSecret; state.authenticated = true; state.demoMode = false; state.accessRole = result.accessRole;
+    if (result.accessRole === "administrator") {
+      state.travellerId = ""; state.currentUser = "Administrator";
+      renderAllTrips(result.trips || [], sessionSecret, false);
+    } else {
+      const traveller = result.traveller || { travellerId: state.accountUsername, name: "Traveller" };
+      state.travellerId = traveller.travellerId; state.currentUser = traveller.name || "Traveller";
+      renderMyTrips(result.trips || [], sessionSecret, traveller, false);
+    }
+    resetOtpLogin();
+    toast("Signed in successfully");
+  }
+
   async function loginAccount(event) {
     event.preventDefault();
     const form = event.currentTarget;
     const values = Object.fromEntries(new FormData(form).entries());
-    const username = String(values.username || "").trim();
+    const identifier = String(values.username || "").trim();
     const password = String(values.password || "");
     const submit = form.querySelector('button[type="submit"]');
     submit.disabled = true; submit.textContent = "Signing in…";
     try {
-      const [result] = await Promise.all([api("login", { username, password }), ensureCurrentBackend()]);
-      if (Boolean(values.rememberLogin)) saveAccountLogin(username); else clearSavedAccountLogin();
-      state.accountUsername = String(result.account && result.account.username || username);
-      state.pin = password; state.authenticated = true; state.demoMode = false; state.accessRole = result.accessRole;
-      if (result.accessRole === "administrator") {
-        state.travellerId = ""; state.currentUser = "Administrator";
-        renderAllTrips(result.trips || [], password, false);
-      } else {
-        const traveller = result.traveller || { travellerId: state.accountUsername, name: "Traveller" };
-        state.travellerId = traveller.travellerId; state.currentUser = traveller.name || "Traveller";
-        renderMyTrips(result.trips || [], password, traveller, false);
-      }
-      toast("Signed in successfully");
+      const [result] = await Promise.all([api("login", { identifier, password }), ensureCurrentBackend()]);
+      completeAccountLogin(result, identifier);
     } catch (error) {
-      state.pin = ""; state.accountUsername = ""; state.authenticated = false;
+      state.pin = ""; state.accountUsername = ""; state.accountProfile = {}; state.authenticated = false;
       toast(error.message, true);
     } finally {
       submit.disabled = false; submit.textContent = "Sign in";
     }
   }
 
+  async function requestAccountOtp() {
+    const identifier = String($("#loginUsername").value || "").trim();
+    if (!identifier) { $("#loginUsername").focus(); return toast("Enter your username, mobile number or email first", true); }
+    const button = $("#sendLoginOtp"); button.disabled = true; button.textContent = "Sending OTP…";
+    try {
+      await ensureCurrentBackend();
+      const result = await api("requestLoginOtp", { identifier, channel: "auto" });
+      loginOtpChallengeId = String(result.challengeId || ""); loginOtpIdentifier = identifier;
+      $("#otpDeliveryStatus").innerHTML = `<i>✦</i><p>OTP sent by email to <b>${esc(result.maskedDestination || "your registered email")}</b>. It expires in ${Number(result.expiresMinutes || 10)} minutes.</p>`;
+      $("#otpLoginForm").classList.remove("hidden");
+      $("#loginPassword").required = false;
+      $("#loginOtp").focus();
+      toast("OTP sent securely");
+    } catch (error) { toast(error.message, true); }
+    finally { button.disabled = false; button.textContent = "Send OTP instead"; }
+  }
+
+  async function loginAccountWithOtp(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const otp = String(new FormData(form).get("otp") || "").trim();
+    if (!loginOtpChallengeId || !loginOtpIdentifier) return toast("Request a new OTP first", true);
+    const submit = form.querySelector('button[type="submit"]'); submit.disabled = true; submit.textContent = "Verifying…";
+    try {
+      await ensureCurrentBackend();
+      const result = await api("loginWithOtp", { identifier: loginOtpIdentifier, challengeId: loginOtpChallengeId, otp });
+      completeAccountLogin(result, loginOtpIdentifier);
+    } catch (error) { toast(error.message, true); }
+    finally { submit.disabled = false; submit.textContent = "Verify OTP & sign in"; }
+  }
+
+  async function startPasswordRecovery() {
+    const identifier = String($("#loginUsername").value || "").trim();
+    if (!identifier) { $("#loginUsername").focus(); return toast("Enter your username, mobile number or email first", true); }
+    const button = $("#forgotPassword"); button.disabled = true; button.textContent = "Sending recovery OTP…";
+    try {
+      await ensureCurrentBackend();
+      const result = await api("requestPasswordResetOtp", { identifier, channel: "auto" });
+      showModal("Reset your password", `<form class="modal-form password-recovery-form" id="passwordRecoveryForm"><div class="otp-delivery-status"><i>✓</i><p>A password-reset OTP was sent by email to <b>${esc(result.maskedDestination || "your verified email")}</b>. It expires in ${Number(result.expiresMinutes || 10)} minutes.</p></div><label>6-digit OTP<input name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="Enter OTP" required autofocus></label><label>New password<span class="password-input-wrap"><input name="newPassword" type="password" minlength="6" maxlength="64" autocomplete="new-password" placeholder="Create a strong new password" required><button type="button" data-show-reset-password>Show</button></span></label><label>Confirm new password<input name="confirmPassword" type="password" minlength="6" maxlength="64" autocomplete="new-password" placeholder="Type the new password again" required></label><p class="form-help">A previously verified email address is required. You may start recovery with your username, mobile number or email; the OTP is always delivered to the verified email. The old password and older sessions stop working immediately.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button class="primary" type="submit">Reset password &amp; sign in</button></div></form>`);
+      const form = $("#passwordRecoveryForm");
+      form.querySelector("[data-show-reset-password]").addEventListener("click", (event) => {
+        const input = form.elements.newPassword; const show = input.type === "password"; input.type = show ? "text" : "password"; event.currentTarget.textContent = show ? "Hide" : "Show";
+      });
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(form).entries());
+        if (values.newPassword !== values.confirmPassword) return toast("The two new passwords do not match", true);
+        const submit = form.querySelector('button[type="submit"]'); submit.disabled = true; submit.textContent = "Resetting securely…";
+        try {
+          const account = await api("resetPasswordWithOtp", { identifier, challengeId: result.challengeId, otp: String(values.otp || "").trim(), newPassword: String(values.newPassword || "") });
+          closeModal(); $("#loginPassword").value = ""; completeAccountLogin(account, identifier); toast("Password reset. You are signed in securely.");
+        } catch (error) { submit.disabled = false; submit.textContent = "Reset password & sign in"; toast(error.message, true); }
+      });
+      form.querySelector("[data-cancel]").addEventListener("click", closeModal);
+    } catch (error) { toast(error.message, true); }
+    finally { button.disabled = false; button.textContent = "Forgot password? Reset with verified email OTP"; }
+  }
+
   $("#joinForm").addEventListener("submit", (event) => { if (!apiUrlReady()) { event.preventDefault(); event.stopImmediatePropagation(); showBackendSetup(() => $("#joinForm").requestSubmit()); } }, true);
   $("#joinForm").addEventListener("submit", async (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); try { state.accountUsername = ""; const [trip] = await Promise.all([api("getTrip", { tripId: String(data.get("tripId")).trim().toUpperCase(), pin: String(data.get("pin")) }), ensureCurrentBackend()]); await openTrip(trip, String(data.get("pin")), false, "Shared traveller", "traveller", "", "shared"); } catch (error) { toast(error.message, true); } });
   $("#accountLoginForm").addEventListener("submit", loginAccount);
+  $("#sendLoginOtp").addEventListener("click", requestAccountOtp);
+  $("#forgotPassword").addEventListener("click", startPasswordRecovery);
+  $("#otpLoginForm").addEventListener("submit", loginAccountWithOtp);
+  $("#cancelLoginOtp").addEventListener("click", resetOtpLogin);
   $("#toggleLoginPassword").addEventListener("click", () => setLoginPasswordVisible($("#loginPassword").type === "password"));
   $("#rememberLogin").addEventListener("change", (event) => { if (!event.currentTarget.checked) clearSavedAccountLogin(); });
   $("#previewDemoButton").addEventListener("click", () => { state.accountUsername = "administrator"; state.pin = "654321"; state.demoMode = true; state.authenticated = true; state.accessRole = "administrator"; renderAllTrips(demoTrips, state.pin, true); });
@@ -5218,7 +5315,7 @@
     const info = quickExpenseInfo, current = quickExpenseEditId ? (info.recent || []).find((item) => String(item.id) === String(quickExpenseEditId)) : null;
     const categories = info.categories || ["Food", "Stay", "Travel", "Local travel", "Activities", "Shopping", "Other"];
     const recent = (info.recent || []).map((item) => `<article class="quick-expense-recent-row${item.queued ? " queued" : ""}"><i>${esc(String(item.category || "Other").slice(0, 1))}</i><div><b>${esc(item.label || item.category || "Expense")}</b><small>${displayDate(item.date, { day: "numeric", month: "short" })} · ${esc(item.category || "Other")} · Paid by ${esc(item.paidBy || info.traveller.name)}${item.receiptUrl ? " · 🧾 Receipt" : ""}${item.queued ? " · Waiting to sync" : ""}</small></div><strong>${money.format(Number(item.amount || 0))}</strong>${item.canEdit && !item.queued ? `<span><button type="button" data-quick-edit="${esc(item.id)}">Edit</button><button type="button" class="delete" data-quick-delete="${esc(item.id)}">Delete</button></span>` : `<em>${item.queued ? "Queued" : "Saved"}</em>`}</article>`).join("");
-    slot.innerHTML = `<section class="quick-expense-shell"><div class="quick-expense-hero"><span>⚡ TRAVEL MODE · NO SIGN-IN</span><h1>${esc(info.trip.name)}</h1><p>${esc(info.trip.destination || "")}${info.trip.startDate ? ` · ${displayDate(info.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(info.trip.endDate, { day: "numeric", month: "short", year: "numeric" })}` : ""}</p><div><small>LINK OWNER / AUDIT TRAIL</small><b>${esc(info.traveller.name)}</b><em>${esc(info.traveller.travellerId)}</em></div></div><form class="quick-expense-form" id="quickExpenseForm"><header><span><small>${current ? "CORRECT RECENT ENTRY" : "ADD TO TRIP REGISTER"}</small><h2>${current ? "Edit expense" : "Quick expense"}</h2></span>${current ? `<button type="button" data-quick-cancel-edit>Cancel edit</button>` : info.pass.allowAnyPayer ? `<em>Choose <b>Paid by</b> below</em>` : `<em>Paid by <b>${esc(info.traveller.name)}</b></em>`}</header><label class="quick-expense-amount"><span>${esc(info.trip.currency === "INR" ? "₹" : info.trip.currency || "₹")}</span><input name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" value="${esc(current?.amount || "")}" placeholder="0" aria-label="Expense amount" required autofocus></label><label>What was it for?<input name="label" maxlength="180" value="${esc(current?.label || "")}" placeholder="e.g. Lunch, taxi, tickets" required></label>${quickExpensePayerField(current)}<div class="quick-expense-two"><label>Category<select name="category">${categories.map((category) => `<option ${category === current?.category ? "selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label>Date<input name="date" type="date" value="${esc(current?.date || quickExpenseDateDefault(info))}" required></label></div><label>Note <small>(optional)</small><textarea name="notes" rows="2" maxlength="1000" placeholder="Any useful detail">${esc(current?.notes || "")}</textarea></label>${quickExpenseShareFields(current)}<label class="quick-expense-receipt">Receipt photo <small>(optional · JPEG, PNG or WebP)</small><input name="receipt" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><button class="quick-expense-save" type="submit">${current ? "Save correction" : "Save expense"}</button><button class="quick-expense-save-again" name="saveAgain" value="1" type="submit">${current ? "Save and finish" : "Save & add another"}</button><p class="quick-expense-security">🔒 ${info.pass.allowAnyPayer ? "Anyone holding this link can choose any assigned traveller as Paid by." : `This link records expenses only for ${esc(info.traveller.name)}.`} It cannot open the trip dashboard or reveal passwords. Keep it within the trip group.</p></form><section class="quick-expense-recent"><header><div><span>ENTRIES FROM THIS LINK</span><h2>Recently added</h2></div><button type="button" data-quick-refresh>↻ Refresh</button></header><div>${recent || `<p class="quick-expense-empty">No expense has been added through this link yet.</p>`}</div><small class="quick-expense-window">Correction window: ${Number(info.pass.editMinutes || 0) ? `${Number(info.pass.editMinutes)} minutes after saving` : "Administrator only"} · Link expires ${displayDate(info.pass.expiresAt)}</small></section></section>`;
+    slot.innerHTML = `<section class="quick-expense-shell"><div class="quick-expense-hero"><span>⚡ TRAVEL MODE · NO SIGN-IN</span><h1>${esc(info.trip.name)}</h1><p>${esc(info.trip.destination || "")}${info.trip.startDate ? ` · ${displayDate(info.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(info.trip.endDate, { day: "numeric", month: "short", year: "numeric" })}` : ""}</p><div><small>LINK OWNER / AUDIT TRAIL</small><b>${esc(info.traveller.name)}</b><em>${esc(info.traveller.travellerId)}</em></div></div><form class="quick-expense-form" id="quickExpenseForm"><header><span><small>${current ? "CORRECT RECENT ENTRY" : "ADD TO TRIP REGISTER"}</small><h2>${current ? "Edit expense" : "Quick expense"}</h2></span>${current ? `<button type="button" data-quick-cancel-edit>Cancel edit</button>` : info.pass.allowAnyPayer ? `<em>Choose <b>Paid by</b> below</em>` : `<em>Paid by <b>${esc(info.traveller.name)}</b></em>`}</header><label class="quick-expense-amount"><span>${esc(info.trip.currency === "INR" ? "₹" : info.trip.currency || "₹")}</span><input name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" value="${esc(current?.amount || "")}" placeholder="0" aria-label="Expense amount" required autofocus></label><label>What was it for?<input name="label" maxlength="180" value="${esc(current?.label || "")}" placeholder="e.g. Lunch, taxi, tickets" required></label>${quickExpensePayerField(current)}<div class="quick-expense-two"><label>Category<select name="category">${categories.map((category) => `<option ${category === current?.category ? "selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label>Date<input name="date" type="date" value="${esc(current?.date || quickExpenseDateDefault(info))}" required></label></div><label>Note <small>(optional)</small><textarea name="notes" rows="2" maxlength="1000" placeholder="Any useful detail">${esc(current?.notes || "")}</textarea></label>${quickExpenseShareFields(current)}<label class="quick-expense-receipt">Receipt photo <small>(optional · JPEG, PNG or WebP)</small><input name="receipt" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><button class="quick-expense-save" type="submit">${current ? "Save correction" : "Save expense"}</button><button class="quick-expense-save-again" name="saveAgain" value="1" type="submit">${current ? "Save and finish" : "Save & add another"}</button><p class="quick-expense-security">🔒 ${info.pass.allowAnyPayer ? "Anyone holding this link can choose any assigned traveller as Paid by." : `This link records expenses only for ${esc(info.traveller.name)}.`} It cannot open the trip dashboard or reveal passwords. Keep it within the trip group.</p></form><section class="quick-expense-recent"><header><div><span>ENTRIES FROM THIS LINK</span><h2>Recently added</h2></div><button type="button" data-quick-refresh>↻ Refresh</button></header><div>${recent || `<p class="quick-expense-empty">No expense has been added through this link yet.</p>`}</div><small class="quick-expense-window">Correction window: ${Number(info.pass.editMinutes || 0) ? `${Number(info.pass.editMinutes)} minutes after saving` : "Administrator only"} · ${info.pass.expiresAt ? `Link expires ${displayDate(info.pass.expiresAt)}` : "Link remains valid until the Administrator disables it"}</small></section></section>`;
     const dateInput = slot.querySelector('input[name="date"]');
     if (dateInput) { dateInput.min = String(info.trip.startDate || "").slice(0, 10); dateInput.max = String(info.trip.endDate || "").slice(0, 10); }
   }
