@@ -6,8 +6,8 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.64.3";
-  const requiredBackendVersion = "4.31.1";
+  const frontendVersion = "4.64.4";
+  const requiredBackendVersion = "4.31.2";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
   function saveStoredApiUrl(value) { try { localStorage.setItem(apiStorageKey, value); } catch {} }
@@ -4456,13 +4456,22 @@
   function showEditTravellerAccount(traveller, trips, administratorSecret, demoMode) {
     if (!traveller) return toast("Traveller profile not found", true);
     showModal("Edit traveller details & email OTP", `<form class="modal-form" id="editTravellerAccountForm"><div class="profile-id-banner"><span>TRAVELLER ID</span><b>${esc(traveller.travellerId)}</b><small>${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned trips` : "No trip assigned"}</small></div><label>Traveller name<input name="name" maxlength="80" value="${esc(traveller.name)}" required></label><div class="form-row"><label>Mobile number <small>(no verification)</small><input name="phone" type="tel" maxlength="30" value="${esc(traveller.phone || "")}"></label><label>Email <small>(OTP and recovery)</small><input name="email" type="email" maxlength="120" value="${esc(traveller.email || "")}"></label></div><label class="otp-admin-toggle"><input name="otpEnabled" type="checkbox"${traveller.otpEnabled ? " checked" : ""}><span><b>Allow email OTP login</b><small>An email address is required. Mobile and email must remain unique, but only email is verified.</small></span></label><label>City or location<input name="city" maxlength="80" value="${esc(traveller.city || "")}"></label><label>Emergency contact<input name="emergencyContact" maxlength="120" value="${esc(traveller.emergencyContact || "")}"></label><label>Notes<textarea name="notes" rows="3" maxlength="1000">${esc(traveller.notes || "")}</textarea></label><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save details & OTP</button></div></form>`);
+    $("#editTravellerAccountForm .profile-id-banner")?.insertAdjacentHTML("afterend", `<div class="edit-email-verification-status">${contactVerificationBadges(traveller)}<p>${traveller.emailVerified ? "This email was verified by the traveller using an email OTP." : "The traveller must sign out and complete one email-OTP sign-in to verify this address."}</p></div>`);
     $("#editTravellerAccountForm").addEventListener("submit", async (event) => {
       event.preventDefault(); const formData = new FormData(event.currentTarget), values = Object.fromEntries(formData.entries()); values.otpEnabled = formData.has("otpEnabled");
+      const submit = event.currentTarget.querySelector('button[type="submit"]');
+      submit.disabled = true; submit.textContent = "Saving…";
       try {
         if (demoMode) Object.assign(traveller, values);
-        else await api("updateTravellerAccount", { ...adminAuth(administratorSecret), travellerId: traveller.travellerId, traveller: values });
-        toast("Traveller details updated"); await loadTravellerAccounts(administratorSecret, trips, demoMode);
-      } catch (error) { toast(error.message, true); }
+        else {
+          const saved = await api("updateTravellerAccount", { ...adminAuth(administratorSecret), travellerId: traveller.travellerId, traveller: values });
+          ["name", "phone", "email", "otpEnabled", "emailVerified", "emailVerifiedAt", "city", "emergencyContact", "notes", "updatedAt"].forEach((field) => {
+            if (typeof saved[field] !== "undefined") traveller[field] = saved[field];
+          });
+        }
+        toast("Traveller details updated");
+        showTravellerProfile(traveller, trips, administratorSecret, demoMode);
+      } catch (error) { submit.disabled = false; submit.textContent = "Save details & OTP"; toast(error.message, true); }
     });
     $('[data-cancel]').addEventListener("click", () => loadTravellerAccounts(administratorSecret, trips, demoMode));
   }

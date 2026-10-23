@@ -3089,3 +3089,11 @@ html body .traveller-manager .trip-create-permission-status{display:inline-flex;
   html body .contact-email-missing-badge{font-size:10px}
 }
 @media(max-width:420px){html body .traveller-manager .account-actions{grid-template-columns:1fr!important}}
+
+/* ---- v4.64.4 fast profile save + verification status inside Edit profile ---- */
+html body .edit-email-verification-status{margin:2px 0 16px;padding:13px 15px;border:2px solid #c9ddd9;border-radius:15px;background:linear-gradient(120deg,#effbf7,#f6f1ff);box-shadow:0 7px 18px rgba(19,63,75,.07)}
+html body .edit-email-verification-status .contact-verification-row{margin:0 0 7px}
+html body .edit-email-verification-status .contact-verified-badge,
+html body .edit-email-verification-status .contact-unverified-badge,
+html body .edit-email-verification-status .contact-email-missing-badge{min-height:36px;padding:9px 14px;font-size:12px}
+html body .edit-email-verification-status p{margin:0;color:#49616a;font-size:12px;font-weight:750;line-height:1.45}
