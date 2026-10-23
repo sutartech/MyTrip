@@ -6,7 +6,7 @@
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const frontendVersion = "4.64.0";
+  const frontendVersion = "4.64.1";
   const requiredBackendVersion = "4.31.0";
   const validApiUrl = (value) => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || "").trim());
   function readStoredApiUrl() { try { return localStorage.getItem(apiStorageKey) || ""; } catch { return ""; } }
@@ -2380,7 +2380,28 @@
   function mtFadeView() { const v = $("#view"); if (!v) return; v.classList.remove("mt-fade"); void v.offsetWidth; v.classList.add("mt-fade"); }
 
   const themeKey = "mytrip.theme";
-  function themeChoice() { try { return localStorage.getItem(themeKey) || "auto"; } catch { return "auto"; } }
+  const themeCookieKey = "mytrip_theme";
+  function validThemeChoice(value) { return ["light", "dark", "auto"].includes(String(value || "")) ? String(value) : ""; }
+  function themeCookieChoice() {
+    try {
+      const row = document.cookie.split(";").map((item) => item.trim()).find((item) => item.startsWith(themeCookieKey + "="));
+      return validThemeChoice(row ? decodeURIComponent(row.slice(themeCookieKey.length + 1)) : "");
+    } catch { return ""; }
+  }
+  function themeChoice() {
+    let choice = "";
+    try { choice = validThemeChoice(localStorage.getItem(themeKey)); } catch {}
+    if (!choice) choice = themeCookieChoice();
+    /* Light is the safe default. Auto is used only after the user explicitly
+       selects it, so a dark device setting cannot silently undo Night mode Off. */
+    return choice || "light";
+  }
+  function saveThemeChoice(choice) {
+    choice = validThemeChoice(choice) || "light";
+    try { localStorage.setItem(themeKey, choice); } catch {}
+    try { document.cookie = themeCookieKey + "=" + encodeURIComponent(choice) + "; Max-Age=31536000; Path=/; SameSite=Lax" + (location.protocol === "https:" ? "; Secure" : ""); } catch {}
+    return choice;
+  }
   const darkQuery = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
   function applyTheme() {
     const choice = themeChoice();
@@ -2389,12 +2410,14 @@
     const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = dark ? "#0E1418" : "#F7F6F2";
     $$("[data-night-label]").forEach((el) => { el.textContent = choice === "auto" ? "Auto" : (choice === "dark" ? "On" : "Off"); });
   }
-  function setTheme(choice) { try { localStorage.setItem(themeKey, choice); } catch {} applyTheme(); $$("[data-theme-set]").forEach((b) => b.classList.toggle("on", b.dataset.themeSet === choice)); }
+  function setTheme(choice) { choice = saveThemeChoice(choice); applyTheme(); $$("[data-theme-set]").forEach((b) => b.classList.toggle("on", b.dataset.themeSet === choice)); }
   function nightModeRow() {
     const c = themeChoice();
     return `<div class="mt-more-row mt-more-theme"><span>Night mode</span><div class="theme-seg">${[["auto", "Auto"], ["light", "Off"], ["dark", "On"]].map(([v, l]) => `<button type="button" data-theme-set="${v}" class="${c === v ? "on" : ""}">${l}</button>`).join("")}</div></div>`;
   }
   if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener("change", applyTheme);
+  addEventListener("storage", (event) => { if (event.key === themeKey) applyTheme(); });
+  addEventListener("pageshow", applyTheme);
   applyTheme();
 
   const WMO = { 0: ["Clear sky", "☀"], 1: ["Mostly clear", "🌤"], 2: ["Partly cloudy", "⛅"], 3: ["Cloudy", "☁"], 45: ["Fog", "🌫"], 48: ["Fog", "🌫"], 51: ["Light drizzle", "🌦"], 53: ["Drizzle", "🌦"], 55: ["Heavy drizzle", "🌧"], 61: ["Light rain", "🌦"], 63: ["Rain", "🌧"], 65: ["Heavy rain", "🌧"], 80: ["Rain showers", "🌦"], 81: ["Rain showers", "🌧"], 82: ["Heavy showers", "⛈"], 95: ["Thunderstorm", "⛈"], 96: ["Thunderstorm", "⛈"], 99: ["Thunderstorm", "⛈"], 71: ["Snow", "🌨"], 73: ["Snow", "🌨"], 75: ["Heavy snow", "❄"] };
@@ -2499,7 +2522,7 @@
   }
   document.addEventListener("click", (e) => {
     const t = e.target.closest("[data-theme-set]"); if (t) { setTheme(t.dataset.themeSet); return; }
-    if (e.target.closest("[data-night-toggle]")) { const c = themeChoice(); setTheme(c === "auto" ? "dark" : c === "dark" ? "light" : "auto"); toast("Night mode: " + (themeChoice() === "auto" ? "Auto (follows your device)" : themeChoice() === "dark" ? "On" : "Off")); }
+    if (e.target.closest("[data-night-toggle]")) { setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"); toast("Night mode: " + (themeChoice() === "dark" ? "On" : "Off")); }
   });
 
   /* Day map — OpenStreetMap + Leaflet, loaded only when opened (v4.36.0) */

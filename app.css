@@ -2964,7 +2964,7 @@ html body .permission-banner.admin .permission-banner-actions{grid-template-colu
 }
 @media print{html body .trip-announcement{display:none!important}}
 
-/* ---- v4.64.0 secure email OTP + no-login quick-expense links ---- */
+/* ---- v4.64.1 persistent light/night preference + secure email OTP ---- */
 html body .quick-expense-admin-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;margin:14px 0;padding:16px 18px;border:1px solid #B5E1D8;border-radius:18px;background:linear-gradient(120deg,#E8FAF5,#F7F0FF 58%,#FFF4E5);box-shadow:0 8px 22px rgba(23,127,112,.1)}
 html body .quick-expense-admin-card>i{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#0A9586,#7251D4);color:#fff;font-size:23px;font-style:normal;box-shadow:0 7px 16px rgba(73,62,160,.24)}
 html body .quick-expense-admin-card h3{margin:2px 0 3px;color:#152A3A;font-family:Georgia,serif;font-size:21px}
