@@ -1,12 +1,35 @@
-# MyTrip Dashboard 4.58.5
+# MyTrip Dashboard 4.65.0
 
-This package contains **FE v4.58.5** and **BE v4.26.0**. It includes unified account login, the all-trips account dashboard, collapsible sticky notes, Sticky Note Diary, colourful Experiences, row-based expense controls, Today’s Journey, settlements, photo tools and the refined MyTrip champagne-gold arrow identity.
+This package contains **FE v4.65.0** and **BE v4.31.6**. It adds a unified colourful favicon/PWA icon family, a responsive **Administrator Control Centre**, simplified trip-card actions, desktop overflow protection, lighter rendering for long lists, and a dedicated Quick Expense icon for the installable no-login shortcut. The Administrator can set each link to view-only or editable history and display the latest 5, 10, 50 or all entries made through that link.
+
+The Administrator can also schedule each no-login Quick Expense link with an **Active from** and **Valid until** date, disable it immediately, later re-enable the exact same already-shared URL, extend or shorten its period, or generate a new link that retires the older active link. Expenses support **Take photo** and **Choose photo / file** receipt controls on phones and computers.
 
 Existing trips, travellers, assignments, plans, places, expenses, experiences and passwords are preserved.
 
+## Quick Expense Links during a trip
+
+- Recommended: open **Expenses → Manage links** and use the highlighted **Trip-wide shared link → Create trip-wide link**. This creates one common no-login link for the trip and always displays a required **Paid by** selector containing assigned travellers.
+- The trip-wide form also includes optional **Entered by**. This records the name declared by the link user for audit, but the interface clearly states that it is not identity-verified because no login is required.
+- Open the trip as Global Administrator, select **Expenses → Manage links**, and create a no-login link for a traveller account.
+- To let the link user record a payment in anyone’s name, tick **Allow expense in the name of any traveller**. Leave it unticked when **Paid by** must stay locked to the link owner.
+- Choose **Active from** and **Valid until**, or **Keep valid until Administrator disables it**, then set the maximum new entries per day and correction window. **Manage period** changes the same shared URL; **Disable/Enable** blocks or restores that same URL. **Generate new** immediately disables the older active link for that traveller.
+- Share the generated link privately. The raw link token is shown only at creation; the Google Sheet stores only its SHA-256 hash.
+- Anyone holding the link can open it without signing in. When the Administrator enabled the new option, the page shows a required **Paid by** selector containing only travellers assigned to that trip; otherwise the payer stays locked to the link owner.
+- On the no-login page, select **Install on phone**. Android uses the native install prompt when available; otherwise the page shows the Chrome and iPhone Safari home-screen steps. The installed MyTrip icon then opens that exact Quick Expense form directly, without username, password or OTP.
+- Only one direct Quick Expense shortcut is retained per phone. Installing another trip's link replaces the saved shortcut on that phone. Select **Forget on this phone** before handing a shared device to somebody else.
+- The expense saves in the same `Expenses` Google Sheet and appears in totals, settlement, printouts and the full dashboard. The `source` and `quickPassId` columns preserve the audit path.
+- The link user may edit/delete only entries created by that same link and only during the Administrator-set correction window. The Administrator retains normal full expense control. Personal links retain their account owner; trip-wide entries retain the shared pass ID and optional self-declared Entered by name.
+- Disable a lost or forwarded link immediately. Disabling the trip, expiry or link revocation stops either link type. Removing a traveller, disabling that account or disabling that traveller’s expense access additionally stops their personal link; the separate trip-wide link stays under its own Administrator control.
+
 ## Unified account login
 
-- The login page has one common **Username + Password** form. It does not ask the user to choose Administrator or Traveller.
+- The login page has one common account form. It accepts a **username, registered mobile number or registered email** and does not ask the user to choose Administrator or Traveller.
+- Users may sign in with their password or select **Send OTP instead**. OTPs are single-use, expire after 10 minutes, allow five attempts, are limited to five requests per account per hour, and create a temporary server-validated session instead of storing the account password in the browser.
+- OTP works through Google Apps Script `MailApp` and is email-only. A saved mobile number can still identify an account for password login; if recovery starts with that mobile number, the OTP goes to the account's verified email.
+- The Global Administrator controls the mobile number, email address and OTP-enabled setting for every traveller under **Traveller profiles → Edit details**. The Administrator manages their own values under **Change login**.
+- Mobile numbers and email addresses must be unique across accounts, preventing the wrong profile from opening.
+- A green **Email verified** badge appears only after that user successfully enters an email OTP. Mobile numbers have no verification badge. Editing the email removes its badge until the new email is verified; the Administrator cannot manually grant it.
+- **Forgot password** is self-service for accounts with a verified email. The reset OTP expires after 10 minutes, and changing the password invalidates older sessions.
 - The backend identifies the account automatically and opens the correct dashboard.
 - The login screen uses a responsive two-panel secure-access design matching the supplied reference. The complete frame is centred against the full browser viewport, with a wide login panel and text/controls that scale with screen width and height.
 - The login uses eye-catching but readable blue, violet, teal, peach and gold gradients. The personal account login and shared one-trip login have distinct colour treatments.
@@ -28,9 +51,18 @@ Existing trips, travellers, assignments, plans, places, expenses, experiences an
 - After sign-in, **Change login** appears directly on the Administrator all-trips dashboard and changes only the global Administrator credentials.
 - Five minutes without activity signs the user out. Closing or restoring the browser page also requires login again.
 
+## Administrator Access & Audit
+
+- Open **All trips → Access & Audit**, or use **Security → Open Access & Audit** inside a trip. It is also available in **Print & Export**.
+- Filter by activity type, trip and period; search names, usernames, devices or actions; export the filtered result as CSV.
+- Account sign-ins are verified by the backend. Shared trip-password and no-login Quick Expense activity is clearly labelled separately; any optional name entered on a no-login form remains self-declared.
+- The view records activity after backend v4.31.5 is deployed. Earlier data changes already in Change History are merged, but past sign-ins cannot be reconstructed.
+- `setupMyTrip()` creates the `AccessLog` sheet without deleting existing data.
+
 ## Other included upgrades
 
 - **Speed build:** sign-in performs the backend capability check concurrently instead of adding another full wait before login.
+- Frequently updated sheet fields and header repairs use batched reads/writes to reduce Apps Script calls.
 - `sw.js` keeps only versioned MyTrip layout files in a controlled same-site cache, so repeat visits open immediately. Passwords, Google Sheet responses, Drive photos and Apps Script requests are never cached by it.
 - Print reports are built only when Print is selected, long lists use progressive browser rendering, view controls use one delegated event handler, the clock updates only when needed, and web fonts load without blocking the first screen.
 - **Quick Find** searches every permitted itinerary, place, expense, photo, experience and traveller from one panel. It now sits in the Administrator/Traveller access banner so it cannot overlap the live date and time; it also opens with `Ctrl + K` / `Command + K`.
@@ -52,16 +84,19 @@ Existing trips, travellers, assignments, plans, places, expenses, experiences an
 - **Experiences** is a separate colourful travel-journal tab with writer names.
 - **Expenses** has a row-based statement with **View**, **Row edit**, **Edit**, and Administrator-only **Delete** actions.
 - Row edit and full edit save directly to the `Expenses` Google Sheet.
+- **Paste & Import** accepts itinerary or expense text copied from WhatsApp, email, Notes or a document. It recognises common dates, times, amounts, categories and payer names on the device, then shows an editable review screen before anything is saved.
+- Mixed text can be separated with `ITINERARY` and `EXPENSES` headings. Possible duplicates are identified and left unticked. Every confirmed itinerary and expense row is saved through the existing backend to its corresponding Google Sheet.
 - Traveller-wise expense totals show only people with a positive recorded payment.
 - Existing trip photos, print reports, multi-trip traveller accounts and duplicate-profile deletion remain available.
 - In **Traveller profiles**, the Global Administrator can set a separate 0–100 trip-creation limit for each traveller, increase or reduce it later, or enter 0 to disable creation. Assigned trips do not use the quota; existing created trips are preserved if the limit is lowered.
-- **Trip Photos** is a separate colourful gallery. Photo files are stored in Google Drive and their caption, owner and timestamps are stored in the `TripPhotos` Google Sheet.
+- **Trip Photos** is a separate colourful gallery. Original files up to 20 MB are stored in Google Drive, lightweight thumbnails load in the dashboard, and caption, owner and timestamps are stored in the `TripPhotos` Google Sheet.
 - The Administrator may add, replace or delete any photo, enable or disable traveller uploads for a whole trip, and set a separate 0–50 photo limit for every assigned traveller. A limit of 0 disables photo addition.
 - A traveller may add photos only within the assigned limit and may replace or delete only photos personally uploaded by that username. Replacement does not consume another slot. Shared one-trip access is view-only for photos.
+- `setupMyTrip()` organises the one live spreadsheet, photos and backup copies under one **MyTrip Dashboard** Drive root without changing existing file IDs.
 
 ## Step 1 — Update Google Apps Script
 
-Deploy the supplied backend when the live page reports an older version than **Backend v4.26.0**, or when a required backend capability is missing.
+Deploy the supplied backend when the live page reports an older version than **Backend v4.31.6**, or when a required backend capability is missing.
 
 1. Open the existing Apps Script project used by MyTrip.
 2. Replace the entire `Code.gs` with `backend/Code.gs` from this ZIP.
@@ -69,7 +104,7 @@ Deploy the supplied backend when the live page reports an older version than **B
 4. Choose **Deploy → Manage deployments → Edit**.
 5. Select **New version**, then click **Deploy**.
 6. Keep access as **Anyone** and keep the same `/exec` URL.
-7. Open `YOUR-EXEC-URL?action=ping` and confirm it contains `"version":"4.26.0"`, `"accountLogin":true`, `"stickyNoteDiary":true`, `"travellerCredentialEdit":true`, `"administratorLoginEdit":true`, `"travellerTripCreation":true`, `"travellerTripCreationQuota":true`, `"tripPhotoGallery":true`, and `"settlementRecords":true`.
+7. Open `YOUR-EXEC-URL?action=ping` and confirm it contains `"version":"4.31.6"`, `"quickExpenseHistoryControls":true`, `"accessAudit":true`, `"quickExpenseTripWide":true`, `"quickExpenseValiditySchedule":true`, `"emailOnlyOtp":true`, `"passwordResetOtp":true`, `"batchedSheetIO":true`, `"singleDriveRoot":true`, `"originalPhotos20MB":true`, and `"quickExpenseNoExpiry":true`.
 
 ## Step 2 — Update GitHub Pages
 
@@ -77,14 +112,19 @@ Replace these repository-root files:
 
 1. `index.html`
 2. `app.js`
-3. `styles.css`
+3. `app.css`
 4. `favicon.svg`
 5. `repair.html`
 6. `sw.js`
+7. `manifest.webmanifest`
 
 Keep the existing `config.js` so the connected `/exec` URL is unchanged. Wait about two minutes, open `repair.html` once to remove any older broad service worker, then reopen the site. The new controlled speed cache registers automatically after the page opens.
 
-Deploy the supplied `backend/Code.gs` whenever the live backend is older than `4.26.0` or the ping check reports a missing capability.
+Deploy the supplied `backend/Code.gs` whenever the live backend is older than `4.31.6` or the ping check reports a missing capability.
+
+## Email-only OTP
+
+Email OTP needs no external service. There is no mobile verification and no SMS provider configuration. Mobile numbers remain optional contact/login identifiers and must be unique when saved. All login, verification and password-reset OTPs are delivered only to the account's registered email.
 
 ## Administrator username/password recovery
 
@@ -115,7 +155,7 @@ The username must be 3–40 characters, start with a letter or number, and use o
 5. Sign in with a Traveller ID and its personal password and confirm only assigned trips appear.
 6. Confirm **Sign out** is the rightmost control in the top header on desktop and mobile.
 7. As Administrator, open a Traveller profile, select **Edit login**, and verify the new username/password works.
-8. Confirm **FE v4.58.5 · BE v4.26.0** and the automatically updating date/time appear inside the app.
+8. Confirm **FE v4.65.0 · BE v4.31.6** and the automatically updating date/time appear inside the app.
 9. Open Expenses and test View, Row edit, Edit and Administrator Delete.
 10. Complete a sticky note and confirm a row appears in `StickyNoteDiary`.
 11. Confirm the colourful Experiences tab is separate from Itinerary.
@@ -128,3 +168,5 @@ The username must be 3–40 characters, start with a letter or number, and use o
 18. Temporarily disconnect the internet and confirm the header shows **Offline** without hiding already loaded trip information.
 19. If the normal browser opens an old or different dashboard, open `https://saradasutar.github.io/MyTrip/repair.html`, select **Repair cache and reopen MyTrip**, then sign in again.
 20. Reopen MyTrip once more and confirm the login screen appears immediately from the controlled static cache; verify that passwords are still blank and live trip data still comes from Apps Script.
+21. Open Itinerary or Expenses, select **Paste & import**, paste several sample rows, correct one preview field, leave a possible duplicate unticked, and confirm accepted rows appear in the correct Google Sheet tabs.
+22. Open **All trips → Access & Audit**. Test an account sign-in, a failed sign-in and a no-login Quick Expense entry; confirm each appears with the correct verified/unverified badge, filters and CSV export.
