@@ -2,17 +2,18 @@
   "use strict";
 
   const config = window.MYTRIP_CONFIG || {};
+  const quickExpenseStandalone = config.QUICK_EXPENSE_STANDALONE === true;
   const apiStorageKey = "mytrip_google_backend_url";
   const savedUsernameStorageKey = "mytrip_saved_username_v2";
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
-  const quickExpenseShortcutStorageKey = "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.1";
+  const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
+  const frontendVersion = "4.67.2";
   const requiredBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
   addEventListener("beforeinstallprompt", (event) => {
     const launch = new URLSearchParams(location.search);
-    if (launch.get("quick-expense") !== "1" && launch.get("quick-expense-home") !== "1") return;
+    if (!quickExpenseStandalone && launch.get("quick-expense") !== "1" && launch.get("quick-expense-home") !== "1") return;
     event.preventDefault();
     deferredQuickExpenseInstallPrompt = event;
     dispatchEvent(new CustomEvent("mytrip-install-ready"));
@@ -36,7 +37,7 @@
   }
   function readQuickExpenseShortcut() {
     try {
-      const saved = JSON.parse(localStorage.getItem(quickExpenseShortcutStorageKey) || "null");
+      const saved = JSON.parse(localStorage.getItem(quickExpenseShortcutStorageKey) || (quickExpenseStandalone ? localStorage.getItem("mytrip_quick_expense_shortcut_v1") : "") || "null");
       if (!saved || saved.enabled !== true || !/^[A-Za-z0-9_-]{32,180}$/.test(String(saved.token || ""))) return null;
       return saved;
     } catch { return null; }
@@ -55,7 +56,10 @@
     } catch { return false; }
   }
   function clearQuickExpenseShortcut() {
-    try { localStorage.removeItem(quickExpenseShortcutStorageKey); } catch {}
+    try {
+      if (quickExpenseStandalone) localStorage.setItem(quickExpenseShortcutStorageKey, JSON.stringify({ enabled: false }));
+      else localStorage.removeItem(quickExpenseShortcutStorageKey);
+    } catch {}
   }
   function standaloneDisplayMode() {
     return Boolean((window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true);
@@ -2347,7 +2351,7 @@
   }
 
   function quickExpensePublicLink(token) {
-    const url = new URL("quick-expense/index.html", document.baseURI);
+    const url = new URL(quickExpenseStandalone ? "index.html" : "quick-expense/index.html", document.baseURI);
     url.searchParams.set("quick-expense", "1");
     if (apiUrlReady()) url.searchParams.set("api", apiUrl);
     return `${url.toString()}#qe=${encodeURIComponent(token)}`;
@@ -5104,7 +5108,10 @@
     if (window.MyTripReceiptScanner && window.MyTripBillParser) return Promise.resolve();
     if (receiptScannerPromise) return receiptScannerPromise;
     const load = (file) => new Promise((resolve, reject) => {
-      const script = document.createElement("script"); script.src = `${file}?v=${frontendVersion}`;
+      const script = document.createElement("script");
+      let assetBase = document.baseURI;
+      if (quickExpenseStandalone && config.QUICK_EXPENSE_ASSET_BASE) { try { assetBase = new URL(config.QUICK_EXPENSE_ASSET_BASE, document.baseURI).href; } catch {} }
+      script.src = new URL(`${file}?v=${frontendVersion}`, assetBase).href;
       const timer = setTimeout(() => { script.remove(); reject(new Error("Bill scanner could not load. Reconnect and try again.")); }, 20000);
       script.onload = () => { clearTimeout(timer); resolve(); };
       script.onerror = () => { clearTimeout(timer); script.remove(); reject(new Error("Bill scanner files are missing. Upload receipt-parser.js, receipt-scan.js and the ocr folder.")); };
@@ -5935,6 +5942,10 @@
   }
 
   function quickExpenseInstallCard(info) {
+    if (quickExpenseStandalone) {
+      if (standaloneDisplayMode()) return "";
+      return `<section class="quick-expense-install-card ready"><i><img src="quick-expense-icon.svg" alt="MyTrip icon with a rupee badge" width="52" height="52"></i><div><small>SEPARATE QUICK EXPENSE APP</small><h2>Install the ₹ Quick Expense app</h2><p>Keep MyTrip for the full dashboard. This separate app opens <b>${esc(info.trip.name)}</b> without account sign-in.</p></div><span class="quick-expense-install-actions"><button type="button" data-quick-install>Install Quick Expense app</button><button type="button" class="secondary" data-quick-forget>Forget this app’s trip link</button></span>${quickExpenseInstallHelp ? `<div class="quick-expense-install-help"><b>Install from the separate app address</b><span>In Chrome, tap <b>⋮ → Install and create shortcut / Add to Home screen → Install</b>. Confirm the name <b>Quick Expense</b> and its small <b>₹ badge</b>.</span><span>Do not install from the nested MyTrip/quick-expense page. Android must confirm installation. A Create shortcut option creates a shortcut, not a second installed app.</span></div>` : ""}</section>`;
+    }
     const saved = readQuickExpenseShortcut(), current = Boolean(saved && saved.token === quickExpenseToken);
     const help = quickExpenseInstallHelp || new URLSearchParams(location.search).get("icon-help") === "1" ? `<div class="quick-expense-install-help"><b>Add your second icon from Chrome</b><span>Tap Chrome <b>⋮ → Install and create shortcut / Add to Home screen → Create shortcut</b>. Name it <b>Quick Expense</b> and tap <b>Add</b>.</span><span>Keep your existing <b>MyTrip</b> app. The new <b>₹ Quick Expense</b> icon opens this form without account login.</span><small>A saved trip link or an app-style window does not confirm that Android added an icon. The website cannot inspect your Home screen. On iPhone, use Safari → Share → Add to Home Screen.</small></div>` : "";
     return `<section class="quick-expense-install-card${current ? " ready" : ""}"><i><img src="quick-expense-icon.svg" alt="" width="52" height="52"></i><div><small>SECOND HOME-SCREEN ICON · NO LOGIN</small><h2>Add Quick Expense beside MyTrip</h2><p>${current ? `Trip link saved for <b>${esc(info.trip.name)}</b>. Saving the link does not add an Android icon.` : "Keep MyTrip for account sign-in. Add a separate ₹ icon for this expense form."}</p></div><span class="quick-expense-install-actions"><button type="button" data-quick-install>＋ Add second home icon</button>${current ? `<button type="button" class="secondary" data-quick-forget>Forget saved trip link</button>` : ""}</span>${help}</section>`;
@@ -5950,6 +5961,16 @@
 
   async function installQuickExpenseOnPhone() {
     if (!saveQuickExpenseShortcut()) return toast("This secure link could not be saved on this phone", true);
+    if (quickExpenseStandalone) {
+      const prompt = deferredQuickExpenseInstallPrompt;
+      if (!prompt) { quickExpenseInstallHelp = true; renderQuickExpensePublic(); return toast("Use Chrome’s menu to install Quick Expense from this separate app address."); }
+      deferredQuickExpenseInstallPrompt = null;
+      try {
+        await prompt.prompt(); const choice = await prompt.userChoice;
+        quickExpenseInstallHelp = choice.outcome !== "accepted"; renderQuickExpensePublic();
+        return toast(choice.outcome === "accepted" ? "Installation requested. Wait for Android to confirm the ₹ Quick Expense app." : "Installation cancelled. You can try again from Chrome’s menu.");
+      } catch { quickExpenseInstallHelp = true; renderQuickExpensePublic(); return toast("Use Chrome’s menu to install Quick Expense."); }
+    }
     /* Quick Expense is a separate installable PWA with its own manifest id and
        start URL. Using the main MyTrip manifest here made Android reopen the
        account-login page instead of the saved no-login expense form. */
@@ -6013,7 +6034,7 @@
       $("#restoreQuickExpenseLink").addEventListener("submit", event => { event.preventDefault(); try { const link = new URL(new FormData(event.currentTarget).get("link")); const savedToken = new URLSearchParams(link.hash.replace(/^#/, "")).get("qe") || ""; if (!/^[A-Za-z0-9_-]{32,180}$/.test(savedToken)) throw new Error("Paste the complete Quick Expense link, including its secure ending."); quickExpenseToken = savedToken; saveQuickExpenseShortcut(); openQuickExpenseMode(savedToken); } catch (error) { toast(error.message, true); } });
       return;
     }
-    try { await ensureCurrentBackend(); await refreshQuickExpensePublic(); if (quickExpenseInfo) useQuickExpenseBranding(quickExpenseInfo.trip?.name); }
+    try { await ensureCurrentBackend(); await refreshQuickExpensePublic(); if (quickExpenseInfo) { useQuickExpenseBranding(quickExpenseInfo.trip?.name); if (quickExpenseStandalone) saveQuickExpenseShortcut(); } }
     catch (error) { const slot = $("#quickExpenseContent"); slot.innerHTML = `<div class="quick-expense-error"><i>!</i><h1>Quick expense is unavailable</h1><p>${esc(error.message)}</p><a href="./">Open MyTrip sign in</a></div>`; }
   }
 
@@ -6066,7 +6087,7 @@
   const inviteQuery = new URLSearchParams(location.search);
   const invitedApi = inviteQuery.get("api"), savedQuickExpenseShortcut = readQuickExpenseShortcut();
   const accountLoginRequested = inviteQuery.get("account") === "1";
-  const quickExpenseHomeLaunch = inviteQuery.get("quick-expense-home") === "1";
+  const quickExpenseHomeLaunch = quickExpenseStandalone || inviteQuery.get("quick-expense-home") === "1";
   if (!validApiUrl(config.API_URL) && validApiUrl(invitedApi)) { apiUrl = invitedApi; saveStoredApiUrl(apiUrl); }
   else if (!validApiUrl(config.API_URL) && !validApiUrl(apiUrl) && savedQuickExpenseShortcut && validApiUrl(savedQuickExpenseShortcut.apiUrl)) { apiUrl = savedQuickExpenseShortcut.apiUrl; saveStoredApiUrl(apiUrl); }
   updateBackendStatus();
@@ -6075,9 +6096,9 @@
   setInterval(() => { if (!document.hidden) updateHeaderDateTime(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) updateHeaderDateTime(); });
   restoreSavedAccountLogin();
-  const quickExpenseMode = inviteQuery.get("quick-expense") === "1" || (!accountLoginRequested && quickExpenseHomeLaunch);
+  const quickExpenseMode = quickExpenseStandalone || inviteQuery.get("quick-expense") === "1" || (!accountLoginRequested && quickExpenseHomeLaunch);
   const quickExpenseHashToken = new URLSearchParams(location.hash.replace(/^#/, "")).get("qe") || (quickExpenseMode && savedQuickExpenseShortcut ? savedQuickExpenseShortcut.token : "");
-  if (quickExpenseMode && !/\/quick-expense\/(?:index\.html)?$/.test(location.pathname)) {
+  if (quickExpenseMode && !quickExpenseStandalone && !/\/quick-expense\/(?:index\.html)?$/.test(location.pathname)) {
     // Legacy links used the main MyTrip page/manifest. Move only no-login
     // expense launches to their dedicated page, preserving the private hash.
     const direct = new URL(quickExpensePublicLink(quickExpenseHashToken));

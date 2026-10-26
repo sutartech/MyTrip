@@ -1,8 +1,8 @@
 {
-  "name": "Quick Expense",
+  "name": "Quick Expense · MyTrip",
   "short_name": "Quick Expense",
-  "description": "MyTrip expense entry without account login. Active Administrator-approved shared link required.",
-  "id": "./",
+  "description": "Trip-linked expense entry. No account login required.",
+  "id": "/quick-expense",
   "start_url": "./index.html?quick-expense-home=1",
   "scope": "./",
   "display": "standalone",
@@ -10,23 +10,7 @@
   "background_color": "#F6FBFA",
   "theme_color": "#0E817A",
   "icons": [
-    {
-      "src": "quick-expense-icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "quick-expense-icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "quick-expense-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "../quick-expense-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "../quick-expense-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }
