@@ -8,8 +8,9 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.2";
-  const requiredBackendVersion = "4.32.1";
+  const frontendVersion = "4.67.4";
+  const requiredBackendVersion = "4.32.2";
+  const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
   addEventListener("beforeinstallprompt", (event) => {
     const launch = new URLSearchParams(location.search);
@@ -78,7 +79,7 @@
   const requestTimeoutMs = 25000;
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: config.DEFAULT_CURRENCY || "INR", maximumFractionDigits: 0 });
+  const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: config.DEFAULT_CURRENCY || "INR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
   function contactVerificationBadges(account = {}) {
     const hasEmail = Boolean(String(account.email || "").trim());
@@ -501,7 +502,7 @@
   async function verifyBackendVersion(url = apiUrl) {
     const info = await requestAt(url, "ping");
     backendVersion = String(info && info.version || "");
-    if (!backendVersionAtLeast(backendVersion, requiredBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.sharedTripList !== true || info.accountLogin !== true || info.identifierLogin !== true || info.otpLogin !== true || info.otpEmail !== true || info.emailOnlyOtp !== true || info.contactVerification !== true || info.passwordResetOtp !== true || info.batchedSheetIO !== true || info.singleDriveRoot !== true || info.originalPhotos20MB !== true || info.quickExpenseNoExpiry !== true || info.accessAudit !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true || info.tripAnnouncements !== true || info.ratingProGrace !== true || info.quickExpenseLinks !== true || info.quickExpenseAnyPayer !== true || info.quickExpenseTripWide !== true || info.quickExpenseHistoryControls !== true || info.granularPermissions !== true || info.systemHealth !== true || info.sectionLoading !== true || info.offlineExpenseQueue !== true || info.receiptReadForScan !== true) throw backendUpgradeError(backendVersion);
+    if (!backendVersionAtLeast(backendVersion, minimumCompatibleBackendVersion) || info.stickyNoteDiary !== true || info.sharedStickyNotes !== true || info.itineraryPlanner !== true || info.sharedTripList !== true || info.accountLogin !== true || info.identifierLogin !== true || info.otpLogin !== true || info.otpEmail !== true || info.emailOnlyOtp !== true || info.contactVerification !== true || info.passwordResetOtp !== true || info.batchedSheetIO !== true || info.singleDriveRoot !== true || info.originalPhotos20MB !== true || info.quickExpenseNoExpiry !== true || info.accessAudit !== true || info.travellerCredentialEdit !== true || info.administratorLoginEdit !== true || info.travellerTripCreation !== true || info.tripPhotoGallery !== true || info.tripAnnouncements !== true || info.ratingProGrace !== true || info.quickExpenseLinks !== true || info.quickExpenseAnyPayer !== true || info.quickExpenseTripWide !== true || info.quickExpenseHistoryControls !== true || info.granularPermissions !== true || info.systemHealth !== true || info.sectionLoading !== true || info.offlineExpenseQueue !== true || info.receiptReadForScan !== true) throw backendUpgradeError(backendVersion);
     return info;
   }
 
@@ -2120,6 +2121,34 @@
     return raw.split("|").map((g) => g.split("+").map((n) => n.trim()).filter(Boolean)).filter((g) => g.length);
   }
 
+  function expenseShareUnits(expense, sharing) {
+    const selected = String(expense.sharedBy || "").split("|").map((name) => name.trim().toLowerCase()).filter(Boolean);
+    const matches = selected.length ? sharing.filter((unit) => unit.members.some((name) => selected.includes(name.toLowerCase()))) : sharing;
+    return matches.length ? matches : sharing;
+  }
+
+  function expenseShareAllocations(expense, sharing) {
+    const chosen = expenseShareUnits(expense, sharing);
+    if (!chosen.length) return [];
+    const cents = Math.round(Number(expense.amount || 0) * 100);
+    const base = Math.floor(cents / chosen.length), remainder = cents - base * chosen.length;
+    return chosen.map((unit, index) => ({ unit, amount: (base + (index < remainder ? 1 : 0)) / 100 }));
+  }
+
+  function expenseShareSummary(expense) {
+    const allUnits = shareUnits().map((members) => ({ name: members.length > 1 ? `${members[0]} family` : members[0], short: members[0], members }));
+    const chosen = expenseShareUnits(expense, allUnits), familyMode = allUnits.some((unit) => unit.members.length > 1);
+    if (!allUnits.length) return { kind: "all", label: "ALL SHARES", detail: "Everyone" };
+    if (chosen.length === allUnits.length) return { kind: "all", label: `ALL ${allUnits.length} ${familyMode ? "FAMILIES" : "TRAVELLERS"}`, detail: chosen.map((unit) => unit.short).join(" + ") };
+    if (chosen.length === 1) return { kind: "one", label: familyMode ? "ONE FAMILY" : "ONE TRAVELLER", detail: `${chosen[0].short} only` };
+    return { kind: "some", label: `${chosen.length} OF ${allUnits.length} ${familyMode ? "FAMILIES" : "TRAVELLERS"}`, detail: chosen.map((unit) => unit.short).join(" + ") };
+  }
+
+  function expenseShareBadge(expense) {
+    const summary = expenseShareSummary(expense);
+    return `<em class="expense-share-badge ${summary.kind}" title="Shared by ${esc(summary.detail)}"><b>${esc(summary.label)}</b><small>${esc(summary.detail)}</small></em>`;
+  }
+
   function openSplitMembers() {
     const names = visibleTripMembers().map((m) => String(m.name || "").trim()).filter(Boolean);
     const groups = splitGroups();
@@ -2202,9 +2231,7 @@
     const sharing = units.filter((u) => u.shares); units.forEach((u) => { u.owed = 0; });
     state.data.expenses.forEach((e) => {
       const amt = Number(e.amount || 0); if (!amt) return;
-      const sb = String(e.sharedBy || "").split("|").map((s) => s.trim().toLowerCase()).filter(Boolean);
-      let us = sb.length ? sharing.filter((u) => u.members.some((m) => sb.includes(m.toLowerCase()))) : sharing;
-      if (!us.length) us = sharing; us.forEach((u) => { u.owed += amt / us.length; });
+      expenseShareAllocations(e, sharing).forEach(({ unit, amount }) => { unit.owed = Math.round((unit.owed + amount) * 100) / 100; });
     });
     units.forEach((u) => { u.net = Math.round((u.paid - u.owed) * 100) / 100; });
     /* Administrator-confirmed settlement payments move money directly between
@@ -2218,15 +2245,15 @@
       if (from) from.net = Math.round((from.net + amt) * 100) / 100;
       if (to) to.net = Math.round((to.net - amt) * 100) / 100;
     });
-    const owe = units.filter((u) => u.net < -0.5).map((u) => ({ ...u, left: -u.net })).sort((a, b) => b.left - a.left);
-    const get = units.filter((u) => u.net > 0.5).map((u) => ({ ...u, left: u.net })).sort((a, b) => b.left - a.left);
+    const owe = units.filter((u) => u.net < -0.005).map((u) => ({ ...u, left: -u.net })).sort((a, b) => b.left - a.left);
+    const get = units.filter((u) => u.net > 0.005).map((u) => ({ ...u, left: u.net })).sort((a, b) => b.left - a.left);
     const transfers = [];
     let i = 0, j = 0;
     while (i < owe.length && j < get.length) {
       const amt = Math.min(owe[i].left, get[j].left);
-      if (amt >= 1) transfers.push({ from: owe[i].name, to: get[j].name, amount: Math.round(amt) });
+      if (amt >= 0.005) transfers.push({ from: owe[i].name, to: get[j].name, amount: Math.round(amt * 100) / 100 });
       owe[i].left -= amt; get[j].left -= amt;
-      if (owe[i].left < 0.5) i++; if (get[j].left < 0.5) j++;
+      if (owe[i].left < 0.005) i++; if (get[j].left < 0.005) j++;
     }
     return { people: units.sort((a, b) => b.net - a.net), transfers, share, total, shareCount, families: units.some((u) => u.members.length > 1) };
   }
@@ -2257,7 +2284,7 @@
     if (!plan.total) return "";
     const forced = String((state.data.trip || {}).settleVisible).toUpperCase() === "TRUE";
     if (!settleShown()) return isAdmin() ? `<section class="settle-collapsed"><div><b>Settle up is hidden</b><small>Travellers will see who owes whom after the trip ends.</small></div><div class="settle-collapsed-actions"><button type="button" data-split-members>Choose who shares</button><button type="button" data-resplit>Re-split past expenses</button><button type="button" data-currency-setup>Currency</button><button type="button" class="settle-show" data-settle-toggle="show">Show now</button></div></section>` : "";
-    const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.lead })}<b>${esc(p.name)}</b></span><small>${p.members.length > 1 ? `${p.members.map(esc).join(" + ")} · ` : ""}Paid ${money.format(p.paid)}${p.shares ? "" : " · not sharing"}</small>${Math.abs(p.net) <= 0.5 ? `<strong class="settle-clear">✓ Settled</strong>` : `<strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong>`}</div>`).join("");
+    const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.lead })}<b>${esc(p.name)}</b></span><small>${p.members.length > 1 ? `${p.members.map(esc).join(" + ")} · ` : ""}<b>Paid ${money.format(p.paid)}</b> · Expense share ${money.format(p.owed)}${p.shares ? "" : " · not sharing"}</small>${Math.abs(p.net) < 0.005 ? `<strong class="settle-clear">✓ Settled</strong>` : `<strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong>`}</div>`).join("");
     const settlements = (state.data.settlements || []).slice().sort((x, y) => String(y.createdAt || "").localeCompare(String(x.createdAt || "")));
     const pendingRows = plan.transfers.map((t) => `<li class="settle-pending"><em class="settle-status pending">PENDING</em><b>${esc(t.from)}</b><span>pays</span><b>${esc(t.to)}</b><strong>${money.format(t.amount)}</strong><span class="settle-move-actions"><a class="settle-remind" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`MyTrip · ${(state.data.trip || {}).name || "Trip"}: ${t.from} pays ${t.to} ${money.format(t.amount)} to settle up. Thank you!`)}">✆ Remind</a>${isAdmin() ? `<button type="button" class="settle-mark-done" data-settle-from="${esc(t.from)}" data-settle-to="${esc(t.to)}" data-settle-amount="${t.amount}">✓ Mark settled</button>` : ""}</span></li>`).join("");
     const settledRows = settlements.map((x) => `<li class="settle-settled"><em class="settle-status settled">✓ SETTLED</em><b>${esc(x.fromPerson)}</b><span>paid</span><b>${esc(x.toPerson)}</b><strong>${money.format(x.amount)}</strong><small>${x.method ? `<b class="settle-method">${esc(x.method)}</b> · ` : ""}${displayDate(String(x.paidOn || x.createdAt || "").slice(0, 10))}${x.reference ? ` · Ref ${esc(x.reference)}` : ""}${x.settledBy ? ` · confirmed by ${esc(x.settledBy)}` : ""}${x.note ? ` · ${esc(x.note)}` : ""}</small>${isAdmin() ? `<button type="button" class="settle-undo" data-settle-undo="${esc(x.id)}">Undo</button>` : ""}</li>`).join("");
@@ -2265,14 +2292,14 @@
     const settledTotal = settlements.reduce((sum, x) => sum + Number(x.amount || 0), 0);
     const history = settlements.length ? `<p class="settle-history-foot settle-summary">✓ ${settlements.length} settlement${settlements.length === 1 ? "" : "s"} saved · ${money.format(settledTotal)} paid back${isAdmin() ? " · stored in your Google Sheet, tab “Settlements”" : ""}</p>` : "";
     const banner = !plan.transfers.length && settlements.length ? `<div class="settle-allclear"><i>✓</i><div><b>ALL SETTLED</b><small>Every payment has been made and confirmed by the Administrator.</small></div></div>` : "";
-    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>${state.data.expenses.some((e) => String(e.sharedBy || "").trim()) ? `Shared across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · some expenses re-split` : `Split equally across ${plan.shareCount} ${plan.families ? "shares" : "travellers"} · ${money.format(Math.round(plan.share))} each`}</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button><button type="button" class="ghost-button" data-resplit>Re-split</button><button type="button" class="ghost-button" data-currency-setup>Currency</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div>${banner}<div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div>${history}</section>`;
+    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>${state.data.expenses.some((e) => String(e.sharedBy || "").trim()) ? `Sharing is calculated for each expense separately · ${plan.shareCount} ${plan.families ? "family shares" : "travellers"} configured` : `Split equally across ${plan.shareCount} ${plan.families ? "family shares" : "travellers"} · about ${money.format(plan.share)} each; exact shares below`}</p></div>${isAdmin() ? `<div class="settle-admin"><button type="button" class="ghost-button" data-split-members>Choose who shares</button><button type="button" class="ghost-button" data-resplit>Re-split</button><button type="button" class="ghost-button" data-currency-setup>Currency</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : ""}</div><p class="settle-explainer"><b>Trip total ${money.format(plan.total)}</b> is money spent, counted once. <b>Paid</b> shows who paid; <b>Expense share</b> shows who benefits. The balance shows only the repayment still due—never add it again as an expense.</p>${banner}<div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div>${history}</section>`;
   }
   const SETTLE_METHODS = ["Cash", "UPI (GPay / PhonePe / Paytm)", "Bank transfer", "Cheque", "Other"];
   function openSettlementConfirm(from, to, amount) {
     if (!isAdmin()) return toast("Administrator access is required to confirm a settlement", true);
     if (backendInfo && backendInfo.settlementRecords !== true) return toast("Your Google backend is out of date. In Apps Script paste the latest Code.gs, then Deploy → Manage deployments → Edit → New version. After that, Mark settled will save.", true);
-    const amt = Math.round(Number(amount) || 0);
-    showModal("Confirm settlement", `<form class="modal-form settle-confirm" data-form="settlement"><div class="settle-confirm-card"><div class="settle-confirm-who"><span><small>PAID BY</small><b>${esc(from)}</b></span><i>→</i><span><small>PAID TO</small><b>${esc(to)}</b></span></div><strong class="settle-confirm-amt" id="settleConfirmAmt">${money.format(amt)}</strong></div><div class="form-row"><label>Amount paid (₹)<input name="amount" id="settleAmountInput" type="number" min="1" step="1" value="${amt}" required></label><label>Date paid<input name="paidOn" type="date" value="${esc(localDateKey())}" max="${esc(localDateKey())}" required></label></div><div class="form-row"><label>How was it paid?<select name="method">${SETTLE_METHODS.map((m) => `<option>${m}</option>`).join("")}</select></label><label>Reference / UTR <small>(optional)</small><input name="reference" maxlength="60" placeholder="e.g. UPI transaction ID"></label></div><label>Note <small>(optional)</small><input name="note" maxlength="200" placeholder="e.g. Paid at the station"></label><input type="hidden" name="fromPerson" value="${esc(from)}"><input type="hidden" name="toPerson" value="${esc(to)}"><p class="settle-confirm-help">This is saved to the Settlements tab of your Google Sheet and counted against what is owed. It is not added as a trip expense.</p><div class="form-actions"><button type="button" id="cancelSettlement">Cancel</button><button type="submit" class="primary">Confirm &amp; save</button></div></form>`);
+    const amt = Math.round((Number(amount) || 0) * 100) / 100;
+    showModal("Confirm settlement", `<form class="modal-form settle-confirm" data-form="settlement"><div class="settle-confirm-card"><div class="settle-confirm-who"><span><small>PAID BY</small><b>${esc(from)}</b></span><i>→</i><span><small>PAID TO</small><b>${esc(to)}</b></span></div><strong class="settle-confirm-amt" id="settleConfirmAmt">${money.format(amt)}</strong></div><div class="form-row"><label>Amount paid (₹)<input name="amount" id="settleAmountInput" type="number" min="0.01" step="0.01" value="${amt}" required></label><label>Date paid<input name="paidOn" type="date" value="${esc(localDateKey())}" max="${esc(localDateKey())}" required></label></div><div class="form-row"><label>How was it paid?<select name="method">${SETTLE_METHODS.map((m) => `<option>${m}</option>`).join("")}</select></label><label>Reference / UTR <small>(optional)</small><input name="reference" maxlength="60" placeholder="e.g. UPI transaction ID"></label></div><label>Note <small>(optional)</small><input name="note" maxlength="200" placeholder="e.g. Paid at the station"></label><input type="hidden" name="fromPerson" value="${esc(from)}"><input type="hidden" name="toPerson" value="${esc(to)}"><p class="settle-confirm-help">This is saved to the Settlements tab of your Google Sheet and counted against what is owed. It is not added as a trip expense.</p><div class="form-actions"><button type="button" id="cancelSettlement">Cancel</button><button type="submit" class="primary">Confirm &amp; save</button></div></form>`);
     const settleForm = $('form[data-form="settlement"]'); if (settleForm) settleForm.addEventListener("submit", saveForm);
     const cancelBtn = $("#cancelSettlement"); if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
     const input = $("#settleAmountInput"); if (input) input.addEventListener("input", () => { const el = $("#settleConfirmAmt"); if (el) el.textContent = money.format(Number(input.value) || 0); });
@@ -2485,7 +2512,7 @@
       if (String(state.expenseRowEditId) === String(expense.id)) return renderExpenseRowEditor(expense);
       const editActions = canEditRecords("Expenses", expense) ? `<button class="row-edit" data-row-edit-expense="${esc(expense.id)}">Row edit</button><button data-edit data-sheet="Expenses" data-id="${esc(expense.id)}">Edit</button>` : "";
       const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
-      return `<div class="expense-row"><span class="expense-description"><i>₹</i><b>${esc(expense.label)}</b></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${expense.receiptUrl || canEditRecords("Expenses") ? `<button class="receipt-btn${expense.receiptUrl ? " has" : ""}" data-receipt-open="${esc(expense.id)}" title="${expense.receiptUrl ? "View receipt" : "Add receipt photo"}">🧾</button>` : ""}${editActions}${deleteAction}</span></div>`;
+      return `<div class="expense-row"><span class="expense-description"><i>₹</i><span><b>${esc(expense.label)}</b>${expenseShareBadge(expense)}</span></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${expense.receiptUrl || canEditRecords("Expenses") ? `<button class="receipt-btn${expense.receiptUrl ? " has" : ""}" data-receipt-open="${esc(expense.id)}" title="${expense.receiptUrl ? "View receipt" : "Add receipt photo"}">🧾</button>` : ""}${editActions}${deleteAction}</span></div>`;
     }).join("");
     return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}${canAdd("expense") ? textImportStrip("auto") : ""}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderSpendChart(total, budget)}<section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-expense-columns>⇔ Reset</button></label>`)}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${travellerFilterBar}<div class="expense-table expense-action-table" style="${expenseColumnStyle()}"><div class="expense-table-header">${expenseColumnLabels.map((label, index) => `<span>${label}${index < expenseColumnLabels.length - 1 ? `<i class="expense-col-grip" data-exp-col="${index}" title="Drag to resize this column">⋮⋮</i>` : ""}</span>`).join("")}</div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
   }
@@ -2502,7 +2529,10 @@
   function showExpenseDetailsInner(id) {
     const expense = state.data.expenses.find((item) => String(item.id) === String(id));
     if (!expense) return toast("Expense not found", true);
-    showModal("Expense details", `<div class="expense-view-card"><span class="expense-view-icon">₹</span><div><small>EXPENSE</small><h3>${esc(expense.label)}</h3><p>${esc(expense.notes || "No additional note")}</p></div><dl><div><dt>DATE</dt><dd>${displayDate(expense.date)}</dd></div><div><dt>CATEGORY</dt><dd>${esc(expense.category || "Other")}</dd></div><div><dt>PAID BY</dt><dd>${esc(expense.paidBy || "Not specified")}</dd></div><div><dt>AMOUNT</dt><dd>${money.format(expense.amount)}</dd></div></dl><div class="form-actions"><button id="closeExpenseView" type="button">Close</button>${canEditRecords("Expenses") ? `<button id="editExpenseFromView" type="button">Edit expense</button>` : ""}</div></div>`);
+    const units = shareUnits().map((members) => ({ name: members.length > 1 ? `${members[0]} family` : members[0], members }));
+    const allocations = expenseShareAllocations(expense, units), chosen = allocations.map(item => item.unit);
+    const sharing = `<section class="expense-split-detail"><b>Who shares this expense</b><p>${chosen.length} ${chosen.length === 1 ? "share" : "shares"} · ${money.format(Number(expense.amount || 0))} counted once in the trip total</p><div>${allocations.map(({ unit, amount }) => `<span><b>${esc(unit.name)}</b><strong>${money.format(amount)}</strong></span>`).join("")}</div><small>Paid by ${esc(expense.paidBy || "Not specified")}. Settle Up combines all expenses and repayments.</small></section>`;
+    showModal("Expense details", `<div class="expense-view-card"><span class="expense-view-icon">₹</span><div><small>EXPENSE</small><h3>${esc(expense.label)}</h3><p>${esc(expense.notes || "No additional note")}</p></div><dl><div><dt>DATE</dt><dd>${displayDate(expense.date)}</dd></div><div><dt>CATEGORY</dt><dd>${esc(expense.category || "Other")}</dd></div><div><dt>PAID BY</dt><dd>${esc(expense.paidBy || "Not specified")}</dd></div><div><dt>AMOUNT</dt><dd>${money.format(expense.amount)}</dd></div></dl>${sharing}<div class="form-actions"><button id="closeExpenseView" type="button">Close</button>${canEditRecords("Expenses") ? `<button id="editExpenseFromView" type="button">Edit expense</button>` : ""}</div></div>`);
     $("#closeExpenseView").addEventListener("click", closeModal);
     if ($("#editExpenseFromView")) $("#editExpenseFromView").addEventListener("click", () => showEditRecord("Expenses", expense.id));
   }
@@ -5920,12 +5950,47 @@
     return (!start || today >= start) && (!end || today <= end) ? today : (start || today);
   }
 
+  function quickExpenseShareGroups(info = quickExpenseInfo) {
+    const members = info?.members || [], lookup = new Map(members.map((name) => [String(name).toLowerCase(), name]));
+    const raw = String(info?.trip?.splitMembers || "");
+    if (!raw) return members.map((name) => [name]);
+    const used = new Set();
+    const groups = raw.split("|").map((part) => part.split("+").map((name) => lookup.get(name.trim().toLowerCase())).filter((name) => {
+      if (!name || used.has(name.toLowerCase())) return false;
+      used.add(name.toLowerCase()); return true;
+    })).filter((group) => group.length);
+    return groups.length ? groups : members.map((name) => [name]);
+  }
+
   function quickExpenseShareFields(row) {
-    const members = quickExpenseInfo?.members || [];
-    const selected = String(row?.sharedBy || "").split("|").filter(Boolean);
-    const all = !selected.length;
-    if (!members.length) return "";
-    return `<details class="quick-expense-share"><summary><span><b>Shared by</b><small>${all ? "All trip travellers" : `${selected.length} selected`}</small></span><i>⌄</i></summary><div><p>Select who shares this expense. Leave everyone selected for a normal group expense.</p>${members.map((name) => `<label><input type="checkbox" name="sharedMember" value="${esc(name)}" ${all || selected.includes(name) ? "checked" : ""}><span>${avatarSlot({ name })}<b>${esc(name)}</b></span></label>`).join("")}</div></details>`;
+    const groups = quickExpenseShareGroups(), selected = String(row?.sharedBy || "").split("|").map((name) => name.toLowerCase());
+    const all = !selected.filter(Boolean).length, familyMode = groups.some((group) => group.length > 1);
+    if (!groups.length) return "";
+    return `<fieldset class="quick-expense-share"><legend>Who shares this expense?</legend><p class="quick-expense-share-help">Choose only the ${familyMode ? "families" : "travellers"} included in this expense. Leave an excluded family unticked—even if its member paid for the bill.</p><div class="quick-expense-share-options">${groups.map((group, index) => `<label><input type="checkbox" name="sharedUnit" value="${index}" ${all || group.some((name) => selected.includes(name.toLowerCase())) ? "checked" : ""}><span>${avatarSlot({ name: group[0] })}<b>${esc(group.length > 1 ? `${group[0]} family` : group[0])}</b>${group.length > 1 ? `<small>${group.map(esc).join(" + ")}</small>` : ""}</span></label>`).join("")}</div><div class="quick-expense-share-preview" role="status" aria-live="polite"></div></fieldset>`;
+  }
+
+  function quickExpenseShareLabel(row) {
+    const groups = quickExpenseShareGroups(), selected = String(row?.sharedBy || "").split("|").map((name) => name.toLowerCase()).filter(Boolean);
+    const chosen = selected.length ? groups.filter((group) => group.some((name) => selected.includes(name.toLowerCase()))) : groups;
+    const familyMode = groups.some((group) => group.length > 1), names = chosen.map((group) => group[0]);
+    if (chosen.length === groups.length) return `All ${groups.length} ${familyMode ? "families" : "travellers"}`;
+    if (chosen.length === 1) return `${familyMode ? "One family" : "One traveller"}: ${names[0]}`;
+    return `${chosen.length} of ${groups.length} ${familyMode ? "families" : "travellers"}: ${names.join(" + ")}`;
+  }
+
+  function updateQuickExpenseSharePreview(form) {
+    const preview = form.querySelector(".quick-expense-share-preview"); if (!preview) return;
+    const groups = quickExpenseShareGroups(), picked = new Set(new FormData(form).getAll("sharedUnit").map(Number));
+    const chosen = groups.filter((_, index) => picked.has(index));
+    if (!chosen.length) { preview.textContent = "Select at least one share before saving."; return; }
+    const amount = Number(form.elements.amount?.value || 0), familyKnown = Object.prototype.hasOwnProperty.call(quickExpenseInfo?.trip || {}, "splitMembers");
+    const noun = groups.some((group) => group.length > 1) ? "families" : "travellers";
+    const excluded = groups.filter((_, index) => !picked.has(index)).map((group) => group.length > 1 ? `${group[0]} family` : group[0]);
+    preview.innerHTML = `<b>${chosen.length} of ${groups.length} ${noun} share${chosen.length === 1 ? "s" : ""}${familyKnown && amount > 0 ? ` · about ${money.format(amount / chosen.length)} each` : ""}</b><small>${excluded.length ? `Not sharing: ${excluded.map(esc).join(", ")}` : "Everyone shares this expense"}. Trip total increases by ${amount > 0 ? money.format(amount) : "the expense amount"} only once.${familyKnown ? "" : " Exact family shares will appear after the backend update."}</small>`;
+    if (familyKnown && amount > 0) {
+      const units = chosen.map(members => ({ members, name: members.length > 1 ? `${members[0]} family` : members[0] }));
+      preview.innerHTML += `<div class="quick-exact-shares">${expenseShareAllocations({ amount }, units).map(({ unit, amount: share }) => `<span>${esc(unit.name)}: <b>${money.format(share)}</b></span>`).join("")}</div>`;
+    }
   }
 
   function quickExpensePayerField(row) {
@@ -5997,7 +6062,7 @@
     const editPolicy = info.pass?.allowEdit ? `Correction allowed for ${Number(info.pass.editMinutes || 0)} minutes after saving` : "Past entries are view only";
     const recent = (info.recent || []).map((item) => {
       const enteredBy = tripWide ? ` · Entered by ${item.enteredBy && item.enteredBy !== "Trip-wide quick link" ? `${esc(item.enteredBy)} (declared)` : "not specified"}` : "";
-      return `<article class="quick-expense-recent-row${item.queued ? " queued" : ""}"><i>${esc(String(item.category || "Other").slice(0, 1))}</i><div><b>${esc(item.label || item.category || "Expense")}</b><small>${displayDate(item.date, { day: "numeric", month: "short" })} · ${esc(item.category || "Other")} · Paid by ${esc(item.paidBy || info.traveller.name)}${enteredBy}${item.receiptUrl ? " · 🧾 Receipt" : ""}${item.queued ? " · Waiting to sync" : ""}</small></div><strong>${money.format(Number(item.amount || 0))}</strong>${item.canEdit && !item.queued ? `<span><button type="button" data-quick-edit="${esc(item.id)}">Edit</button><button type="button" class="delete" data-quick-delete="${esc(item.id)}">Delete</button></span>` : `<em>${item.queued ? "Queued" : "Saved"}</em>`}</article>`;
+      return `<article class="quick-expense-recent-row${item.queued ? " queued" : ""}"><i>${esc(String(item.category || "Other").slice(0, 1))}</i><div><b>${esc(item.label || item.category || "Expense")}</b><small>${displayDate(item.date, { day: "numeric", month: "short" })} · ${esc(item.category || "Other")} · Paid by ${esc(item.paidBy || info.traveller.name)}${enteredBy}${item.receiptUrl ? " · 🧾 Receipt" : ""}${item.queued ? " · Waiting to sync" : ""}</small><em class="quick-expense-share-tag">${esc(quickExpenseShareLabel(item))}</em></div><strong>${money.format(Number(item.amount || 0))}</strong>${item.canEdit && !item.queued ? `<span><button type="button" data-quick-edit="${esc(item.id)}">Edit</button><button type="button" class="delete" data-quick-delete="${esc(item.id)}">Delete</button></span>` : `<em>${item.queued ? "Queued" : "Saved"}</em>`}</article>`;
     }).join("");
     const linkIdentity = tripWide ? `<div><small>TRIP-WIDE SHARED LINK</small><b>Any trip member may enter</b><em>Choose Paid by for every expense</em></div>` : `<div><small>LINK OWNER / AUDIT TRAIL</small><b>${esc(info.traveller.name)}</b><em>${esc(info.traveller.travellerId)}</em></div>`;
     const formStatus = current ? `<button type="button" data-quick-cancel-edit>Cancel edit</button>` : tripWide ? `<em>No login · choose <b>Paid by</b></em>` : info.pass.allowAnyPayer ? `<em>Choose <b>Paid by</b> below</em>` : `<em>Paid by <b>${esc(info.traveller.name)}</b></em>`;
@@ -6005,6 +6070,12 @@
     slot.innerHTML = `<section class="quick-expense-shell"><div class="quick-expense-hero"><span>⚡ TRAVEL MODE · NO SIGN-IN</span><h1>${esc(info.trip.name)}</h1><p>${esc(info.trip.destination || "")}${info.trip.startDate ? ` · ${displayDate(info.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(info.trip.endDate, { day: "numeric", month: "short", year: "numeric" })}` : ""}</p>${linkIdentity}</div>${quickExpenseInstallCard(info)}<form class="quick-expense-form" id="quickExpenseForm"><header><span><small>${current ? "CORRECT RECENT ENTRY" : "ADD TO TRIP REGISTER"}</small><h2>${current ? "Edit expense" : "Quick expense"}</h2></span>${formStatus}</header><label class="quick-expense-amount"><span>${esc(info.trip.currency === "INR" ? "₹" : info.trip.currency || "₹")}</span><input name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" value="${esc(current?.amount || "")}" placeholder="0" aria-label="Expense amount" required autofocus></label><label>What was it for?<input name="label" maxlength="180" value="${esc(current?.label || "")}" placeholder="e.g. Lunch, taxi, tickets" required></label>${quickExpensePayerField(current)}${quickExpenseEnteredByField(current)}<div class="quick-expense-two"><label>Category<select name="category">${categories.map((category) => `<option ${category === current?.category ? "selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label>Date<input name="date" type="date" value="${esc(current?.date || quickExpenseDateDefault(info))}" required></label></div><label>Note <small>(optional)</small><textarea name="notes" rows="2" maxlength="1000" placeholder="Any useful detail">${esc(current?.notes || "")}</textarea></label>${quickExpenseShareFields(current)}${receiptCaptureField(current?.receiptUrl || "")}<button class="quick-expense-save" type="submit">${current ? "Save correction" : "Save expense"}</button><button class="quick-expense-save-again" name="saveAgain" value="1" type="submit">${current ? "Save and finish" : "Save & add another"}</button><p class="quick-expense-security">🔒 ${securityText} It cannot open the trip dashboard or reveal passwords. Keep it within the trip group.</p></form><section class="quick-expense-recent"><header><div><span>${esc(historyLabel.toUpperCase())}</span><h2>Past recorded expenses</h2></div><button type="button" data-quick-refresh>↻ Refresh</button></header><div>${recent || `<p class="quick-expense-empty">No expense has been added through this link yet.</p>`}</div><small class="quick-expense-window">${esc(editPolicy)} · ${info.pass.expiresAt ? `Link expires ${displayDate(info.pass.expiresAt)}` : "Link remains valid until the Administrator disables it"}</small></section></section>`;
     const dateInput = slot.querySelector('input[name="date"]');
     if (dateInput) { dateInput.min = String(info.trip.startDate || "").slice(0, 10); dateInput.max = String(info.trip.endDate || "").slice(0, 10); }
+    const quickForm = slot.querySelector("#quickExpenseForm");
+    if (quickForm) {
+      quickForm.addEventListener("change", updateQuickExpenseSharePreview.bind(null, quickForm));
+      quickForm.elements.amount?.addEventListener("input", () => updateQuickExpenseSharePreview(quickForm));
+      updateQuickExpenseSharePreview(quickForm);
+    }
     slot.querySelectorAll(".quick-expense-recent-row").forEach((element, index) => {
       const item = (info.recent || [])[index]; if (!item?.receiptUrl) return;
       const actions = document.createElement("span"); actions.className = "quick-receipt-tools";
@@ -6062,9 +6133,10 @@
   $("#quickExpenseScreen").addEventListener("submit", async (event) => {
     if (event.target.id !== "quickExpenseForm") return;
     event.preventDefault(); const form = event.target, submitter = event.submitter, buttons = $$('button[type="submit"]', form); buttons.forEach((button) => button.disabled = true);
-    const values = new FormData(form), selected = values.getAll("sharedMember").map(String), allMembers = quickExpenseInfo.members || [];
-    if (allMembers.length && !selected.length) { buttons.forEach((button) => button.disabled = false); return toast("Choose at least one traveller to share this expense", true); }
-    const record = { id: quickExpenseEditId || uid(), amount: Number(values.get("amount")), label: String(values.get("label") || "").trim(), category: String(values.get("category") || "Other"), date: String(values.get("date") || ""), notes: String(values.get("notes") || "").trim(), paidBy: String(values.get("paidBy") || (quickExpenseInfo.pass?.tripWide ? "" : quickExpenseInfo.traveller.name) || "").trim(), enteredBy: String(values.get("enteredBy") || "").trim(), sharedBy: selected.length === allMembers.length ? "" : selected.join("|") };
+    const values = new FormData(form), groups = quickExpenseShareGroups(), picked = new Set(values.getAll("sharedUnit").map(Number));
+    const selected = groups.filter((_, index) => picked.has(index)).flat();
+    if (groups.length && !picked.size) { buttons.forEach((button) => button.disabled = false); return toast("Choose at least one family or traveller to share this expense", true); }
+    const record = { id: quickExpenseEditId || uid(), amount: Number(values.get("amount")), label: String(values.get("label") || "").trim(), category: String(values.get("category") || "Other"), date: String(values.get("date") || ""), notes: String(values.get("notes") || "").trim(), paidBy: String(values.get("paidBy") || (quickExpenseInfo.pass?.tripWide ? "" : quickExpenseInfo.traveller.name) || "").trim(), enteredBy: String(values.get("enteredBy") || "").trim(), sharedBy: picked.size === groups.length ? "" : selected.join("|") };
     const receipt = receiptFileByForm.get(form) || null;
     try {
       const result = await api(quickExpenseEditId ? "quickUpdateExpense" : "quickAddExpense", { quickToken: quickExpenseToken, ...(quickExpenseEditId ? { id: quickExpenseEditId } : {}), record });
