@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <base href="../">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0E817A">
+  <meta name="referrer" content="no-referrer">
+  <title>Add Quick Expense beside MyTrip</title>
+  <link rel="manifest" href="./quick-expense/manifest.webmanifest">
+  <link rel="icon" href="./quick-expense-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./quick-expense-icon-192.png">
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 10% 10%,#c9f2e8,transparent 30%),radial-gradient(circle at 90% 90%,#e2d5ff,transparent 34%),#f7fbfa;color:#163443;font-family:Inter,system-ui,-apple-system,sans-serif}.card{width:min(520px,100%);padding:30px;border:1px solid #c7dfda;border-radius:28px;background:rgba(255,255,255,.94);box-shadow:0 25px 70px -34px rgba(21,64,75,.55);text-align:center}.logo{display:grid;place-items:center;width:92px;height:92px;margin:0 auto 18px;border-radius:25px;background:linear-gradient(145deg,#0e8c80,#126d77);box-shadow:0 14px 32px -15px #075d57}.logo img{width:72px;height:72px}.eyebrow{color:#0b8174;font-size:12px;font-weight:900;letter-spacing:1.5px}.card h1{margin:8px 0;font-size:32px;line-height:1.05}.card p{margin:0 auto 20px;max-width:390px;color:#617681;font-size:16px;font-weight:650;line-height:1.5}.card button,.open{display:block;width:100%;min-height:56px;border:0;border-radius:16px;background:linear-gradient(135deg,#0e9b8a,#278dcc 52%,#7756d3);color:#fff;font-size:16px;font-weight:900;text-decoration:none;cursor:pointer}.open{display:grid;place-items:center;margin-top:10px;background:#edf7f5;color:#0b7468}.status{margin:16px 0;padding:12px;border-radius:14px;background:#eef9f6;color:#176c61;font-size:13px;font-weight:800}.steps{margin-top:18px;padding:15px;border-radius:16px;background:#fff7df;color:#74520d;text-align:left;font-size:13px;line-height:1.5}.hidden{display:none!important}
+    .card button:disabled{opacity:.5;cursor:not-allowed}
+  </style>
+  <style>
+    .card{width:min(580px,100%)}.two-icons{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:22px 0}.two-icons article{min-width:0;padding:18px 10px;border-radius:20px;border:1px solid #d8dceb;background:linear-gradient(145deg,#f1edff,#e8f7ff)}.two-icons article:last-child{border-color:#a9d9cc;background:linear-gradient(145deg,#e4fcf3,#fff4dc)}.two-icons img{display:block;width:66px;height:66px;margin:0 auto 10px;border-radius:18px}.two-icons b,.two-icons small{display:block}.two-icons b{font-size:18px}.two-icons small{margin-top:7px;font-weight:750;line-height:1.45;color:#546778}.steps{font-size:16px;font-weight:650}.steps h2{margin:0 0 10px;font-size:21px}.steps ol{padding-left:24px;margin:10px 0}.steps li{margin:10px 0}.steps p{font-size:15px;margin:12px 0 0;color:#735319}.chrome{display:grid;place-items:center;width:100%;min-height:58px;margin:12px 0;border-radius:16px;color:white;text-decoration:none;font-size:17px;font-weight:900;background:linear-gradient(110deg,#0f8175,#245ab5)}.copy{margin-top:10px!important;background:#f0eaff!important;color:#6244a8!important;border:1px solid #d7c9f2!important}.status{font-size:15px;line-height:1.5}.privacy{font-size:13px!important;margin-top:18px!important}#privateLink{width:100%;margin-top:10px;padding:12px;border:2px solid #baa9dd;border-radius:12px;font:600 14px system-ui}.card button:focus-visible,.card a:focus-visible{outline:3px solid #b5810e;outline-offset:4px}@media(max-width:420px){body{padding:14px}.card{padding:24px 18px}.card h1{font-size:29px}.two-icons{gap:10px}.two-icons b{font-size:16px}}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="logo"><img src="./quick-expense-icon.svg" alt=""></div>
+    <span class="eyebrow">TWO HOME-SCREEN ICONS</span>
+    <h1>Add Quick Expense<br>beside MyTrip</h1>
+    <p>Keep your existing MyTrip app. Add a second ₹ icon that opens the trip expense form without signing in.</p>
+    <div class="two-icons" aria-label="Your two home-screen icons">
+      <article><img src="./icon-192.png" alt="MyTrip arrow icon"><b>MyTrip</b><small>Full dashboard<br>Account sign-in</small></article>
+      <article><img src="./quick-expense-icon-192.png" alt="Quick Expense icon with rupee badge"><b>Quick Expense</b><small>Direct expense entry<br>No account login</small></article>
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite">Checking the saved trip link…</div>
+    <a class="chrome hidden" id="openChrome" href="#">Open Chrome to add second icon</a>
+    <button id="install" type="button">Show second-icon steps</button>
+    <a class="open" id="openExpense" href="./quick-expense/index.html?quick-expense-home=1">Open no-login expense form →</a>
+    <button class="copy" id="copyLink" type="button">Copy private expense link</button>
+    <input class="hidden" id="privateLink" aria-label="Private Quick Expense link to copy" readonly>
+    <section class="steps" id="steps"><h2>Already have MyTrip? Add a shortcut.</h2><ol><li>Tap <b>Open Chrome</b> above. If Chrome does not open, copy the expense link and paste it into Chrome.</li><li>On the <b>expense form</b>, tap Chrome <b>⋮ → Install and create shortcut</b> (or <b>Add to Home screen</b>) → <b>Create shortcut</b>.</li><li>Name it <b>Quick Expense</b>, check its ₹ icon, then tap <b>Add</b> / <b>Add to Home screen</b>.</li></ol><p>Do not install MyTrip again or remove your existing app. If Chrome offers a separate <b>Install Quick Expense</b> prompt, you may use it instead.</p><p>A shortcut is a home-screen button, not necessarily a second app in All apps. Verify that both icons are visible on your Home screen; this website cannot inspect it.</p><p><b>iPhone:</b> open the expense form in Safari → Share → Add to Home Screen.</p></section>
+    <p class="privacy">Treat this link as an access key. Anyone holding it can use the expense permissions allowed by the Administrator. Pausing or expiring the link still blocks access.</p>
+  </main>
+  <script>
+    (() => {
+      const key = "mytrip_quick_expense_shortcut_v1";
+      const token = new URLSearchParams(location.hash.replace(/^#/, "")).get("qe") || "";
+      const validToken = value => /^[A-Za-z0-9_-]{32,180}$/.test(String(value || ""));
+      const validApi = value => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value || ""));
+      const requestedApi = new URLSearchParams(location.search).get("api") || "";
+      let activeToken = validToken(token) ? token : "", apiUrl = validApi(requestedApi) ? requestedApi : "";
+      let linked = false, persisted = false;
+      try {
+        const saved = JSON.parse(localStorage.getItem(key) || "null");
+        if (!activeToken && saved?.enabled && validToken(saved.token)) activeToken = saved.token;
+        if (!apiUrl && validApi(saved?.apiUrl)) apiUrl = saved.apiUrl;
+        if (activeToken) { localStorage.setItem(key, JSON.stringify({ enabled: true, token: activeToken, apiUrl, tripName: String(saved?.tripName || "Quick Expense"), savedAt: new Date().toISOString() })); persisted = JSON.parse(localStorage.getItem(key) || "null")?.token === activeToken; }
+      } catch {}
+      linked = Boolean(activeToken);
+      let prompt = null;
+      const button = document.getElementById("install"), status = document.getElementById("status"), steps = document.getElementById("steps"), copy = document.getElementById("copyLink"), chrome = document.getElementById("openChrome");
+      const direct = new URL("quick-expense/index.html", document.baseURI);
+      direct.searchParams.set(linked ? "quick-expense" : "quick-expense-home", "1");
+      direct.searchParams.set("icon-help", "1");
+      if (apiUrl) direct.searchParams.set("api", apiUrl);
+      if (activeToken) direct.hash = "qe=" + encodeURIComponent(activeToken);
+      document.getElementById("openExpense").href = direct.href;
+      copy.disabled = !linked;
+      button.disabled = !linked;
+      status.textContent = linked ? persisted ? "Trip link ready. Android has not yet confirmed a second icon—follow the steps below." : "Browser storage is unavailable. Use Create shortcut with the full expense link; a native install would lose the selected trip." : "No trip link saved. Open the expense form to paste your Administrator's link first.";
+      if (linked && /Android/i.test(navigator.userAgent) && direct.protocol === "https:") {
+        // User-initiated Android intent, with an HTTPS fallback. Keep the
+        // bearer token in the fragment, never in a server request parameter.
+        chrome.href = "intent://" + direct.href.slice("https://".length) + "#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(direct.href) + ";end";
+        chrome.classList.remove("hidden");
+      }
+      copy.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(direct.href); status.textContent = "Private expense link copied. Paste it into Chrome, then create the Quick Expense shortcut."; }
+        catch { const field = document.getElementById("privateLink"); field.value = direct.href; field.classList.remove("hidden"); field.focus(); field.select(); status.textContent = "Press and hold the selected private link to copy it, then paste it into Chrome."; }
+      });
+      addEventListener("beforeinstallprompt", event => { event.preventDefault(); prompt = persisted ? event : null; if (linked && persisted) { button.textContent = "Install Quick Expense"; status.textContent = "Chrome offers a separate ₹ Quick Expense installation. Keep your MyTrip app."; } });
+      button.addEventListener("click", async () => {
+        if (!prompt) { steps.classList.remove("hidden"); steps.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); status.textContent = "Keep MyTrip. Open the expense form in Chrome, then choose Create shortcut for the second icon."; return; }
+        try { await prompt.prompt(); const choice = await prompt.userChoice; prompt = null; status.textContent = choice.outcome === "accepted" ? "Installation requested. Wait for Android to finish, then tap Quick Expense." : "Installation cancelled; you can try again."; if (choice.outcome !== "accepted") steps.classList.remove("hidden"); }
+        catch { prompt = null; steps.classList.remove("hidden"); status.textContent = "Use the Chrome Create shortcut steps below. Keep the existing MyTrip app."; }
+      });
+      addEventListener("appinstalled", () => { status.textContent = "Installed successfully. Find the ₹ Quick Expense icon on Home screen or in All apps; keep MyTrip too."; button.classList.add("hidden"); });
+      if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }).catch(() => {});
+    })();
+  </script>
+</body>
+</html>
