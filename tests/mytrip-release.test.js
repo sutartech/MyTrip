@@ -80,3 +80,17 @@ test("Paise allocations conserve spending and settle tiny balances exactly", () 
  assert.equal(plan.total,0.01);assert.equal(plan.transfers.length,1);assert.equal(plan.transfers[0].amount,0.01);
  state.data.settlements=[{fromPerson:"A",toPerson:"C",amount:0.01}];assert.equal(context.settleUpPlan().transfers.length,0);
 });
+test("Sharing buckets count each bill once regardless of payer and selected filters", () => {
+ const expenses=[{amount:3000,sharedBy:"",paidBy:"A"},{amount:1200.01,sharedBy:"A|A2|B|B2",paidBy:"C"},{amount:900,sharedBy:"B|B2",paidBy:"B"}];
+ const state={expenseSharingFilter:"some",data:{trip:{splitMembers:"A+A2|B+B2|C+C2"},expenses}};
+ const context=vm.createContext({state,shareUnits:()=>[["A","A2"],["B","B2"],["C","C2"]]});
+ vm.runInContext(frontendFunction("expenseShareUnits","function openSplitMembers"),context);
+ let totals=context.expenseSharingTotals();assert.equal(totals.all.cents,300000);assert.equal(totals.some.cents,120001);assert.equal(totals.one.cents,90000);
+ assert.equal(Object.values(totals).reduce((sum,b)=>sum+b.count,0),3);
+ assert.equal(Object.values(totals).reduce((sum,b)=>sum+b.cents,0),510001);
+ assert.equal(context.filterExpensesBySharing(expenses).length,1);assert.equal(context.filterExpensesBySharing(expenses)[0].paidBy,"C");
+ for(const kind of ["all","some","one"])assert.equal(context.filterExpensesBySharing(expenses,kind).length,1);
+ assert.equal(context.filterExpensesBySharing(expenses,"any").length,3);
+ assert.equal(context.filterExpensesBySharing(expenses.filter(e=>e.paidBy==="A"),"some").length,0);
+ expenses.push({amount:0.02,sharedBy:"B",paidBy:"A"});totals=context.expenseSharingTotals();assert.equal(totals.one.cents,90002);
+});

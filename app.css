@@ -3468,3 +3468,23 @@ html body .quick-receipt-tools a{display:inline-flex;align-items:center;min-heig
 @media(max-width:390px){html body .admin-command-actions{grid-template-columns:1fr}html body .admin-command-actions>button{grid-template-columns:32px 1fr}}
 
 html body .quick-exact-shares{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:7px;line-height:1.5}
+
+/* Whole-trip sharing totals and intersecting list filters. */
+html body .expense-sharing-summary{margin:16px 0;padding:14px;border:1px solid #d8e0e8;border-radius:18px;background:var(--surface,#fff)}
+html body .expense-sharing-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+html body .expense-sharing-total{display:grid;gap:5px;padding:13px;border:1px solid;border-radius:13px;min-width:0}
+html body .expense-sharing-total.all{background:#e8f7ee;border-color:#abd4bb;color:#145735}
+html body .expense-sharing-total.some{background:#fff3d9;border-color:#e4c77e;color:#714800}
+html body .expense-sharing-total.one{background:#eaf2ff;border-color:#b2c9ee;color:#204b83}
+html body .expense-sharing-total small{font-size:12px;font-weight:850;line-height:1.4}
+html body .expense-sharing-total strong{font-size:23px;overflow-wrap:anywhere}
+html body .expense-sharing-total span,.expense-sharing-summary>p{font-size:12px;line-height:1.5}
+html body .expense-sharing-summary>p{margin:10px 0;color:var(--muted,#526374)}
+html body .expense-sharing-filters{display:flex;flex-wrap:wrap;gap:7px}
+html body .expense-sharing-filters button{min-height:40px;padding:8px 12px;border:1px solid #becbd8;border-radius:12px;background:#fff;color:#253e5c;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+html body .expense-sharing-filters button.on{background:#234d79;color:#fff;border-color:#234d79}
+html body .expense-sharing-filters button:focus-visible{outline:3px solid #bd83e5;outline-offset:2px}
+html body .expense-filter-result{font-size:13px;font-weight:800;color:var(--muted,#526374);margin:10px 0}
+html body .mt-xwhat>.expense-share-badge{display:inline-flex;max-width:100%;margin:5px 0;white-space:normal}
+@media(max-width:480px){html body .expense-sharing-summary{padding:10px}html body .expense-sharing-totals{gap:6px}html body .expense-sharing-total{padding:9px 7px}html body .expense-sharing-total strong{font-size:18px}html body .expense-sharing-total small{font-size:11px}}
+@media print{html body .expense-sharing-summary{break-inside:avoid}html body .expense-sharing-total{border-color:#777}html body .expense-sharing-total strong{font-size:16px}}
