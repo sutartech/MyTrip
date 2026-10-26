@@ -128,6 +128,9 @@ test("A shared-link expense can include two family profiles and exclude the thir
 test("Configured family groups exclude the payer family and preserve whole-family selection", async () => {
  const app=setup({saved:true,members:["A","A2","B","B2","C","C2"],splitMembers:"A+A2|B+B2|C+C2"});
  try {await app.start();const f=app.document.querySelector("#quickExpenseForm");
+ assert.equal(f.querySelector('.quick-expense-share-disclosure').open,false);
+ f.querySelector('.quick-expense-share-disclosure>summary').click();await tick();
+ assert.equal(f.querySelector('.quick-expense-share-disclosure').open,true);
  assert.equal(f.querySelectorAll('[name="sharedUnit"]').length,3);
  f.elements.amount.value="100.01";f.elements.label.value="Two-family dinner";f.elements.paidBy.value="C";
  f.querySelector('[name="sharedUnit"][value="2"]').checked=false;

@@ -22,7 +22,7 @@ function setup(url = "https://example.test/MyTrip/") {
 }
 function loadScanner(win) {
   win.eval(fs.readFileSync(path.join(root, "receipt-parser.js"), "utf8"));
-  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.5" } });
+  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.6" } });
   win.eval(fs.readFileSync(path.join(root, "receipt-scan.js"), "utf8"));
 }
 const billText = "SEA VIEW CAFE\nInvoice No: A-129\nDate 25/10/2026\nSubtotal 1000\nGST 50\nGrand Total INR 1050.00";
@@ -193,6 +193,9 @@ test("Sharing totals and filters work on desktop and mobile without changing tri
    (app.document.querySelector('[data-open-admin-trip="GOA26"]')||app.document.querySelector('[data-open-admin-trip]')).click();await tick();
    app.document.querySelector('#mainNav [data-tab="expenses"]').click();await tick();
    const view=app.document.querySelector('#view');
+   assert.equal(view.querySelector('[data-sharing-panel]').open,false);
+   view.querySelector('[data-sharing-panel]>summary').click();await tick();
+   assert.equal(view.querySelector('[data-sharing-panel]').open,true);
    assert.equal(view.querySelectorAll('.expense-sharing-total').length,3);
    assert.equal(view.querySelectorAll('[data-expense-sharing]').length,4);
    const before=Array.from(view.querySelectorAll('.expense-sharing-total strong'),x=>x.textContent);

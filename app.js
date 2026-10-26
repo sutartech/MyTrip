@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.5";
+  const frontendVersion = "4.67.6";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -2162,7 +2162,7 @@
     const totals = expenseSharingTotals();
     const familyMode = shareUnits().some(members => members.length > 1);
     const labels = familyMode ? expenseSharingKinds : [["all", "All travellers"], ["some", "Selected travellers"], ["one", "One traveller only"]];
-    return `<section class="expense-sharing-summary" aria-label="Whole-trip spending by sharing"><div class="expense-sharing-totals">${labels.map(([kind, label]) => `<article class="expense-sharing-total ${kind}"><small>${label}</small><strong>${money.format(totals[kind].cents / 100)}</strong><span>${totals[kind].count} ${totals[kind].count === 1 ? "expense" : "expenses"}</span></article>`).join("")}</div><p>Whole trip · these three totals add up to trip spending. Repayments are separate.</p>${interactive ? `<div class="expense-sharing-filters" role="group" aria-label="Filter expenses by sharing">${[["any", "All expenses"], ...labels].map(([kind, label]) => `<button type="button" data-expense-sharing="${kind}" class="${(state.expenseSharingFilter || "any") === kind ? "on" : ""}" aria-pressed="${(state.expenseSharingFilter || "any") === kind}">${label}</button>`).join("")}</div>` : ""}</section>`;
+    return `${interactive ? `<details class="expense-sharing-summary" data-sharing-panel${state.expenseSharingPanelOpen ? " open" : ""}><summary><b>Who shares</b><small>Tap to view totals and filters</small></summary><div class="expense-sharing-panel-body">` : `<section class="expense-sharing-summary" aria-label="Whole-trip spending by sharing">`}<div class="expense-sharing-totals">${labels.map(([kind, label]) => `<article class="expense-sharing-total ${kind}"><small>${label}</small><strong>${money.format(totals[kind].cents / 100)}</strong><span>${totals[kind].count} ${totals[kind].count === 1 ? "expense" : "expenses"}</span></article>`).join("")}</div><p>Whole trip · these three totals add up to trip spending. Repayments are separate.</p>${interactive ? `<div class="expense-sharing-filters" role="group" aria-label="Filter expenses by sharing">${[["any", "All expenses"], ...labels].map(([kind, label]) => `<button type="button" data-expense-sharing="${kind}" class="${(state.expenseSharingFilter || "any") === kind ? "on" : ""}" aria-pressed="${(state.expenseSharingFilter || "any") === kind}">${label}</button>`).join("")}</div>` : ""}${interactive ? "</div></details>" : "</section>"}`;
   }
 
   function openSplitMembers() {
@@ -2370,6 +2370,9 @@
     const left = budget - total;
     return `<section class="mt-money"><div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<div class="mt-money-actions"><button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button><button type="button" class="mt-today-add mt-paste-import" data-text-import="auto">▤ Paste &amp; import</button></div>` : ""}${renderExpenseSharingSummary()}<div class="mt-xfilters">${chips}</div>${travellerChips}<p class="expense-filter-result" role="status">${shown.length} ${shown.length === 1 ? "expense" : "expenses"} shown · ${money.format(sum(shown))}</p><div class="mt-xlist">${list || `<p class="mt-today-empty">${travellerFilter ? `No expenses for ${esc(travellerFilter)}${f !== "all" ? " on this day" : ""}.` : f === "all" ? "No expenses match these filters. Try All expenses or another date." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", `<div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No payments yet.</p>`}</div>`)}${fold("Settle up", "Who owes whom", renderSettleUp(), state.mtSettleOpen)}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
   }
+  document.addEventListener("toggle", event => {
+    if (event.target.matches?.("[data-sharing-panel]")) state.expenseSharingPanelOpen = event.target.open;
+  }, true);
   document.addEventListener("click", event => {
     const button = event.target.closest("[data-expense-sharing]");
     if (!button || !["any", "all", "some", "one"].includes(button.dataset.expenseSharing)) return;
@@ -5987,7 +5990,7 @@
     const groups = quickExpenseShareGroups(), selected = String(row?.sharedBy || "").split("|").map((name) => name.toLowerCase());
     const all = !selected.filter(Boolean).length, familyMode = groups.some((group) => group.length > 1);
     if (!groups.length) return "";
-    return `<fieldset class="quick-expense-share"><legend>Who shares this expense?</legend><p class="quick-expense-share-help">Choose only the ${familyMode ? "families" : "travellers"} included in this expense. Leave an excluded family unticked—even if its member paid for the bill.</p><div class="quick-expense-share-options">${groups.map((group, index) => `<label><input type="checkbox" name="sharedUnit" value="${index}" ${all || group.some((name) => selected.includes(name.toLowerCase())) ? "checked" : ""}><span>${avatarSlot({ name: group[0] })}<b>${esc(group.length > 1 ? `${group[0]} family` : group[0])}</b>${group.length > 1 ? `<small>${group.map(esc).join(" + ")}</small>` : ""}</span></label>`).join("")}</div><div class="quick-expense-share-preview" role="status" aria-live="polite"></div></fieldset>`;
+    return `<details class="quick-expense-share-disclosure"><summary><b>Who shares this expense?</b><small>${esc(quickExpenseShareLabel(row))}</small></summary><fieldset class="quick-expense-share"><legend class="sr-only">Who shares this expense?</legend><p class="quick-expense-share-help">Choose only the ${familyMode ? "families" : "travellers"} included in this expense. Leave an excluded family unticked—even if its member paid for the bill.</p><div class="quick-expense-share-options">${groups.map((group, index) => `<label><input type="checkbox" name="sharedUnit" value="${index}" ${all || group.some((name) => selected.includes(name.toLowerCase())) ? "checked" : ""}><span>${avatarSlot({ name: group[0] })}<b>${esc(group.length > 1 ? `${group[0]} family` : group[0])}</b>${group.length > 1 ? `<small>${group.map(esc).join(" + ")}</small>` : ""}</span></label>`).join("")}</div><div class="quick-expense-share-preview" role="status" aria-live="polite"></div></fieldset></details>`;
   }
 
   function quickExpenseShareLabel(row) {
@@ -6002,6 +6005,8 @@
   function updateQuickExpenseSharePreview(form) {
     const preview = form.querySelector(".quick-expense-share-preview"); if (!preview) return;
     const groups = quickExpenseShareGroups(), picked = new Set(new FormData(form).getAll("sharedUnit").map(Number));
+    const shareLabel = form.querySelector(".quick-expense-share-disclosure>summary small");
+    if (shareLabel) shareLabel.textContent = picked.size ? quickExpenseShareLabel({ sharedBy: groups.filter((_, index) => picked.has(index)).flat().join("|") }) : "No shares selected";
     const chosen = groups.filter((_, index) => picked.has(index));
     if (!chosen.length) { preview.textContent = "Select at least one share before saving."; return; }
     const amount = Number(form.elements.amount?.value || 0), familyKnown = Object.prototype.hasOwnProperty.call(quickExpenseInfo?.trip || {}, "splitMembers");
