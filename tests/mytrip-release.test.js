@@ -49,7 +49,7 @@ test("New shared links use the Quick Expense page/manifest and preserve their pr
     const context = vm.createContext({ URL, quickExpenseStandalone: false, document: { baseURI }, apiUrlReady: () => true, apiUrl: "https://script.google.com/macros/s/TEST/exec" });
     vm.runInContext(frontendFunction("quickExpensePublicLink", "function quickExpenseDefaultExpiry"), context);
     const link = new URL(context.quickExpensePublicLink("a".repeat(43)));
-    assert.equal(link.pathname, "/MyTrip/quick-expense/index.html");
+    assert.equal(link.pathname, "/QuickExpense/index.html");
     assert.equal(link.searchParams.get("quick-expense"), "1");
     assert.equal(link.searchParams.get("api"), "https://script.google.com/macros/s/TEST/exec");
     assert.equal(new URLSearchParams(link.hash.slice(1)).get("qe"), "a".repeat(43));
@@ -58,10 +58,10 @@ test("New shared links use the Quick Expense page/manifest and preserve their pr
 });
 test("Saved links and app-style windows never masquerade as confirmed Android installation", () => {
   for (const saved of [null, { token: "a".repeat(43) }]) {
-    const context = vm.createContext({ URLSearchParams, quickExpenseStandalone: false, readQuickExpenseShortcut: () => saved, quickExpenseToken: "a".repeat(43), standaloneDisplayMode: () => true, quickExpenseInstallHelp: false, location: { search: "", pathname: "/MyTrip/quick-expense/index.html" }, esc: String });
+    const context = vm.createContext({ URLSearchParams, quickExpenseStandalone: false, readQuickExpenseShortcut: () => saved, quickExpenseToken: "a".repeat(43), standaloneDisplayMode: () => true, quickExpenseInstallHelp: false, location: { search: "", pathname: "/QuickExpense/index.html" }, esc: String });
     vm.runInContext(frontendFunction("quickExpenseInstallCard", "function useQuickExpenseBranding"), context);
     const card = context.quickExpenseInstallCard({ trip: { name: "Mysore" } });
-    assert.match(card, /data-quick-install/); assert.match(card, /Add second home icon/);
+    assert.match(card, /data-quick-install/); assert.match(card, /Install Quick Expense/);
     assert.ok(!/is installed|✓ Installed/.test(card));
   }
   const source = appSource.slice(appSource.indexOf("async function installQuickExpenseOnPhone"), appSource.indexOf('addEventListener("appinstalled"'));
@@ -93,4 +93,24 @@ test("Sharing buckets count each bill once regardless of payer and selected filt
  assert.equal(context.filterExpensesBySharing(expenses,"any").length,3);
  assert.equal(context.filterExpensesBySharing(expenses.filter(e=>e.paidBy==="A"),"some").length,0);
  expenses.push({amount:0.02,sharedBy:"B",paidBy:"A"});totals=context.expenseSharingTotals();assert.equal(totals.one.cents,90002);
+});
+
+test("Only selected-family and one-family bills display sharing badges",()=>{
+ const c=vm.createContext({shareUnits:()=>[["A","A2"],["B","B2"],["C","C2"]],esc:String});
+ vm.runInContext(frontendFunction("expenseShareUnits","function openSplitMembers"),c);
+ assert.equal(c.expenseShareBadge({sharedBy:""}),"");
+ assert.equal(c.expenseShareBadge({sharedBy:"A|B|C"}),"");
+ assert.match(c.expenseShareBadge({sharedBy:"A|B"}),/2 OF 3 FAMILIES/);
+ assert.match(c.expenseShareBadge({sharedBy:"B"}),/ONE FAMILY/);
+ assert.ok(!c.expenseShareBadge({sharedBy:"A|B"}).includes('C only'));
+});
+
+test("Legacy quick-link Install opens the independent app with the private token intact",async()=>{
+ const token="z".repeat(43),location={href:""};
+ const c=vm.createContext({saveQuickExpenseShortcut:()=>true,quickExpenseStandalone:false,URL,document:{baseURI:"https://example.test/MyTrip/"},quickExpenseToken:token,apiUrlReady:()=>true,apiUrl:"https://script.google.com/macros/s/TEST/exec",location});
+ vm.runInContext(frontendFunction("quickExpensePublicLink","function quickExpenseDefaultExpiry"),c);
+ const start=appSource.indexOf("  async function installQuickExpenseOnPhone("),end=appSource.indexOf('\n  addEventListener("appinstalled"',start);
+ vm.runInContext(appSource.slice(start,end),c);await c.installQuickExpenseOnPhone();
+ const url=new URL(location.href);assert.equal(url.pathname,"/QuickExpense/index.html");assert.equal(url.searchParams.get("icon-help"),"1");
+ assert.equal(new URLSearchParams(url.hash.slice(1)).get("qe"),token);assert.equal(url.searchParams.has('qe'),false);
 });

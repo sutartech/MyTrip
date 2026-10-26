@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.6";
+  const frontendVersion = "4.67.7";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -2146,6 +2146,7 @@
 
   function expenseShareBadge(expense) {
     const summary = expenseShareSummary(expense);
+    if (summary.kind === "all") return "";
     return `<em class="expense-share-badge ${summary.kind}" title="Shared by ${esc(summary.detail)}"><b>${esc(summary.label)}</b><small>${esc(summary.detail)}</small></em>`;
   }
 
@@ -2361,7 +2362,7 @@
     const shown = filterExpensesBySharing(travellerFilter ? byDate.filter((e) => e.paidBy === travellerFilter) : byDate);
     const canEdit = canEditRecords("Expenses"), canDel = isAdmin();
     const groups = []; shown.forEach((e) => { const k = String(e.date || ""); let g = groups[groups.length - 1]; if (!g || g.k !== k) groups.push(g = { k, items: [] }); g.items.push(e); });
-    const list = groups.map((g) => `<div class="mt-xday"><div class="mt-xday-head"><b>${g.k === today ? "Today" : g.k === yday ? "Yesterday" : esc(displayDate(g.k, { weekday: "short", day: "numeric", month: "short" }))}</b><span>${money.format(sum(g.items))}</span></div>${g.items.map((e) => `<div class="mt-xrow-wrap">${canDel ? `<button type="button" class="mt-xrow-del" data-delete-expense="${esc(e.id)}">Delete</button>` : ""}<button type="button" class="mt-xrow"${canEdit ? ` data-edit data-sheet="Expenses" data-id="${esc(e.id)}"` : ` data-view-expense="${esc(e.id)}"`}><i class="mt-xcat">${esc(String(e.category || "Other").slice(0, 1))}</i><span class="mt-xwhat"><b>${esc(e.label || e.category || "Expense")}</b>${expenseShareBadge(e)}<small class="mt-xmeta"><span class="mt-xpayer">${avatarSlot({ name: e.paidBy || "" })}</span><span class="mt-xmeta-text">${esc(e.paidBy || "Not specified")} · ${esc(e.category || "Other")}${e.receiptUrl ? " · 🧾" : ""}${e.currency && Number(e.foreignAmount) > 0 ? ` · ${esc(e.currency)} ${Number(e.foreignAmount).toLocaleString("en-IN")}` : ""}</span></small></span><strong>${money.format(e.amount)}</strong></button></div>`).join("")}</div>`).join("");
+    const list = groups.map((g) => `<div class="mt-xday"><div class="mt-xday-head"><b>${g.k === today ? "Today" : g.k === yday ? "Yesterday" : esc(displayDate(g.k, { weekday: "short", day: "numeric", month: "short" }))}</b><span>${money.format(sum(g.items))}</span></div>${g.items.map((e) => `<div class="mt-xrow-wrap">${canDel ? `<button type="button" class="mt-xrow-del" data-delete-expense="${esc(e.id)}">Delete</button>` : ""}<button type="button" class="mt-xrow"${canEdit ? ` data-edit data-sheet="Expenses" data-id="${esc(e.id)}"` : ` data-view-expense="${esc(e.id)}"`}><i class="mt-xcat">${esc(String(e.category || "Other").slice(0, 1))}</i><span class="mt-xwhat"><span class="mt-xheading"><b>${esc(e.label || e.category || "Expense")}</b><strong class="mt-xamount">${money.format(e.amount)}</strong></span>${expenseShareBadge(e)}<small class="mt-xmeta"><span class="mt-xpayer">${avatarSlot({ name: e.paidBy || "" })}</span><span class="mt-xmeta-text">${esc(e.paidBy || "Not specified")} · ${esc(e.category || "Other")}${e.receiptUrl ? " · 🧾" : ""}${e.currency && Number(e.foreignAmount) > 0 ? ` · ${esc(e.currency)} ${Number(e.foreignAmount).toLocaleString("en-IN")}` : ""}</span></small></span></button></div>`).join("")}</div>`).join("");
     const chips = [["today", "Today"], ["yday", "Yesterday"], ["all", "All"]].map(([k, l]) => `<button type="button" data-mt-xfilter="${k}" class="${f === k ? "on" : ""}">${l}</button>`).join("");
     const filterPeople = expenseFilterPeople();
     const travellerChips = filterPeople.length ? `<div class="mt-xfilters mt-xtraveller-filters">${[["", "Everyone"]].concat(filterPeople.map((n) => [n, n])).map(([v, l]) => `<button type="button" data-mt-xtraveller="${esc(v)}" class="${travellerFilter === v ? "on" : ""}">${esc(l)}</button>`).join("")}</div>` : "";
@@ -2402,7 +2403,7 @@
   }
 
   function quickExpensePublicLink(token) {
-    const url = new URL(quickExpenseStandalone ? "index.html" : "quick-expense/index.html", document.baseURI);
+    const url = new URL(quickExpenseStandalone ? "index.html" : "../QuickExpense/index.html", document.baseURI);
     url.searchParams.set("quick-expense", "1");
     if (apiUrlReady()) url.searchParams.set("api", apiUrl);
     return `${url.toString()}#qe=${encodeURIComponent(token)}`;
@@ -5676,7 +5677,7 @@
     const experienceSection = canViewExperiences() ? `<section class="print-experiences"><h2>Trip experience notes</h2>${printedExperiences || `<p>No experience notes were added.</p>`}</section>` : "";
     const xpWho = state.printPerson || "";
     const xpSorted = [...state.data.expenses].sort((x, y) => `${x.date || ""}`.localeCompare(`${y.date || ""}`));
-    const xpTable = (rows, showPayer = true) => `<table class="print-expense-table"><thead><tr><th>Date</th><th>Expense</th><th>Category</th>${showPayer ? "<th>Paid by</th>" : ""}<th>Amount</th></tr></thead><tbody>${rows.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label || expense.category || "")}<span class="print-tag">${esc(expenseShareSummary(expense).label)} · ${esc(expenseShareSummary(expense).detail)}</span></td><td>${esc(expense.category || "")}</td>${showPayer ? `<td>${esc(expense.paidBy || "")}</td>` : ""}<td>${money.format(expense.amount)}</td></tr>`).join("") || `<tr><td colspan="${showPayer ? 5 : 4}">No expenses recorded.</td></tr>`}</tbody><tfoot><tr><td colspan="${showPayer ? 4 : 3}"><b>Total</b></td><td><b>${money.format(rows.reduce((s, e) => s + Number(e.amount || 0), 0))}</b></td></tr></tfoot></table>`;
+    const xpTable = (rows, showPayer = true) => `<table class="print-expense-table"><thead><tr><th>Date</th><th>Expense</th><th>Category</th>${showPayer ? "<th>Paid by</th>" : ""}<th>Amount</th></tr></thead><tbody>${rows.map((expense) => `<tr><td>${displayDate(expense.date)}</td><td>${esc(expense.label || expense.category || "")}${expenseShareSummary(expense).kind === "all" ? "" : `<span class="print-tag">${esc(expenseShareSummary(expense).label)} · ${esc(expenseShareSummary(expense).detail)}</span>`}</td><td>${esc(expense.category || "")}</td>${showPayer ? `<td>${esc(expense.paidBy || "")}</td>` : ""}<td>${money.format(expense.amount)}</td></tr>`).join("") || `<tr><td colspan="${showPayer ? 5 : 4}">No expenses recorded.</td></tr>`}</tbody><tfoot><tr><td colspan="${showPayer ? 4 : 3}"><b>Total</b></td><td><b>${money.format(rows.reduce((s, e) => s + Number(e.amount || 0), 0))}</b></td></tr></tfoot></table>`;
     const xpPeople = () => [...new Set([...visibleTripMembers().map((m) => m.name), ...xpSorted.map((e) => e.paidBy || "Not specified")])].filter((n) => xpSorted.some((e) => (e.paidBy || "Not specified") === n));
     const xpDetail = () => xpWho === "__each" ? xpPeople().map((n) => `<div class="print-person-block"><h3>${esc(n)} · paid ${money.format(xpSorted.filter((e) => (e.paidBy || "Not specified") === n).reduce((s, e) => s + Number(e.amount || 0), 0))}</h3>${xpTable(xpSorted.filter((e) => (e.paidBy || "Not specified") === n), false)}</div>`).join("") : xpWho ? `<h3>Expenses paid by ${esc(xpWho)}</h3>${xpTable(xpSorted.filter((e) => (e.paidBy || "Not specified") === xpWho), false)}` : `<h3>Detailed expense statement</h3>${xpTable(xpSorted)}`;
     const expenseSection = canViewExpenses() ? `<section class="print-expenses${xpWho ? " print-xp-person" : ""}"><h2>${xpWho && xpWho !== "__each" ? `Expense statement · ${esc(xpWho)}` : xpWho === "__each" ? "Expense statement · person-wise" : "Expense statement"}</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div>${renderExpenseSharingSummary(false)}<div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table class="print-expense-table"><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div>${xpDetail()}</section>` : "";
@@ -6039,7 +6040,7 @@
     }
     const saved = readQuickExpenseShortcut(), current = Boolean(saved && saved.token === quickExpenseToken);
     const help = quickExpenseInstallHelp || new URLSearchParams(location.search).get("icon-help") === "1" ? `<div class="quick-expense-install-help"><b>Add your second icon from Chrome</b><span>Tap Chrome <b>⋮ → Install and create shortcut / Add to Home screen → Create shortcut</b>. Name it <b>Quick Expense</b> and tap <b>Add</b>.</span><span>Keep your existing <b>MyTrip</b> app. The new <b>₹ Quick Expense</b> icon opens this form without account login.</span><small>A saved trip link or an app-style window does not confirm that Android added an icon. The website cannot inspect your Home screen. On iPhone, use Safari → Share → Add to Home Screen.</small></div>` : "";
-    return `<section class="quick-expense-install-card${current ? " ready" : ""}"><i><img src="quick-expense-icon.svg" alt="" width="52" height="52"></i><div><small>SECOND HOME-SCREEN ICON · NO LOGIN</small><h2>Add Quick Expense beside MyTrip</h2><p>${current ? `Trip link saved for <b>${esc(info.trip.name)}</b>. Saving the link does not add an Android icon.` : "Keep MyTrip for account sign-in. Add a separate ₹ icon for this expense form."}</p></div><span class="quick-expense-install-actions"><button type="button" data-quick-install>＋ Add second home icon</button>${current ? `<button type="button" class="secondary" data-quick-forget>Forget saved trip link</button>` : ""}</span>${help}</section>`;
+    return `<section class="quick-expense-install-card${current ? " ready" : ""}"><i><img src="quick-expense-icon.svg" alt="" width="52" height="52"></i><div><small>SECOND HOME-SCREEN ICON · NO LOGIN</small><h2>Install the separate Quick Expense app</h2><p>${current ? `Trip link saved for <b>${esc(info.trip.name)}</b>. Saving the link does not add an Android icon.` : "Keep MyTrip for account sign-in. Add a separate ₹ icon for this expense form."}</p></div><span class="quick-expense-install-actions"><button type="button" data-quick-install>Install Quick Expense</button>${current ? `<button type="button" class="secondary" data-quick-forget>Forget saved trip link</button>` : ""}</span>${help}</section>`;
   }
 
   function useQuickExpenseBranding(tripName) {
@@ -6065,7 +6066,8 @@
     /* Quick Expense is a separate installable PWA with its own manifest id and
        start URL. Using the main MyTrip manifest here made Android reopen the
        account-login page instead of the saved no-login expense form. */
-    const installer = new URL("quick-expense/install.html", document.baseURI);
+    const installer = new URL(quickExpensePublicLink(quickExpenseToken));
+    installer.searchParams.set("icon-help", "1");
     if (apiUrlReady()) installer.searchParams.set("api", apiUrl);
     installer.hash = "qe=" + encodeURIComponent(quickExpenseToken);
     location.href = installer.href;
@@ -6088,7 +6090,7 @@
     const editPolicy = info.pass?.allowEdit ? `Correction allowed for ${Number(info.pass.editMinutes || 0)} minutes after saving` : "Past entries are view only";
     const recent = (info.recent || []).map((item) => {
       const enteredBy = tripWide ? ` · Entered by ${item.enteredBy && item.enteredBy !== "Trip-wide quick link" ? `${esc(item.enteredBy)} (declared)` : "not specified"}` : "";
-      return `<article class="quick-expense-recent-row${item.queued ? " queued" : ""}"><i>${esc(String(item.category || "Other").slice(0, 1))}</i><div><b>${esc(item.label || item.category || "Expense")}</b><small>${displayDate(item.date, { day: "numeric", month: "short" })} · ${esc(item.category || "Other")} · Paid by ${esc(item.paidBy || info.traveller.name)}${enteredBy}${item.receiptUrl ? " · 🧾 Receipt" : ""}${item.queued ? " · Waiting to sync" : ""}</small><em class="quick-expense-share-tag">${esc(quickExpenseShareLabel(item))}</em></div><strong>${money.format(Number(item.amount || 0))}</strong>${item.canEdit && !item.queued ? `<span><button type="button" data-quick-edit="${esc(item.id)}">Edit</button><button type="button" class="delete" data-quick-delete="${esc(item.id)}">Delete</button></span>` : `<em>${item.queued ? "Queued" : "Saved"}</em>`}</article>`;
+      return `<article class="quick-expense-recent-row${item.queued ? " queued" : ""}"><i>${esc(String(item.category || "Other").slice(0, 1))}</i><div><b>${esc(item.label || item.category || "Expense")}</b><small>${displayDate(item.date, { day: "numeric", month: "short" })} · ${esc(item.category || "Other")} · Paid by ${esc(item.paidBy || info.traveller.name)}${enteredBy}${item.receiptUrl ? " · 🧾 Receipt" : ""}${item.queued ? " · Waiting to sync" : ""}</small>${quickExpenseShareLabel(item).startsWith("All ") ? "" : `<em class="quick-expense-share-tag">${esc(quickExpenseShareLabel(item))}</em>`}</div><strong>${money.format(Number(item.amount || 0))}</strong>${item.canEdit && !item.queued ? `<span><button type="button" data-quick-edit="${esc(item.id)}">Edit</button><button type="button" class="delete" data-quick-delete="${esc(item.id)}">Delete</button></span>` : `<em>${item.queued ? "Queued" : "Saved"}</em>`}</article>`;
     }).join("");
     const linkIdentity = tripWide ? `<div><small>TRIP-WIDE SHARED LINK</small><b>Any trip member may enter</b><em>Choose Paid by for every expense</em></div>` : `<div><small>LINK OWNER / AUDIT TRAIL</small><b>${esc(info.traveller.name)}</b><em>${esc(info.traveller.travellerId)}</em></div>`;
     const formStatus = current ? `<button type="button" data-quick-cancel-edit>Cancel edit</button>` : tripWide ? `<em>No login · choose <b>Paid by</b></em>` : info.pass.allowAnyPayer ? `<em>Choose <b>Paid by</b> below</em>` : `<em>Paid by <b>${esc(info.traveller.name)}</b></em>`;

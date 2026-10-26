@@ -3495,3 +3495,20 @@ html body details.expense-sharing-summary>summary small,html body .quick-expense
 html body .expense-sharing-panel-body{padding-top:10px}
 html body .quick-expense-share-disclosure{border:1px solid #cbd8df;border-radius:14px;padding:7px 12px;margin:10px 0;min-width:0}
 html body .quick-expense-share-disclosure .quick-expense-share{margin:8px 0 0}
+
+/* Mobile expense rows: amount has its own heading cell; sharing stays below. */
+@media(max-width:760px){
+ html body .mt-xrow{grid-template-columns:36px minmax(0,1fr)!important;align-items:start;gap:10px;padding:13px 12px!important;overflow:hidden}
+ html body .mt-xcat{margin-top:3px}
+ html body .mt-xwhat{min-width:0;max-width:100%;gap:7px}
+ html body .mt-xheading{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;min-width:0;max-width:100%}
+ html body .mt-xheading>b{font-size:15px;line-height:1.4;white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip;min-width:0}
+ html body .mt-xheading>.mt-xamount{position:static;justify-self:end;align-self:start;white-space:nowrap;font-size:16px;line-height:1.4;margin:0;max-width:100%;font-variant-numeric:tabular-nums}
+ html body .mt-xwhat>.expense-share-badge{display:flex;flex-direction:column;align-items:flex-start;gap:3px;box-sizing:border-box;width:100%;max-width:100%;min-width:0;margin:0;padding:6px 9px;border-radius:10px;overflow:hidden}
+ html body .mt-xwhat>.expense-share-badge>b{font-size:11px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip;max-width:100%}
+ html body .mt-xwhat>.expense-share-badge>small{display:block;box-sizing:border-box;font-size:10px;line-height:1.4;white-space:normal;overflow-wrap:anywhere;max-width:100%;overflow:visible;text-overflow:clip}
+ html body .mt-xwhat .mt-xmeta{margin-top:1px}
+ /* The bottom bar already provides Add; avoid a second floating button over bills. */
+ html body.mt-has-tabbar .global-quick-add{display:none!important}
+ html body .back-to-top{right:10px;bottom:calc(164px + env(safe-area-inset-bottom))}
+}

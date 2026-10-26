@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#0E817A">
   <meta name="referrer" content="no-referrer">
   <title>Add Quick Expense beside MyTrip</title>
-  <link rel="manifest" href="./quick-expense/manifest.webmanifest">
+  <link rel="manifest" href="../QuickExpense/manifest.webmanifest">
   <link rel="icon" href="./quick-expense-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./quick-expense-icon-192.png">
   <style>
@@ -34,7 +34,7 @@
     <a class="open" id="openExpense" href="./quick-expense/index.html?quick-expense-home=1">Open no-login expense form →</a>
     <button class="copy" id="copyLink" type="button">Copy private expense link</button>
     <input class="hidden" id="privateLink" aria-label="Private Quick Expense link to copy" readonly>
-    <section class="steps" id="steps"><h2>Already have MyTrip? Add a shortcut.</h2><ol><li>Tap <b>Open Chrome</b> above. If Chrome does not open, copy the expense link and paste it into Chrome.</li><li>On the <b>expense form</b>, tap Chrome <b>⋮ → Install and create shortcut</b> (or <b>Add to Home screen</b>) → <b>Create shortcut</b>.</li><li>Name it <b>Quick Expense</b>, check its ₹ icon, then tap <b>Add</b> / <b>Add to Home screen</b>.</li></ol><p>Do not install MyTrip again or remove your existing app. If Chrome offers a separate <b>Install Quick Expense</b> prompt, you may use it instead.</p><p>A shortcut is a home-screen button, not necessarily a second app in All apps. Verify that both icons are visible on your Home screen; this website cannot inspect it.</p><p><b>iPhone:</b> open the expense form in Safari → Share → Add to Home Screen.</p></section>
+    <section class="steps" id="steps"><h2>Keep MyTrip and install Quick Expense.</h2><ol><li>Tap <b>Open Chrome</b> above. If Chrome does not open, copy the expense link and paste it into Chrome.</li><li>On the <b>expense form</b>, tap Chrome <b>⋮ → Install and create shortcut</b> (or <b>Add to Home screen</b>) → <b>Install Quick Expense</b>.</li><li>Name it <b>Quick Expense</b>, check its ₹ icon, then tap <b>Add</b> / <b>Add to Home screen</b>.</li></ol><p>Do not install MyTrip again or remove your existing app. If Chrome offers a separate <b>Install Quick Expense</b> prompt, you may use it instead.</p><p>A shortcut is a home-screen button, not necessarily a second app in All apps. Verify that both icons are visible on your Home screen; this website cannot inspect it.</p><p><b>iPhone:</b> open the expense form in Safari → Share → Add to Home Screen.</p></section>
     <p class="privacy">Treat this link as an access key. Anyone holding it can use the expense permissions allowed by the Administrator. Pausing or expiring the link still blocks access.</p>
   </main>
   <script>
@@ -55,7 +55,7 @@
       linked = Boolean(activeToken);
       let prompt = null;
       const button = document.getElementById("install"), status = document.getElementById("status"), steps = document.getElementById("steps"), copy = document.getElementById("copyLink"), chrome = document.getElementById("openChrome");
-      const direct = new URL("quick-expense/index.html", document.baseURI);
+      const direct = new URL("../QuickExpense/index.html", document.baseURI);
       direct.searchParams.set(linked ? "quick-expense" : "quick-expense-home", "1");
       direct.searchParams.set("icon-help", "1");
       if (apiUrl) direct.searchParams.set("api", apiUrl);
@@ -71,16 +71,15 @@
         chrome.classList.remove("hidden");
       }
       copy.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(direct.href); status.textContent = "Private expense link copied. Paste it into Chrome, then create the Quick Expense shortcut."; }
+        try { await navigator.clipboard.writeText(direct.href); status.textContent = "Private expense link copied. Paste it into Chrome, then install Quick Expense from its separate address."; }
         catch { const field = document.getElementById("privateLink"); field.value = direct.href; field.classList.remove("hidden"); field.focus(); field.select(); status.textContent = "Press and hold the selected private link to copy it, then paste it into Chrome."; }
       });
-      addEventListener("beforeinstallprompt", event => { event.preventDefault(); prompt = persisted ? event : null; if (linked && persisted) { button.textContent = "Install Quick Expense"; status.textContent = "Chrome offers a separate ₹ Quick Expense installation. Keep your MyTrip app."; } });
-      button.addEventListener("click", async () => {
-        if (!prompt) { steps.classList.remove("hidden"); steps.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); status.textContent = "Keep MyTrip. Open the expense form in Chrome, then choose Create shortcut for the second icon."; return; }
-        try { await prompt.prompt(); const choice = await prompt.userChoice; prompt = null; status.textContent = choice.outcome === "accepted" ? "Installation requested. Wait for Android to finish, then tap Quick Expense." : "Installation cancelled; you can try again."; if (choice.outcome !== "accepted") steps.classList.remove("hidden"); }
-        catch { prompt = null; steps.classList.remove("hidden"); status.textContent = "Use the Chrome Create shortcut steps below. Keep the existing MyTrip app."; }
+      addEventListener("beforeinstallprompt", event => { event.preventDefault(); });
+      button.addEventListener("click", () => {
+        steps.classList.remove("hidden");
+        status.textContent = "Keep MyTrip. Opening the separate Quick Expense app in Chrome; choose Install there.";
+        location.href = direct.href;
       });
-      addEventListener("appinstalled", () => { status.textContent = "Installed successfully. Find the ₹ Quick Expense icon on Home screen or in All apps; keep MyTrip too."; button.classList.add("hidden"); });
       if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }).catch(() => {});
     })();
   </script>

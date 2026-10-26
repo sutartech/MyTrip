@@ -22,7 +22,7 @@ function setup(url = "https://example.test/MyTrip/") {
 }
 function loadScanner(win) {
   win.eval(fs.readFileSync(path.join(root, "receipt-parser.js"), "utf8"));
-  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.6" } });
+  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.7" } });
   win.eval(fs.readFileSync(path.join(root, "receipt-scan.js"), "utf8"));
 }
 const billText = "SEA VIEW CAFE\nInvoice No: A-129\nDate 25/10/2026\nSubtotal 1000\nGST 50\nGrand Total INR 1050.00";
@@ -121,11 +121,11 @@ test("Dedicated Android installer keeps trip link and distinguishes installation
     assert.equal(win.document.querySelectorAll(".two-icons article").length, 2);
     assert.ok(!win.document.querySelector("#status").textContent.includes("Installed successfully"));
     const manifest = win.document.querySelector('link[rel="manifest"]').href;
-    assert.equal(manifest, "https://example.test/MyTrip/quick-expense/manifest.webmanifest");
+    assert.equal(manifest, "https://example.test/QuickExpense/manifest.webmanifest");
     const event = new win.Event("beforeinstallprompt", { cancelable: true }); event.prompt = async () => {}; event.userChoice = Promise.resolve({ outcome: "accepted" });
     win.dispatchEvent(event); win.document.querySelector("#install").click(); await tick();
-    assert.match(win.document.querySelector("#status").textContent, /Installation requested/);
-    win.dispatchEvent(new win.Event("appinstalled")); assert.match(win.document.querySelector("#status").textContent, /Installed successfully/);
+    assert.match(win.document.querySelector("#status").textContent, /separate Quick Expense app/);
+    assert.ok(!win.document.querySelector("#status").textContent.includes("Installed successfully"));
   } finally { dom.window.close(); }
 });
 test("Second-icon shortcut flow retains MyTrip and copies the exact no-login expense link", async () => {
@@ -138,7 +138,7 @@ test("Second-icon shortcut flow retains MyTrip and copies the exact no-login exp
     win.localStorage.setItem("mytrip_saved_username_v2", "family-user");
     [...win.document.scripts].forEach(script => { if (!script.src) win.eval(script.textContent); });
     const launch = new URL(win.document.querySelector("#openExpense").href);
-    assert.equal(launch.pathname, "/MyTrip/quick-expense/index.html");
+    assert.equal(launch.pathname, "/QuickExpense/index.html");
     assert.equal(launch.searchParams.get("quick-expense"), "1");
     assert.equal(launch.searchParams.get("api"), api);
     assert.equal(new URLSearchParams(launch.hash.slice(1)).get("qe"), token);
@@ -199,13 +199,13 @@ test("Sharing totals and filters work on desktop and mobile without changing tri
    assert.equal(view.querySelectorAll('.expense-sharing-total').length,3);
    assert.equal(view.querySelectorAll('[data-expense-sharing]').length,4);
    const before=Array.from(view.querySelectorAll('.expense-sharing-total strong'),x=>x.textContent);
-   assert.ok(view.querySelector('.expense-share-badge'),'sharing text on each device');
+   assert.equal(view.querySelector('.expense-share-badge.all'),null,'ordinary all-share expenses stay quiet');
    view.querySelector('[data-expense-sharing="one"]').click();await tick();
    assert.equal(view.querySelector('[data-expense-sharing="one"]').getAttribute('aria-pressed'),'true');
    assert.deepEqual(Array.from(view.querySelectorAll('.expense-sharing-total strong'),x=>x.textContent),before);
    for(const badge of view.querySelectorAll('.expense-share-badge'))assert.ok(badge.classList.contains('one'));
    view.querySelector('[data-expense-sharing="any"]').click();await tick();
-   assert.ok(view.querySelector('.expense-share-badge'));
+   assert.equal(view.querySelector('.expense-share-badge.all'),null);
    assert.equal(app.errors.length,0,app.errors.map(e=>e.message).join('\n'));
   }finally{app.dispose();}
  }
