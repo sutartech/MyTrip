@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="MyTrip Quick Expense">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="15" x2="174" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff765f"/><stop offset=".48" stop-color="#7754d5"/><stop offset="1" stop-color="#078c83"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="28" y1="14" x2="162" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff0b1"/><stop offset=".5" stop-color="#dba943"/><stop offset="1" stop-color="#fff1bd"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="176" height="176" rx="49" fill="url(#bg)"/>
+  <rect x="17" y="17" width="158" height="158" rx="41" fill="none" stroke="url(#gold)" stroke-width="5"/>
+  <path d="M60 111l58-58M81 53h37v37" fill="none" stroke="#4e351b" stroke-opacity=".3" stroke-width="27" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60 111l58-58M81 53h37v37" fill="none" stroke="#fff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="139" cy="139" r="34" fill="#102a43" stroke="#f4cb72" stroke-width="5"/>
+  <text x="139" y="153" text-anchor="middle" font-family="Arial, sans-serif" font-size="42" font-weight="800" fill="#fff">&#8377;</text>
+</svg>
