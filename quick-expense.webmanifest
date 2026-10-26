@@ -1,0 +1,26 @@
+{
+  "name": "MyTrip Quick Expense",
+  "short_name": "Quick Expense",
+  "description": "Add expenses to your saved MyTrip link without signing in.",
+  "id": "/quick-expense",
+  "start_url": "./quick-expense/index.html?quick-expense-home=1",
+  "scope": "./quick-expense/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F6FBFA",
+  "theme_color": "#0E817A",
+  "icons": [
+    {
+      "src": "quick-expense-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "quick-expense-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

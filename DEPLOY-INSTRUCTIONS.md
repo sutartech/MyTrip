@@ -1,6 +1,23 @@
-# MyTrip Dashboard 4.65.0
+# MyTrip Dashboard 4.67.1
 
-This package contains **FE v4.65.0** and **BE v4.31.6**. It adds a unified colourful favicon/PWA icon family, a responsive **Administrator Control Centre**, simplified trip-card actions, desktop overflow protection, lighter rendering for long lists, and a dedicated Quick Expense icon for the installable no-login shortcut. The Administrator can set each link to view-only or editable history and display the latest 5, 10, 50 or all entries made through that link.
+This package contains **FE v4.67.1** and **BE v4.32.1**. It keeps all v4.67.0 features and corrects the two-icon Android setup: keep the MyTrip app and add a distinct ₹ Quick Expense home-screen shortcut. It no longer treats a saved trip link or standalone window as proof that Android created a second icon.
+
+The backend is unchanged in this frontend patch. If your live backend still shows v4.31.2, update/deploy the included v4.32.1 Code.gs first. Also keep config.js pointing to your Apps Script `/exec` URL, never the GitHub webpage.
+
+## What was completed in this release
+
+See **FEATURE-CHECKLIST-v4.67.0.md** for the feature-by-feature audit and validation limits.
+
+- **Scan bill text** works on demand in Add expense, the no-login Quick Expense form, and saved receipt views. Read printed English bill photos locally, review payable amount/date/vendor/category/invoice/GST, then copy selected fields into a draft. Nothing auto-saves.
+- Quick Expense has a dedicated `quick-expense/` install/launch path, separate ₹ icon and no-login link-recovery screen. **Add second home icon** is always available, including inside an existing app window. New shared links use the dedicated path and old root-page links redirect safely. The installer shows both icons, can open Chrome on Android, and offers private-link copy/manual shortcut instructions without uninstalling MyTrip. Android can still suppress a second native install prompt; a separate home-screen shortcut is the supported fallback.
+- Offline entries cannot cross into another account or trip. New quick-link expenses can also queue; retry still checks the link's current status. Receipt photos themselves need an online upload.
+- System Health can create backups, enable/pause nightly backups, and safely repair missing structure. The response card measures the full round trip, not just server processing.
+- “Edit own” uses a server-stamped account ID on new records. Old records retain a name-based compatibility fallback. Full section editing does not grant Administrator-only deletion or security controls.
+- Login state is now tab-scoped. Only username is remembered persistently; legacy persistent login secrets are cleared. Browser session-restore behaviour is browser-controlled; the idle timeout remains authoritative.
+
+Upload **all files/folders**, including `receipt-parser.js`, `receipt-scan.js`, the complete `ocr/` folder and the complete `quick-expense/` folder. Do not upload only app.js and Code.gs.
+
+For Android setup, use **ANDROID-QUICK-EXPENSE.md**. For a new real installation check, remove an old incorrect Quick Expense shortcut once and install again from the current link. Do not clear site storage after linking unless you are ready to paste the link again.
 
 The Administrator can also schedule each no-login Quick Expense link with an **Active from** and **Valid until** date, disable it immediately, later re-enable the exact same already-shared URL, extend or shorten its period, or generate a new link that retires the older active link. Expenses support **Take photo** and **Choose photo / file** receipt controls on phones and computers.
 
@@ -96,7 +113,7 @@ Existing trips, travellers, assignments, plans, places, expenses, experiences an
 
 ## Step 1 — Update Google Apps Script
 
-Deploy the supplied backend when the live page reports an older version than **Backend v4.31.6**, or when a required backend capability is missing.
+Deploy the supplied backend when the live page reports an older version than **Backend v4.32.1**, or when a required backend capability is missing.
 
 1. Open the existing Apps Script project used by MyTrip.
 2. Replace the entire `Code.gs` with `backend/Code.gs` from this ZIP.
@@ -104,7 +121,7 @@ Deploy the supplied backend when the live page reports an older version than **B
 4. Choose **Deploy → Manage deployments → Edit**.
 5. Select **New version**, then click **Deploy**.
 6. Keep access as **Anyone** and keep the same `/exec` URL.
-7. Open `YOUR-EXEC-URL?action=ping` and confirm it contains `"version":"4.31.6"`, `"quickExpenseHistoryControls":true`, `"accessAudit":true`, `"quickExpenseTripWide":true`, `"quickExpenseValiditySchedule":true`, `"emailOnlyOtp":true`, `"passwordResetOtp":true`, `"batchedSheetIO":true`, `"singleDriveRoot":true`, `"originalPhotos20MB":true`, and `"quickExpenseNoExpiry":true`.
+7. Open `YOUR-EXEC-URL?action=ping` and confirm it contains `"version":"4.32.1"`, `"granularPermissions":true`, `"systemHealth":true`, `"sectionLoading":true`, `"offlineExpenseQueue":true`, `"quickExpenseHistoryControls":true`, `"accessAudit":true`, `"emailOnlyOtp":true`, `"batchedSheetIO":true`, and `"singleDriveRoot":true`.
 
 ## Step 2 — Update GitHub Pages
 
@@ -120,7 +137,7 @@ Replace these repository-root files:
 
 Keep the existing `config.js` so the connected `/exec` URL is unchanged. Wait about two minutes, open `repair.html` once to remove any older broad service worker, then reopen the site. The new controlled speed cache registers automatically after the page opens.
 
-Deploy the supplied `backend/Code.gs` whenever the live backend is older than `4.31.6` or the ping check reports a missing capability.
+Deploy the supplied `backend/Code.gs` whenever the live backend is older than `4.32.1` or the ping check reports a missing capability.
 
 ## Email-only OTP
 
@@ -155,7 +172,7 @@ The username must be 3–40 characters, start with a letter or number, and use o
 5. Sign in with a Traveller ID and its personal password and confirm only assigned trips appear.
 6. Confirm **Sign out** is the rightmost control in the top header on desktop and mobile.
 7. As Administrator, open a Traveller profile, select **Edit login**, and verify the new username/password works.
-8. Confirm **FE v4.65.0 · BE v4.31.6** and the automatically updating date/time appear inside the app.
+8. Confirm **FE v4.67.1 · BE v4.32.1** and the automatically updating date/time appear inside the app.
 9. Open Expenses and test View, Row edit, Edit and Administrator Delete.
 10. Complete a sticky note and confirm a row appears in `StickyNoteDiary`.
 11. Confirm the colourful Experiences tab is separate from Itinerary.

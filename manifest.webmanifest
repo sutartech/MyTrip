@@ -32,7 +32,7 @@
       "name": "Quick Expense · No login",
       "short_name": "Quick Expense",
       "description": "Open the secure Quick Expense link saved on this phone.",
-      "url": "./index.html?quick-expense-home=1",
+      "url": "./quick-expense/index.html?quick-expense-home=1",
       "icons": [
         {
           "src": "quick-expense-icon-192.png",

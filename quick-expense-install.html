@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script>location.replace("./quick-expense/install.html" + location.search + location.hash);</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0E817A">
+  <title>Install MyTrip Quick Expense</title>
+  <link rel="manifest" href="./quick-expense.webmanifest">
+  <link rel="icon" href="./quick-expense-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./quick-expense-icon-192.png">
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 10% 10%,#c9f2e8,transparent 30%),radial-gradient(circle at 90% 90%,#e2d5ff,transparent 34%),#f7fbfa;color:#163443;font-family:Inter,system-ui,-apple-system,sans-serif}.card{width:min(520px,100%);padding:30px;border:1px solid #c7dfda;border-radius:28px;background:rgba(255,255,255,.94);box-shadow:0 25px 70px -34px rgba(21,64,75,.55);text-align:center}.logo{display:grid;place-items:center;width:92px;height:92px;margin:0 auto 18px;border-radius:25px;background:linear-gradient(145deg,#0e8c80,#126d77);box-shadow:0 14px 32px -15px #075d57}.logo img{width:72px;height:72px}.eyebrow{color:#0b8174;font-size:12px;font-weight:900;letter-spacing:1.5px}.card h1{margin:8px 0;font-size:32px;line-height:1.05}.card p{margin:0 auto 20px;max-width:390px;color:#617681;font-size:16px;font-weight:650;line-height:1.5}.card button,.open{display:block;width:100%;min-height:56px;border:0;border-radius:16px;background:linear-gradient(135deg,#0e9b8a,#278dcc 52%,#7756d3);color:#fff;font-size:16px;font-weight:900;text-decoration:none;cursor:pointer}.open{display:grid;place-items:center;margin-top:10px;background:#edf7f5;color:#0b7468}.status{margin:16px 0;padding:12px;border-radius:14px;background:#eef9f6;color:#176c61;font-size:13px;font-weight:800}.steps{margin-top:18px;padding:15px;border-radius:16px;background:#fff7df;color:#74520d;text-align:left;font-size:13px;line-height:1.5}.hidden{display:none!important}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="logo"><img src="./quick-expense-icon.svg" alt=""></div>
+    <span class="eyebrow">MYTRIP · NO LOGIN</span>
+    <h1>Install Quick Expense</h1>
+    <p>This separate home-screen icon always opens the expense form saved for this trip—not the MyTrip login page.</p>
+    <div class="status" id="status">Secure trip link saved on this phone.</div>
+    <button id="install" type="button">Install Quick Expense</button>
+    <a class="open" href="./index.html?quick-expense-home=1">Open Quick Expense now →</a>
+    <div class="steps hidden" id="steps"><b>If Android does not show Install:</b><br>Open Chrome menu ⋮ → <b>Add to Home screen</b> or <b>Install app</b>. Keep the saved shortcut only on a trusted phone.</div>
+  </main>
+  <script>
+    (() => {
+      const key = "mytrip_quick_expense_shortcut_v1";
+      const token = new URLSearchParams(location.hash.replace(/^#/, "")).get("qe") || "";
+      try {
+        const saved = JSON.parse(localStorage.getItem(key) || "null");
+        if (token && /^[A-Za-z0-9_-]{32,180}$/.test(token)) localStorage.setItem(key, JSON.stringify({ ...(saved || {}), enabled: true, token, savedAt: new Date().toISOString() }));
+      } catch {}
+      let prompt = null;
+      const button = document.getElementById("install"), status = document.getElementById("status"), steps = document.getElementById("steps");
+      addEventListener("beforeinstallprompt", event => { event.preventDefault(); prompt = event; status.textContent = "Ready to install as a separate Quick Expense icon."; });
+      button.addEventListener("click", async () => {
+        if (!prompt) { steps.classList.remove("hidden"); status.textContent = "Use Chrome’s Add to Home screen option."; return; }
+        prompt.prompt(); const choice = await prompt.userChoice; prompt = null;
+        status.textContent = choice.outcome === "accepted" ? "Installed. Tap the new Quick Expense icon." : "Installation cancelled; you can try again.";
+        if (choice.outcome === "accepted") button.classList.add("hidden"); else steps.classList.remove("hidden");
+      });
+      addEventListener("appinstalled", () => { status.textContent = "Installed successfully. The icon opens Quick Expense directly."; button.classList.add("hidden"); });
+      if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }).catch(() => {});
+    })();
+  </script>
+</body>
+</html>

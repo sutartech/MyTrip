@@ -1,8 +1,10 @@
-# MyTrip Google Backend 4.31.6 Setup
+# MyTrip Google Backend 4.32.1 Setup
 
-The supplied backend is required when the existing deployment is older than **v4.31.6** or reports a missing capability. This build adds per-link Quick Expense history visibility and edit/view-only enforcement while retaining Access & Audit, scheduled/revocable links, email-only OTP, batched Google Sheet updates, one organised MyTrip Drive root and original photos up to 20 MB with fast thumbnails.
+This release also adds secure saved-receipt reads for on-device OCR (`receiptReadForScan: true`), server-stamped ownership for new records, lighter sticky-note refresh and an Administrator-controlled nightly-backup switch. Run `setupMyTrip()` before deploying so the ownership columns are added non-destructively. Original trip, account and expense rows are retained.
 
-Frontend **v4.65.0** and backend **v4.31.6** add the unified colourful icon family, responsive Administrator Control Centre, simplified trip management, overflow protection, lighter long-list rendering and a branded installable no-login Quick Expense shortcut. The Administrator can make each link’s past expenses view-only or editable and expose the latest 5, 10, 50 or all link entries.
+The supplied backend is required when the existing deployment is older than **v4.32.1** or reports a missing capability. This build adds five-level traveller permissions, section-only data loading, Administrator System Health and safe repair/backup controls while retaining Access & Audit, revocable Quick Expense links, email-only OTP, batched Google Sheet updates, one organised MyTrip Drive root and original photos up to 20 MB with fast thumbnails.
+
+Frontend **v4.67.1** and backend **v4.32.1** add the responsive Administrator Control Centre, System Health, granular permissions, universal Quick Add, recoverable offline expenses, section-only refresh and a separate installable no-login Quick Expense app. The Quick Expense icon now opens its saved trip expense form directly.
 
 - One common username/password login that identifies the account automatically
 - One all-trips dashboard for each signed-in account
@@ -31,7 +33,7 @@ Existing data and passwords are preserved.
 7. Choose **Deploy → Manage deployments → Edit**.
 8. Select **New version** and click **Deploy**.
 9. Keep web-app access as **Anyone** and retain the same `/exec` URL.
-10. Test `YOUR-EXEC-URL?action=ping`. It must return backend `4.31.6` with `quickExpenseHistoryControls: true`, `accessAudit: true`, `quickExpenseTripWide: true`, `quickExpenseValiditySchedule: true`, `emailOnlyOtp: true`, `passwordResetOtp: true`, `batchedSheetIO: true`, `singleDriveRoot: true`, `originalPhotos20MB: true`, `quickExpenseNoExpiry: true`, and the existing MyTrip capabilities.
+10. Test `YOUR-EXEC-URL?action=ping`. It must return backend `4.32.1` with `granularPermissions: true`, `systemHealth: true`, `sectionLoading: true`, `offlineExpenseQueue: true`, `quickExpenseHistoryControls: true`, `accessAudit: true`, `emailOnlyOtp: true`, `batchedSheetIO: true`, `singleDriveRoot: true`, and the existing MyTrip capabilities.
 
 ## Access & Audit
 
