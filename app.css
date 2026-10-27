@@ -3605,3 +3605,37 @@ html body .expense-compact-card .expense-share-badge{align-self:start;white-spac
 html body .expense-compact-card>.expense-card-actions,html body .expense-compact-card>.quick-receipt-tools{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
 html body .expense-compact-card .expense-card-actions button,html body .expense-compact-card>.quick-receipt-tools button,html body .expense-compact-card>.quick-receipt-tools a{min-height:36px;padding:7px 11px;font-size:12px;line-height:1.4}
 html body .expense-card-actions>em{font-style:normal;font-size:11px;color:var(--muted,#526374)}
+
+/* Start private entry with the amount; installation guidance stays optional. */
+html body .quick-expense-shell>.quick-expense-hero{padding:12px 16px;border-radius:14px;box-shadow:none}
+html body .quick-expense-shell>.quick-expense-hero:after{display:none}
+html body .quick-expense-shell>.quick-expense-hero>span{font-size:9px;letter-spacing:.08em}
+html body .quick-expense-shell>.quick-expense-hero h1{font-family:inherit;font-size:20px;line-height:1.3;margin:3px 0}
+html body .quick-expense-shell>.quick-expense-hero>p{font-size:12px;line-height:1.4}
+html body .quick-expense-shell>.quick-expense-form{grid-row:2;grid-column:1}
+html body .quick-expense-shell>.expense-view-tabs{grid-row:3}
+html body .quick-expense-shell>.quick-expense-side{grid-row:2;grid-column:2}
+html body .quick-expense-link-info{grid-column:1/-1;padding:0 14px;border:1px solid #d5e1df;border-radius:12px;min-width:0}
+html body .quick-expense-link-info>summary{padding:12px 0;min-height:44px;cursor:pointer;font-size:13px;font-weight:750}
+html body .quick-expense-link-info>div{display:grid;gap:4px;margin:8px 0 12px;font-size:12px}
+html body .quick-expense-link-info>div em{font-style:normal;color:var(--muted,#526374)}
+html body .expense-entry-form .quick-expense-share-disclosure{margin:8px 0}
+@media(max-width:760px){html body .quick-expense-shell>.quick-expense-hero{order:1}html body .quick-expense-shell>.quick-expense-form{order:2}html body .quick-expense-shell>.expense-view-tabs{order:3}html body .quick-expense-shell>.quick-expense-side{order:4}html body .quick-expense-shell>.quick-expense-link-info{order:5}}
+
+/* Sharing uses the same restrained colors in both expense lists. */
+html body .expense-compact-card:has(.expense-share-badge.some){border-inline-start:3px solid #d5a044!important;background:#fffbf1!important}
+html body .expense-compact-card:has(.expense-share-badge.one){border-inline-start:3px solid #609aca!important;background:#f3f8ff!important}
+html body .expense-compact-card:has(.expense-share-badge.some) .mt-xamount{color:#795512}
+html body .expense-compact-card:has(.expense-share-badge.one) .mt-xamount{color:#245c88}
+html body .sharing-other{background:#fffcf4;border-color:#e3d3ad}
+html body .sharing-breakdown-row.some{background:#fff7e4;border-radius:9px;margin:5px 0;padding:10px 8px}
+html body .sharing-breakdown-row.one{background:#edf5ff;border-radius:9px;margin:5px 0;padding:10px 8px}
+html body .sharing-breakdown-row.some strong{color:#795512}
+html body .sharing-breakdown-row.one strong{color:#245c88}
+html body .family-division-table td:nth-child(2){background:#eef8f0}
+html body .family-division-table td:nth-child(3){background:#fff8e9}
+html body .family-division-table td:nth-child(4){background:#eef5ff}
+html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=some]{background:#fff8e8;border-color:#e1c286}
+html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=some]>summary,html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=some]>summary small{color:#785512}
+html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=one]{background:#edf5ff;border-color:#afcde9}
+html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=one]>summary,html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=one]>summary small{color:#245c88}

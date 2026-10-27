@@ -22,7 +22,7 @@ function setup(url = "https://example.test/MyTrip/") {
 }
 function loadScanner(win) {
   win.eval(fs.readFileSync(path.join(root, "receipt-parser.js"), "utf8"));
-  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.11" } });
+  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.12" } });
   win.eval(fs.readFileSync(path.join(root, "receipt-scan.js"), "utf8"));
 }
 const billText = "SEA VIEW CAFE\nInvoice No: A-129\nDate 25/10/2026\nSubtotal 1000\nGST 50\nGrand Total INR 1050.00";
@@ -231,4 +231,8 @@ test("Who paid opens its saved bills and sharing rules remain collapsed", async 
 
 test("Account mobile expenses use the common description and amount cells", async () => {
  const app=setup();try{app.win.matchMedia=query=>({matches:query==='(max-width: 760px)',addEventListener(){},removeEventListener(){},addListener(){}});app.document.querySelector('#previewDemoButton').click();await tick();(app.document.querySelector('[data-open-admin-trip="GOA26"]')||app.document.querySelector('[data-open-admin-trip]')).click();await tick();app.document.querySelector('#mainNav [data-tab="expenses"]').click();await tick();const cards=[...app.document.querySelectorAll('.mt-xrow.expense-compact-card')];assert.ok(cards.length>0);for(const card of cards){assert.ok(card.querySelector('.mt-xheading>b'));assert.ok(card.querySelector('.mt-xheading>.mt-xamount'));assert.match(card.querySelector('.mt-xmeta').textContent,/Paid by/);}assert.equal(app.errors.length,0,app.errors.map(e=>e.message).join('\n'));}finally{app.dispose();}
+});
+
+test("Login Quick Add expense shows sharing immediately after payer and updates selection", async () => {
+ const app=setup();try{app.win.matchMedia=query=>({matches:query==='(max-width: 760px)',addEventListener(){},removeEventListener(){},addListener(){}});app.document.querySelector('#previewDemoButton').click();await tick();(app.document.querySelector('[data-open-admin-trip="GOA26"]')||app.document.querySelector('[data-open-admin-trip]')).click();await tick();app.document.querySelector('#globalQuickAdd').click();await tick();app.document.querySelector('[data-quick-add="expense"]').click();await tick();const form=app.document.querySelector('#modalBody [data-form="expense"]');assert.ok(form);const picker=form.querySelector('.quick-expense-share-disclosure');assert.ok(picker);assert.equal(picker.open,false);assert.equal(form.elements.paidBy.closest('label').nextElementSibling,picker);const choices=[...picker.querySelectorAll('[name="sharedUnit"]')];assert.ok(choices.length>1);assert.ok(choices.every(c=>c.checked));choices.forEach((c,i)=>c.checked=i===0);choices[0].dispatchEvent(new app.win.Event('change',{bubbles:true}));assert.match(picker.querySelector('summary small').textContent,/only$/);assert.equal(picker.dataset.sharingKind,'one');assert.equal(form.querySelectorAll('.quick-expense-share-disclosure').length,1);assert.equal(app.errors.length,0,app.errors.map(e=>e.message).join('\n'));}finally{app.dispose();}
 });

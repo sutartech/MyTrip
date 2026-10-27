@@ -4,7 +4,7 @@ const fs = require("fs"), path = require("path");
 const root = path.resolve(__dirname, "..");
 const output = process.argv[2];
 if (!output || !path.isAbsolute(output)) throw new Error("Pass an absolute destination directory outside the MyTrip runtime folder.");
-const main = process.env.MYTRIP_PREVIEW_MAIN_BASE || "https://sutartech.github.io/MyTrip/", version = "4.67.11";
+const main = process.env.MYTRIP_PREVIEW_MAIN_BASE || "https://sutartech.github.io/MyTrip/", version = "4.67.12";
 const source = fs.readFileSync(path.join(root, "index.html"), "utf8");
 let html = source
   .replace("<title>MyTrip · Plan, share &amp; split trips together</title>", "<title>Quick Expense · MyTrip · No login</title>")
@@ -17,7 +17,8 @@ let html = source
   .replace(`<script defer src="app.js?v=${version}"></script>`, `<script defer src="standalone.js?v=${version}" data-main-base="${main}" data-version="${version}"></script>`)
   .replace('<a class="brand" href="./"><i>↗</i> mytrip</a>', '<a class="brand" href="./index.html?quick-expense-home=1"><img src="quick-expense-icon.svg" alt=""><span>Quick Expense</span></a>')
   .replace('<a class="quick-expense-login-link" href="./?account=1">Account sign in</a>', `<a class="quick-expense-login-link" href="${main}" target="_blank" rel="noopener">Open MyTrip ↗</a>`)
-  .replace('<main id="quickExpenseContent">', `<aside class="separate-app-install" id="separateAppInstall"><img src="quick-expense-icon.svg" alt="MyTrip icon with small rupee badge"><div><strong>Install Quick Expense</strong><span>Separate from MyTrip · no account login</span></div><button type="button" id="installSeparateApp">Install Quick Expense</button><p id="separateInstallStatus" role="status" aria-live="polite">Open this separate address in Chrome and confirm the ₹ Quick Expense installation.</p></aside><p class="separate-app-notice" id="separateAppNotice" role="alert" hidden></p><main id="quickExpenseContent">`);
+  .replace('<main id="quickExpenseContent">', '<p class="separate-app-notice" id="separateAppNotice" role="alert" hidden></p><main id="quickExpenseContent">')
+  .replace('</div></main>', '</div></main><details class="separate-app-install" id="separateAppInstall"><summary>Install Quick Expense / home-screen help</summary><div class="separate-install-body"><img src="quick-expense-icon.svg" alt="MyTrip icon with small rupee badge"><div><strong>Install Quick Expense</strong><span>Separate from MyTrip · no account login</span></div><button type="button" id="installSeparateApp">Install Quick Expense</button><p id="separateInstallStatus" role="status" aria-live="polite">Open this address in Chrome and confirm the ₹ Quick Expense installation.</p></div></details>');
 if (!html.includes('data-version="' + version + '"') || html.includes('src="app.js?v=')) throw new Error("Main shell/version changed. Update the generator.");
 fs.mkdirSync(output, { recursive: true });
 fs.writeFileSync(path.join(output, "index.html"), html);

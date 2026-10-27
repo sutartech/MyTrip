@@ -9,3 +9,13 @@ html body .separate-app-install{display:grid;grid-template-columns:auto minmax(0
 html body .separate-app-install[hidden]{display:none!important}
 .separate-app-install>img{width:55px;height:55px}.separate-app-install>div{display:grid;gap:4px}.separate-app-install strong{font-size:18px;font-weight:900}.separate-app-install span{font-size:14px;font-weight:750}.separate-app-install button{min-height:48px;padding:12px 20px;border:0;border-radius:14px;background:linear-gradient(110deg,#087e75,#7350cf);color:#fff;font-size:16px;font-weight:850;cursor:pointer}.separate-app-install>p{grid-column:1/-1;margin:0;font-size:14px;line-height:1.5;font-weight:700}.separate-app-notice{width:min(1080px,calc(100% - 24px));margin:12px auto;padding:18px;border:2px solid #d1a345;border-radius:18px;background:#fff3ce;color:#683e13;font-size:17px;font-weight:800;line-height:1.5}.separate-app-notice[hidden]{display:none!important}
 @media(max-width:620px){html body .separate-app-install{grid-template-columns:auto minmax(0,1fr);padding:14px}.separate-app-install button{grid-column:1/-1;width:100%}.separate-app-install strong{font-size:17px}.separate-app-install span,.separate-app-install>p{font-size:14px}html body .quick-expense-topbar .brand{font-size:16px}}
+/* Installation is a closed disclosure below the expense content. */
+html body details.separate-app-install{display:block;margin:12px auto 20px;padding:0 14px;box-shadow:none;border-radius:14px}
+html body .separate-app-install>summary{padding:13px 0;min-height:44px;font-size:13px;font-weight:800;cursor:pointer}
+html body .separate-install-body{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:0 0 14px}
+html body .separate-install-body>img{width:40px;height:40px}
+html body .separate-install-body>div{display:grid;gap:4px}
+html body .separate-install-body strong{font-size:15px}
+html body .separate-install-body span,html body .separate-install-body>p{font-size:12px;line-height:1.5}
+html body .separate-install-body>p{grid-column:1/-1;margin:0}
+@media(max-width:620px){html body .separate-install-body{grid-template-columns:auto minmax(0,1fr)}html body .separate-install-body button{grid-column:1/-1;width:100%}}

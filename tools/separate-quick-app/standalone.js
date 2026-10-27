@@ -23,7 +23,7 @@
     chrome.textContent = "Open in Chrome";
     chrome.href = "intent://" + location.href.slice("https://".length) + "#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(location.href) + ";end";
     chrome.style.cssText = "display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 16px;border:1px solid #0e817a;border-radius:12px;background:#fff;color:#096e67;font-weight:850;text-decoration:none";
-    banner.appendChild(chrome);
+    (banner.querySelector(".separate-install-body") || banner).appendChild(chrome);
   }
   if (running()) banner.hidden = true;
   addEventListener("beforeinstallprompt", event => {
