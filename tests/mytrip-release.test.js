@@ -95,11 +95,11 @@ test("Sharing buckets count each bill once regardless of payer and selected filt
  expenses.push({amount:0.02,sharedBy:"B",paidBy:"A"});totals=context.expenseSharingTotals();assert.equal(totals.one.cents,90002);
 });
 
-test("Only selected-family and one-family bills display sharing badges",()=>{
+test("All-shared badges stay compact while exceptions show actual sharing names",()=>{
  const c=vm.createContext({shareUnits:()=>[["A","A2"],["B","B2"],["C","C2"]],esc:String});
  vm.runInContext(frontendFunction("expenseShareUnits","function openSplitMembers"),c);
- assert.equal(c.expenseShareBadge({sharedBy:""}),"");
- assert.equal(c.expenseShareBadge({sharedBy:"A|B|C"}),"");
+ assert.match(c.expenseShareBadge({sharedBy:""}),/All shared/);
+ assert.match(c.expenseShareBadge({sharedBy:"A|B|C"}),/All shared/);
  assert.match(c.expenseShareBadge({sharedBy:"A|B"}),/A \+ B/);
  assert.match(c.expenseShareBadge({sharedBy:"B"}),/B only/);
  assert.ok(!c.expenseShareBadge({sharedBy:"A|B"}).includes('C only'));

@@ -3639,3 +3639,6 @@ html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=
 html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=some]>summary,html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=some]>summary small{color:#785512}
 html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=one]{background:#edf5ff;border-color:#afcde9}
 html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=one]>summary,html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=one]>summary small{color:#245c88}
+/* A small all-shared marker; family names appear only for exceptions. */
+html body .expense-share-badge.all,html body .mt-xwhat>.expense-share-badge.all{display:inline-flex;align-self:flex-start;flex-direction:row;gap:0;width:fit-content;max-width:100%;padding:2px 7px;margin:0;border:1px solid #c4e1ce;border-radius:7px;background:#eaf6ee;color:#326c49;font-style:normal;line-height:1.4}
+html body .expense-share-badge.all>b,html body .mt-xwhat>.expense-share-badge.all>b{font-size:10px;font-weight:750;line-height:1.4;letter-spacing:0;text-transform:none}

@@ -2158,7 +2158,7 @@
   }
   function expenseShareBadge(expense, units = expenseSharingUnits()) {
     const category = expenseShareCategory(expense, units);
-    if (category.kind === "all") return "";
+    if (category.kind === "all") return `<em class="expense-share-badge all" title="Shared by all configured families or travellers" aria-label="Shared by all"><b>All shared</b></em>`;
     return `<em class="expense-share-badge ${category.kind}" title="Shared by ${esc(category.detail)}" aria-label="${esc(category.label)}: ${esc(category.detail)}"><b>${esc(category.label)}</b></em>`;
   }
 

@@ -200,13 +200,13 @@ test("Sharing totals and filters work on desktop and mobile without changing tri
    assert.equal(view.querySelectorAll('[data-expense-sharing-select]').length,1);
    assert.equal(view.querySelector('.family-division').open,false);
    const before=Array.from(view.querySelectorAll('.sharing-common-card strong'),x=>x.textContent);
-   assert.equal(view.querySelector('.expense-share-badge.all'),null,'ordinary all-share expenses stay quiet');
+   assert.equal(view.querySelector('.expense-share-badge.all').textContent,'All shared');
    const select=view.querySelector('[data-expense-sharing-select]');select.value='set:A';select.dispatchEvent(new app.win.Event('change',{bubbles:true}));await tick();
    assert.equal(view.querySelector('[data-expense-sharing-select]').value,'set:A');
    assert.deepEqual(Array.from(view.querySelectorAll('.sharing-common-card strong'),x=>x.textContent),before);
    for(const badge of view.querySelectorAll('.expense-share-badge'))assert.ok(badge.classList.contains('one'));
    const reset=view.querySelector('[data-expense-sharing-select]');reset.value='any';reset.dispatchEvent(new app.win.Event('change',{bubbles:true}));await tick();
-   assert.equal(view.querySelector('.expense-share-badge.all'),null);
+   assert.equal(view.querySelector('.expense-share-badge.all').textContent,'All shared');
    assert.equal(app.errors.length,0,app.errors.map(e=>e.message).join('\n'));
   }finally{app.dispose();}
  }
