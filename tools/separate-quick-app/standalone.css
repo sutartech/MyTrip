@@ -1,0 +1,11 @@
+/* Keep the same expense implementation; only this install shell is separate. */
+html body #accessScreen,html body #accountHub,html body #dashboard,
+html body .quick-expense-install-card{display:none!important}
+html body #quickExpenseScreen{display:block!important;min-height:100dvh}
+html body .quick-expense-error a[href="./"],html body .quick-expense-error a[href*="account=1"]{display:none!important}
+html body .quick-expense-topbar .brand{gap:9px;font-size:19px}
+html body .quick-expense-topbar .brand img{width:43px;height:43px;object-fit:contain}
+html body .separate-app-install{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;width:min(1080px,calc(100% - 24px));margin:16px auto 0;padding:17px;border:1px solid #c6d9d2;border-radius:22px;background:linear-gradient(110deg,#e1f9ed,#f0e8ff 65%,#fff1d5);box-shadow:0 12px 28px #274d5b12;color:#173d4e}
+html body .separate-app-install[hidden]{display:none!important}
+.separate-app-install>img{width:55px;height:55px}.separate-app-install>div{display:grid;gap:4px}.separate-app-install strong{font-size:18px;font-weight:900}.separate-app-install span{font-size:14px;font-weight:750}.separate-app-install button{min-height:48px;padding:12px 20px;border:0;border-radius:14px;background:linear-gradient(110deg,#087e75,#7350cf);color:#fff;font-size:16px;font-weight:850;cursor:pointer}.separate-app-install>p{grid-column:1/-1;margin:0;font-size:14px;line-height:1.5;font-weight:700}.separate-app-notice{width:min(1080px,calc(100% - 24px));margin:12px auto;padding:18px;border:2px solid #d1a345;border-radius:18px;background:#fff3ce;color:#683e13;font-size:17px;font-weight:800;line-height:1.5}.separate-app-notice[hidden]{display:none!important}
+@media(max-width:620px){html body .separate-app-install{grid-template-columns:auto minmax(0,1fr);padding:14px}.separate-app-install button{grid-column:1/-1;width:100%}.separate-app-install strong{font-size:17px}.separate-app-install span,.separate-app-install>p{font-size:14px}html body .quick-expense-topbar .brand{font-size:16px}}
