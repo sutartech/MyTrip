@@ -19,7 +19,7 @@ for (const file of ["manifest.webmanifest", "quick-expense.webmanifest", "quick-
 const app = read("app.js"), html = read("index.html"), sw = read("sw.js"), backend = read("backend/Code.gs");
 const fe = (app.match(/frontendVersion\s*=\s*"([^"]+)"/) || [])[1];
 const be = (app.match(/requiredBackendVersion\s*=\s*"([^"]+)"/) || [])[1];
-check(fe === "4.67.10", `frontend version is 4.67.10 (found ${fe || "none"})`);
+check(fe === "4.67.11", `frontend version is 4.67.11 (found ${fe || "none"})`);
 check(be === "4.32.2", `required backend is 4.32.2 (found ${be || "none"})`);
 check(html.includes(`app.js?v=${fe}`) && html.includes(`app.css?v=${fe}`), "HTML cache-bust versions match frontend");
 check(sw.includes(`mytrip-static-v${fe}`), "service-worker cache matches frontend");

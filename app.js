@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.10";
+  const frontendVersion = "4.67.11";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -2156,8 +2156,8 @@
     const kind = chosen.length === 1 ? "one" : "some";
     return { key, kind, chosen, label: names.join(" + ") + (kind === "one" ? " only" : ""), detail: chosen.map(unit => unit.name).join(" + ") };
   }
-  function expenseShareBadge(expense) {
-    const category = expenseShareCategory(expense);
+  function expenseShareBadge(expense, units = expenseSharingUnits()) {
+    const category = expenseShareCategory(expense, units);
     if (category.kind === "all") return "";
     return `<em class="expense-share-badge ${category.kind}" title="Shared by ${esc(category.detail)}" aria-label="${esc(category.label)}: ${esc(category.detail)}"><b>${esc(category.label)}</b></em>`;
   }
@@ -2447,6 +2447,12 @@
     const payer = payers.some(member => member.name === last.paidBy) ? last.paidBy : payers.some(member => member.name === state.currentUser) ? state.currentUser : payers[0].name;
     return `<form class="modal-form quick-expense-form expense-entry-form" data-form="expense"><header><span><small>ADD TO TRIP REGISTER</small><h2>Quick expense</h2></span><button type="button" data-expense-jump="entry-paid">Who paid</button></header><label class="quick-expense-amount"><span>₹</span><input name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0" aria-label="Expense amount" required autofocus></label><label>What was it for?<input name="label" maxlength="180" placeholder="e.g. Lunch, taxi, tickets" required></label><label>Paid by<select name="paidBy" required>${payers.map(member => `<option${member.name === payer ? " selected" : ""}>${esc(member.name)}</option>`).join("")}</select></label><div class="quick-expense-two"><label>Category<select name="category">${categories.map(category => `<option${category === last.category ? " selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label>Date<input name="date" type="date" value="${esc(mtDefaultDate())}" required></label></div><label>Note <small>(optional)</small><textarea name="notes" rows="2" maxlength="1000" placeholder="Any useful detail"></textarea></label>${receiptCaptureField()}<div class="form-actions expense-entry-actions"><button type="submit" class="quick-expense-save">Save expense</button><button type="submit" class="quick-expense-save-again" data-again>Save &amp; add another</button><button type="button" data-cancel>Cancel</button></div></form>`;
   }
+  function renderCompactExpenseContent(expense, { quick = false, payer = "", enteredBy = "" } = {}) {
+    const units = quick ? quickExpenseShareGroups().map((members, index) => ({ members, short: members[0], name: members.length > 1 ? `${members[0]} family` : members[0], code: String.fromCharCode(65 + index) })) : expenseSharingUnits();
+    const paidBy = expense.paidBy || payer || "Not specified";
+    return `<i class="mt-xcat">${esc(String(expense.category || "Other").slice(0, 1))}</i><span class="mt-xwhat"><span class="mt-xheading"><b>${esc(expense.label || expense.category || "Expense")}</b><strong class="mt-xamount">${money.format(Number(expense.amount || 0))}</strong></span>${expenseShareBadge(expense, units)}<small class="mt-xmeta"><span class="mt-xpayer">${avatarSlot({ name: paidBy })}</span><span class="mt-xmeta-text">Paid by ${esc(paidBy)} · ${esc(expense.category || "Other")} · ${esc(displayDate(expense.date, { day: "numeric", month: "short" }))}${expense.receiptUrl ? " · 🧾 Receipt" : ""}${expense.currency && Number(expense.foreignAmount) > 0 ? ` · ${esc(expense.currency)} ${Number(expense.foreignAmount).toLocaleString("en-IN")}` : ""}${expense.queued ? " · Waiting to sync" : ""}${enteredBy}</span></small></span>`;
+  }
+
   function mtMoneyMobile() {
     const budget = Number(state.data.trip.budget || 0), total = spent();
     const d = (off) => { const t = new Date(); t.setDate(t.getDate() - off); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
@@ -2459,7 +2465,7 @@
     const shown = filterExpensesBySharing(travellerFilter ? byDate.filter((e) => e.paidBy === travellerFilter) : byDate);
     const canEdit = canEditRecords("Expenses"), canDel = isAdmin();
     const groups = []; shown.forEach((e) => { const k = String(e.date || ""); let g = groups[groups.length - 1]; if (!g || g.k !== k) groups.push(g = { k, items: [] }); g.items.push(e); });
-    const list = groups.map((g) => `<div class="mt-xday"><div class="mt-xday-head"><b>${g.k === today ? "Today" : g.k === yday ? "Yesterday" : esc(displayDate(g.k, { weekday: "short", day: "numeric", month: "short" }))}</b><span>${money.format(sum(g.items))}</span></div>${g.items.map((e) => `<div class="mt-xrow-wrap">${canDel ? `<button type="button" class="mt-xrow-del" data-delete-expense="${esc(e.id)}">Delete</button>` : ""}<button type="button" class="mt-xrow"${canEdit ? ` data-edit data-sheet="Expenses" data-id="${esc(e.id)}"` : ` data-view-expense="${esc(e.id)}"`}><i class="mt-xcat">${esc(String(e.category || "Other").slice(0, 1))}</i><span class="mt-xwhat"><span class="mt-xheading"><b>${esc(e.label || e.category || "Expense")}</b><strong class="mt-xamount">${money.format(e.amount)}</strong></span>${expenseShareBadge(e)}<small class="mt-xmeta"><span class="mt-xpayer">${avatarSlot({ name: e.paidBy || "" })}</span><span class="mt-xmeta-text">${esc(e.paidBy || "Not specified")} · ${esc(e.category || "Other")}${e.receiptUrl ? " · 🧾" : ""}${e.currency && Number(e.foreignAmount) > 0 ? ` · ${esc(e.currency)} ${Number(e.foreignAmount).toLocaleString("en-IN")}` : ""}</span></small></span></button></div>`).join("")}</div>`).join("");
+    const list = groups.map((g) => `<div class="mt-xday"><div class="mt-xday-head"><b>${g.k === today ? "Today" : g.k === yday ? "Yesterday" : esc(displayDate(g.k, { weekday: "short", day: "numeric", month: "short" }))}</b><span>${money.format(sum(g.items))}</span></div>${g.items.map((e) => `<div class="mt-xrow-wrap">${canDel ? `<button type="button" class="mt-xrow-del" data-delete-expense="${esc(e.id)}">Delete</button>` : ""}<button type="button" class="mt-xrow expense-compact-card"${canEdit ? ` data-edit data-sheet="Expenses" data-id="${esc(e.id)}"` : ` data-view-expense="${esc(e.id)}"`}>${renderCompactExpenseContent(e)}</button></div>`).join("")}</div>`).join("");
     const chips = [["today", "Today"], ["yday", "Yesterday"], ["all", "All"]].map(([k, l]) => `<button type="button" data-mt-xfilter="${k}" class="${f === k ? "on" : ""}">${l}</button>`).join("");
     const filterPeople = expenseFilterPeople();
     const travellerChips = filterPeople.length ? `<div class="mt-xfilters mt-xtraveller-filters">${[["", "Everyone"]].concat(filterPeople.map((n) => [n, n])).map(([v, l]) => `<button type="button" data-mt-xtraveller="${esc(v)}" class="${travellerFilter === v ? "on" : ""}">${esc(l)}</button>`).join("")}</div>` : "";
@@ -6223,7 +6229,7 @@
     const editPolicy = info.pass?.allowEdit ? `Correction allowed for ${Number(info.pass.editMinutes || 0)} minutes after saving` : "Past entries are view only";
     const recent = (info.recent || []).map((item) => {
       const enteredBy = tripWide ? ` · Entered by ${item.enteredBy && item.enteredBy !== "Trip-wide quick link" ? `${esc(item.enteredBy)} (declared)` : "not specified"}` : "";
-      return `<article class="quick-expense-recent-row${item.queued ? " queued" : ""}"><i>${esc(String(item.category || "Other").slice(0, 1))}</i><div><b>${esc(item.label || item.category || "Expense")}</b><small>${displayDate(item.date, { day: "numeric", month: "short" })} · ${esc(item.category || "Other")} · Paid by ${esc(item.paidBy || info.traveller.name)}${enteredBy}${item.receiptUrl ? " · 🧾 Receipt" : ""}${item.queued ? " · Waiting to sync" : ""}</small>${quickExpenseShareLabel(item).startsWith("All ") ? "" : `<em class="quick-expense-share-tag">${esc(quickExpenseShareLabel(item))}</em>`}</div><strong>${money.format(Number(item.amount || 0))}</strong>${item.canEdit && !item.queued ? `<span><button type="button" data-quick-edit="${esc(item.id)}">Edit</button><button type="button" class="delete" data-quick-delete="${esc(item.id)}">Delete</button></span>` : `<em>${item.queued ? "Queued" : "Saved"}</em>`}</article>`;
+      return `<article class="quick-expense-recent-row expense-compact-card${item.queued ? " queued" : ""}">${renderCompactExpenseContent(item, { quick: true, payer: info.traveller.name, enteredBy })}<span class="expense-card-actions">${item.canEdit && !item.queued ? `<button type="button" data-quick-edit="${esc(item.id)}">Edit</button><button type="button" class="delete" data-quick-delete="${esc(item.id)}">Delete</button>` : `<em>${item.queued ? "Waiting to sync" : "Saved"}</em>`}</span></article>`;
     }).join("");
     const linkIdentity = tripWide ? `<div><small>TRIP-WIDE SHARED LINK</small><b>Any trip member may enter</b><em>Choose Paid by for every expense</em></div>` : `<div><small>LINK OWNER / AUDIT TRAIL</small><b>${esc(info.traveller.name)}</b><em>${esc(info.traveller.travellerId)}</em></div>`;
     const formStatus = current ? `<button type="button" data-quick-cancel-edit>Cancel edit</button>` : tripWide ? `<em>No login · choose <b>Paid by</b></em>` : info.pass.allowAnyPayer ? `<em>Choose <b>Paid by</b> below</em>` : `<em>Paid by <b>${esc(info.traveller.name)}</b></em>`;

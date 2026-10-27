@@ -3589,3 +3589,19 @@ html body .expense-sharing-guide>summary{padding:12px 0;min-height:44px;cursor:p
 html body .expense-sharing-guide p,html body .expense-sharing-guide li{font-size:12px;line-height:1.6;overflow-wrap:anywhere;color:var(--muted,#526c61)}
 html body .expense-sharing-guide ul{padding-left:20px}
 html body .expense-payer-breakdown>summary:focus-visible,html body .expense-sharing-guide>summary:focus-visible{outline:3px solid #258fba;outline-offset:2px}
+
+/* The same expense content and amount layout in account and no-login cards. */
+html body .expense-compact-card{display:grid;grid-template-columns:36px minmax(0,1fr)!important;gap:10px;align-items:start;min-width:0;box-sizing:border-box}
+html body .expense-compact-card>.mt-xcat{display:grid;place-items:center;width:36px;height:36px;margin-top:3px;border-radius:11px;background:#e7f3ef;color:#17756c;font-style:normal;font-size:13px;font-weight:850}
+html body .expense-compact-card>.mt-xwhat{display:flex;flex-direction:column;gap:7px;min-width:0;max-width:100%}
+html body .expense-compact-card .mt-xheading{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;min-width:0}
+html body .expense-compact-card .mt-xheading>b{font-size:15px;line-height:1.4;white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip;min-width:0}
+html body .expense-compact-card .mt-xheading>.mt-xamount{position:static;margin:0;justify-self:end;white-space:nowrap;font-size:16px;line-height:1.4;color:var(--text,#253e43);font-variant-numeric:tabular-nums}
+html body .expense-compact-card .mt-xmeta{display:flex;align-items:start;gap:7px;min-width:0;margin-top:1px;font-size:11px;line-height:1.6;color:var(--muted,#526374)}
+html body .expense-compact-card .mt-xmeta-text{min-width:0;white-space:normal;overflow-wrap:anywhere}
+html body .expense-compact-card .mt-xpayer{flex:0 0 24px;width:24px;height:24px}
+html body .expense-compact-card .mt-xpayer .avatar-slot,html body .expense-compact-card .mt-xpayer img{width:24px;height:24px}
+html body .expense-compact-card .expense-share-badge{align-self:start;white-space:normal;overflow-wrap:anywhere;max-width:100%;box-sizing:border-box}
+html body .expense-compact-card>.expense-card-actions,html body .expense-compact-card>.quick-receipt-tools{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+html body .expense-compact-card .expense-card-actions button,html body .expense-compact-card>.quick-receipt-tools button,html body .expense-compact-card>.quick-receipt-tools a{min-height:36px;padding:7px 11px;font-size:12px;line-height:1.4}
+html body .expense-card-actions>em{font-style:normal;font-size:11px;color:var(--muted,#526374)}

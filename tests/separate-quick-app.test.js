@@ -9,7 +9,7 @@ if (!built) throw new Error("Set MYTRIP_SEPARATE_PACKAGE to the generated standa
 const source = fs.readFileSync(path.join(root, "app.js"), "utf8"), html = fs.readFileSync(path.join(built, "index.html"), "utf8"), loader = fs.readFileSync(path.join(built, "standalone.js"), "utf8");
 const token = "t".repeat(43), mainKey = "mytrip_quick_expense_shortcut_v1", ownKey = "mytrip_separate_quick_expense_v1";
 const tick = () => new Promise(resolve => setTimeout(resolve, 25));
-function setup({ saved = false, standalone = false, compatible = true, search = "", members = ["Alice", "Bob"], splitMembers = "" } = {}) {
+function setup({ saved = false, standalone = false, compatible = true, search = "", members = ["Alice", "Bob"], splitMembers = "", recent = [] } = {}) {
   const errors = [], requests = [], vc = new VirtualConsole();
   vc.on("jsdomError", error => { if (!/scrollTo|navigation/.test(error.message)) errors.push(error); });
   const dom = new JSDOM(html, { url: "https://sutartech.github.io/QuickExpense/index.html" + search, runScripts: "outside-only", pretendToBeVisual: true, virtualConsole: vc });
@@ -23,7 +23,7 @@ function setup({ saved = false, standalone = false, compatible = true, search = 
   win.fetch = async (url, options = {}) => {
     if (String(url).includes("/MyTrip/app.js")) return { ok: true, text: async () => compatible ? source : "/* previous build */" };
     const body = JSON.parse(options.body || "{}"); requests.push(body);
-    const data = body.action === "ping" ? { ...capabilities, version: "4.32.2" } : body.action === "getQuickExpenseInfo" ? { trip: { name: "Mysore", tripId: "MYS", startDate: "2026-10-24", endDate: "2026-10-28", currency: "INR", splitMembers }, traveller: { name: "Alice", travellerId: "ALICE" }, pass: { id: "PASS", tripWide: true, allowAnyPayer: true, allowEdit: true, recentLimit: 10 }, members, recent: [] } : {};
+    const data = body.action === "ping" ? { ...capabilities, version: "4.32.2" } : body.action === "getQuickExpenseInfo" ? { trip: { name: "Mysore", tripId: "MYS", startDate: "2026-10-24", endDate: "2026-10-28", currency: "INR", splitMembers }, traveller: { name: "Alice", travellerId: "ALICE" }, pass: { id: "PASS", tripWide: true, allowAnyPayer: true, allowEdit: true, recentLimit: 10 }, members, recent } : {};
     return { ok: true, json: async () => ({ ok: true, data }) };
   };
   Object.defineProperty(win.document, "currentScript", { configurable: true, value: win.document.querySelector('script[src^="standalone.js"]') });
@@ -140,4 +140,10 @@ test("Configured family groups exclude the payer family and preserve whole-famil
  const req=app.requests.find(r=>r.action==='quickAddExpense');
  assert.equal(req.record.sharedBy,"A|A2|B|B2");assert.equal(req.record.paidBy,"C");assert.equal(req.record.amount,100.01);
  }finally{app.dispose();}
+});
+
+test("Shared history uses the account card content and highlights only sharing exceptions", async () => {
+ const recent=[{id:"all",label:"Hotel",paidBy:"Alice",amount:3000,date:"2026-10-25",category:"Stay",sharedBy:""},{id:"pair",label:"Taxi",paidBy:"Bob",amount:600,date:"2026-10-25",category:"Travel",sharedBy:"Alice|Bob",canEdit:true,receiptUrl:"https://example.test/bill"},{id:"own",label:"<script>Personal</script>",paidBy:"Carol",amount:200,date:"2026-10-25",category:"Other",sharedBy:"Carol"}];
+ const app=setup({saved:true,members:["Alice","Bob","Carol"],recent});
+ try { await app.start();const cards=[...app.document.querySelectorAll('.quick-expense-recent-row')];assert.equal(cards.length,3);for(const card of cards){assert.ok(card.classList.contains('expense-compact-card'));assert.ok(card.querySelector('.mt-xheading>b'));assert.ok(card.querySelector('.mt-xheading>.mt-xamount'));assert.match(card.querySelector('.mt-xmeta').textContent,/Paid by/);}assert.equal(cards[0].querySelector('.expense-share-badge'),null);assert.match(cards[1].querySelector('.expense-share-badge').textContent,/Alice \+ Bob/);assert.match(cards[2].querySelector('.expense-share-badge').textContent,/Carol only/);assert.equal(cards[2].querySelector('script'),null);assert.ok(cards[1].querySelector('[data-quick-edit]'));assert.ok(cards[1].querySelector('.quick-receipt-tools a'));assert.equal(app.errors.length,0,app.errors.map(e=>e.message).join('\n'));}finally{app.dispose();}
 });

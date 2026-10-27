@@ -22,7 +22,7 @@ function setup(url = "https://example.test/MyTrip/") {
 }
 function loadScanner(win) {
   win.eval(fs.readFileSync(path.join(root, "receipt-parser.js"), "utf8"));
-  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.10" } });
+  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.11" } });
   win.eval(fs.readFileSync(path.join(root, "receipt-scan.js"), "utf8"));
 }
 const billText = "SEA VIEW CAFE\nInvoice No: A-129\nDate 25/10/2026\nSubtotal 1000\nGST 50\nGrand Total INR 1050.00";
@@ -227,4 +227,8 @@ test("Who paid opens its saved bills and sharing rules remain collapsed", async 
     assert.equal(payer.open, true);
     assert.equal(app.errors.length, 0, app.errors.map(error => error.message).join('\n'));
   } finally { app.dispose(); }
+});
+
+test("Account mobile expenses use the common description and amount cells", async () => {
+ const app=setup();try{app.win.matchMedia=query=>({matches:query==='(max-width: 760px)',addEventListener(){},removeEventListener(){},addListener(){}});app.document.querySelector('#previewDemoButton').click();await tick();(app.document.querySelector('[data-open-admin-trip="GOA26"]')||app.document.querySelector('[data-open-admin-trip]')).click();await tick();app.document.querySelector('#mainNav [data-tab="expenses"]').click();await tick();const cards=[...app.document.querySelectorAll('.mt-xrow.expense-compact-card')];assert.ok(cards.length>0);for(const card of cards){assert.ok(card.querySelector('.mt-xheading>b'));assert.ok(card.querySelector('.mt-xheading>.mt-xamount'));assert.match(card.querySelector('.mt-xmeta').textContent,/Paid by/);}assert.equal(app.errors.length,0,app.errors.map(e=>e.message).join('\n'));}finally{app.dispose();}
 });
