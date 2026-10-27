@@ -3536,3 +3536,34 @@ html body .expense-share-badge.one{background:#e8f1ff;color:#245783}
 html body .mt-xwhat>.expense-share-badge{width:fit-content;max-width:100%;padding:4px 8px;border-radius:8px}
 @media(max-width:480px){html body .sharing-overview{padding:11px}.sharing-common-card strong{font-size:27px}.sharing-family-key{font-size:11px}.sharing-breakdown-row>span{flex-wrap:wrap;gap:4px 10px}.family-division>summary small{display:none}}
 @media print{html body .sharing-overview{break-inside:auto;border:0;padding:0}.sharing-common-card{break-inside:avoid}.family-division-scroll{overflow:visible}.family-division-table{min-width:0;font-size:10px}.sharing-breakdown-row{break-inside:avoid}}
+
+/* One expense-entry design for account and private-link access. */
+html body .expense-view-tabs{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0;grid-column:1/-1;min-width:0}
+html body .expense-view-tabs button{flex:1 1 auto;min-height:42px;padding:9px 12px!important;border:1px solid #c0d9d4!important;border-radius:12px!important;background:#eff8f5!important;color:#185f56!important;font-size:12px!important;font-weight:850!important;white-space:normal;cursor:pointer}
+html body .expense-view-tabs button.on{background:#0f776d!important;border-color:#0f776d!important;color:#fff!important}
+html body .expense-entry-form .quick-expense-share-disclosure{background:linear-gradient(110deg,#e8f8ed,#eef8ff);border:1.5px solid #b5dcd0;border-radius:14px;padding:8px 12px;margin:4px 0}
+html body .expense-entry-form .quick-expense-share-disclosure>summary{min-height:46px;padding:10px 3px;color:#165d50;font-size:15px;line-height:1.5;cursor:pointer}
+html body .expense-entry-form .quick-expense-share-disclosure>summary b{font-weight:850}
+html body .expense-entry-form .quick-expense-share-disclosure>summary small{color:#267365;white-space:normal;overflow-wrap:anywhere}
+html body .expense-entry-form .quick-expense-share{border:0;padding:8px 0;margin:0;min-width:0}
+html body .expense-entry-form .quick-expense-share-options label{background:#fff;border:1px solid #c6dfd7;border-radius:11px;padding:10px;min-height:44px}
+html body .expense-entry-form .quick-expense-share-options input[type=checkbox]{width:20px!important;min-width:20px;min-height:20px!important;height:20px!important;padding:0!important;accent-color:#168675;flex:0 0 auto}
+html body .expense-entry-form .quick-expense-share-options b{white-space:normal;overflow-wrap:anywhere;font-size:14px}
+html body .expense-entry-form input:not([type=checkbox]):not([type=radio]),html body .expense-entry-form select,html body .expense-entry-form textarea{min-height:46px!important;border:1.5px solid #c8d9de!important;border-radius:12px!important;background:#fcfefe!important;color:#172f3d!important;font-size:16px!important;font-weight:650!important;box-sizing:border-box}
+html body .expense-entry-form .quick-expense-amount input{font-size:34px!important;border:0!important;min-width:0}
+html body .expense-entry-form .expense-entry-actions{position:relative!important;display:grid!important;grid-template-columns:1fr!important;margin:0!important;padding:10px 0 0!important;border:0!important;box-shadow:none!important;gap:9px!important}
+html body .expense-entry-form .quick-expense-save{background:#0e817a!important;color:#fff!important;min-height:48px!important;border-radius:13px!important}
+html body .expense-entry-form .quick-expense-save-again{background:#edf7f2!important;color:#17685c!important;border:1px solid #bfdad0!important;min-height:46px!important;border-radius:13px!important}
+html body #editRecordForm.expense-entry-form .quick-expense-share-disclosure{margin:12px 0}
+html body .quick-link-paid-view{grid-column:1/-1;padding:14px;border:1px solid #c4dbd4;border-radius:17px;background:#f3faf7;color:#234d43;min-width:0}
+html body .quick-link-paid-view>summary{cursor:pointer;font-size:15px;min-height:46px;line-height:1.5}
+html body .quick-link-paid-view>summary strong{margin-left:12px}.quick-link-paid-view>summary small{display:block;color:#56766b;font-size:11px;margin-top:4px}
+html body .quick-link-paid-view p{font-size:12px;line-height:1.5;color:#526c61;margin:10px 0}
+html body .quick-paid-table-wrap{max-width:100%;overflow-x:auto}.quick-paid-table{width:100%;border-collapse:collapse;font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
+html body .quick-paid-table td,html body .quick-paid-table th{padding:11px 8px;border-bottom:1px solid #d7e7df}.quick-paid-table th:first-child{text-align:left;white-space:normal;overflow-wrap:anywhere}.quick-paid-table td{white-space:nowrap}.quick-paid-table tfoot{font-weight:850;background:#e6f2eb}
+@media(max-width:760px){html body .quick-expense-shell>.expense-view-tabs{order:3;width:100%;margin:0}html body .quick-expense-shell>.quick-expense-form{order:4}html body .quick-expense-shell>.quick-link-paid-view{order:5;width:100%;box-sizing:border-box}html body .quick-expense-shell>.quick-expense-recent{order:6!important}html body .expense-view-tabs{gap:5px}html body .expense-view-tabs button{font-size:11px!important;padding:8px!important}}
+@media print{html body .expense-view-tabs{display:none!important}}
+
+html body .quick-expense-side{grid-column:2;display:grid;gap:14px;min-width:0;max-width:100%}
+html body .expense-entry-form .quick-expense-share legend.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:760px){html body .quick-expense-shell>.quick-expense-side{order:5;grid-column:auto;width:100%;min-width:0}html body .quick-expense-side>.quick-expense-recent{order:2!important}html body .quick-expense-side>.quick-link-paid-view{order:1}}

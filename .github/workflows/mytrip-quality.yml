@@ -1,0 +1,54 @@
+name: MyTrip quality
+on:
+  push:
+    branches: [codex/mytrip-entry-sync-4.67.9]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install test and build dependencies
+        run: npm install --prefix "$RUNNER_TEMP/mytrip-qa" jsdom@26 sharp --ignore-scripts --no-audit --no-fund
+      - name: Build separate Quick Expense package
+        env:
+          MYTRIP_BUILD_DEPENDENCIES: ${{ runner.temp }}/mytrip-qa/node_modules
+        run: node tools/build-separate-quick-app.js "$RUNNER_TEMP/QuickExpense"
+      - name: Verify release
+        run: node tools/verify-release.js
+      - name: Run full behavior and DOM suite
+        env:
+          MYTRIP_TEST_DEPENDENCIES: ${{ runner.temp }}/mytrip-qa/node_modules
+          MYTRIP_SEPARATE_PACKAGE: ${{ runner.temp }}/QuickExpense
+        run: node --test tests/mytrip-release.test.js tests/receipt-scan-dom.test.js tests/separate-quick-app.test.js tests/entry-transparency.test.js
+      - name: Package tested source
+        run: |
+          python3 - <<'PY'
+          import os,zipfile
+          root=os.getcwd()
+          out=os.path.join(os.environ['RUNNER_TEMP'],'mytrip-packages')
+          os.makedirs(out,exist_ok=True)
+          with zipfile.ZipFile(os.path.join(out,'MyTrip-main.zip'),'w',zipfile.ZIP_DEFLATED) as z:
+              for here,dirs,files in os.walk(root):
+                  dirs[:]=[d for d in dirs if d not in ('.git','node_modules')]
+                  for name in files:
+                      p=os.path.join(here,name)
+                      z.write(p,os.path.join('MyTrip-main',os.path.relpath(p,root)))
+          quick=os.path.join(os.environ['RUNNER_TEMP'],'QuickExpense')
+          with zipfile.ZipFile(os.path.join(out,'MyTrip-QuickExpense-Separate-App.zip'),'w',zipfile.ZIP_DEFLATED) as z:
+              for here,dirs,files in os.walk(quick):
+                  for name in files:
+                      p=os.path.join(here,name)
+                      z.write(p,os.path.join('QuickExpense',os.path.relpath(p,quick)))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MyTrip-FE4.67.9-tested-packages
+          path: ${{ runner.temp }}/mytrip-packages/*.zip
+          retention-days: 14
