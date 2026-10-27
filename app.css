@@ -3567,3 +3567,25 @@ html body .quick-paid-table td,html body .quick-paid-table th{padding:11px 8px;b
 html body .quick-expense-side{grid-column:2;display:grid;gap:14px;min-width:0;max-width:100%}
 html body .expense-entry-form .quick-expense-share legend.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:760px){html body .quick-expense-shell>.quick-expense-side{order:5;grid-column:auto;width:100%;min-width:0}html body .quick-expense-side>.quick-expense-recent{order:2!important}html body .quick-expense-side>.quick-link-paid-view{order:1}}
+
+/* Expand payer totals into the actual bills, with one readable mobile column. */
+html body .expense-payer-breakdowns{min-width:0}
+html body .expense-payer-breakdown{border:1px solid #cddfd8;border-radius:12px;margin:8px 0;background:var(--surface,#fff);min-width:0}
+html body .expense-payer-breakdown>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px;cursor:pointer;min-height:48px;list-style:none}
+html body .expense-payer-breakdown>summary:before{content:'›';font-size:22px;flex:0 0 auto}
+html body .expense-payer-breakdown[open]>summary:before{transform:rotate(90deg)}
+html body .expense-payer-breakdown>summary>span{flex:1;min-width:0;overflow-wrap:anywhere}
+html body .expense-payer-breakdown small{display:block;font-size:11px;line-height:1.6;color:var(--muted,#526c61)}
+html body .expense-payer-breakdown strong{white-space:nowrap;font-variant-numeric:tabular-nums;font-size:14px}
+html body .expense-payer-breakdown ul{padding:0 13px;margin:0;list-style:none;border-top:1px solid #d7e7df}
+html body .expense-payer-breakdown li{display:flex;align-items:start;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #e2e9e5}
+html body .expense-payer-breakdown li:last-child{border:0}
+html body .expense-payer-breakdown li>span{min-width:0;overflow-wrap:anywhere}
+html body .expense-payer-breakdown li b{font-size:13px;line-height:1.5}
+html body .expense-paid-total{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:10px 0}
+html body .expense-sync-note{background:#fff3da;border:1px solid #ead09a;border-radius:10px;padding:10px;color:#705015!important}
+html body .expense-sharing-guide{border:1px solid #d5e1df;border-radius:12px;margin:10px 0;padding:0 12px;min-width:0}
+html body .expense-sharing-guide>summary{padding:12px 0;min-height:44px;cursor:pointer;font-size:13px;font-weight:750;color:var(--text,#234d43)}
+html body .expense-sharing-guide p,html body .expense-sharing-guide li{font-size:12px;line-height:1.6;overflow-wrap:anywhere;color:var(--muted,#526c61)}
+html body .expense-sharing-guide ul{padding-left:20px}
+html body .expense-payer-breakdown>summary:focus-visible,html body .expense-sharing-guide>summary:focus-visible{outline:3px solid #258fba;outline-offset:2px}
