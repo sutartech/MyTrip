@@ -1,10 +1,10 @@
 "use strict";
 // This app owns only its sibling /QuickExpense/ scope and its own cache.
-const CACHE = "mytrip-quick-separate-v4.67.7";
+const CACHE = "mytrip-quick-separate-v4.67.8";
 const MAIN = "https://sutartech.github.io/MyTrip/";
 const ROOT = new URL("./", self.location.href);
-const LOCAL = ["index.html", "standalone.js?v=4.67.7", "standalone.css?v=4.67.7", "manifest.webmanifest", "quick-expense-icon.svg", "quick-expense-icon-192.png", "quick-expense-icon-512.png", "quick-expense-maskable-512.png"];
-const SHARED = ["app.js?v=4.67.7", "app.css?v=4.67.7"].map(path => new URL(path, MAIN).href);
+const LOCAL = ["index.html", "standalone.js?v=4.67.8", "standalone.css?v=4.67.8", "manifest.webmanifest", "quick-expense-icon.svg", "quick-expense-icon-192.png", "quick-expense-icon-512.png", "quick-expense-maskable-512.png"];
+const SHARED = ["app.js?v=4.67.8", "app.css?v=4.67.8"].map(path => new URL(path, MAIN).href);
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => Promise.all([...LOCAL.map(path => new URL(path, ROOT).href), ...SHARED].map(url => cache.add(url).catch(() => {})))).then(() => self.skipWaiting()));
 });

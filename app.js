@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.7";
+  const frontendVersion = "4.67.8";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -2144,26 +2144,73 @@
     return { kind: "some", label: `${chosen.length} OF ${allUnits.length} ${familyMode ? "FAMILIES" : "TRAVELLERS"}`, detail: chosen.map((unit) => unit.short).join(" + ") };
   }
 
+  function expenseSharingUnits() {
+    return shareUnits().map((members, index) => ({ members, code: index < 26 ? String.fromCharCode(65 + index) : String(index + 1), name: members.length > 1 ? `${members[0]} family` : members[0] }));
+  }
+  function expenseShareCategory(expense, units = expenseSharingUnits()) {
+    const chosen = expenseShareUnits(expense, units);
+    if (!units.length || chosen.length === units.length) return { key: "all", kind: "all", label: "Shared by all", chosen, detail: chosen.map(unit => unit.name).join(" + ") };
+    const codes = chosen.map(unit => unit.code), key = "set:" + codes.join("_");
+    if (units.length === 3 && codes.join("_") === "A_C") codes.reverse();
+    const kind = chosen.length === 1 ? "one" : "some";
+    return { key, kind, chosen, label: codes.join(" + ") + (kind === "one" ? " only" : ""), detail: chosen.map(unit => unit.name).join(" + ") };
+  }
   function expenseShareBadge(expense) {
-    const summary = expenseShareSummary(expense);
-    if (summary.kind === "all") return "";
-    return `<em class="expense-share-badge ${summary.kind}" title="Shared by ${esc(summary.detail)}"><b>${esc(summary.label)}</b><small>${esc(summary.detail)}</small></em>`;
+    const category = expenseShareCategory(expense);
+    if (category.kind === "all") return "";
+    return `<em class="expense-share-badge ${category.kind}" title="Shared by ${esc(category.detail)}" aria-label="${esc(category.label)}: ${esc(category.detail)}"><b>${esc(category.label)}</b></em>`;
   }
 
-  const expenseSharingKinds = [["all", "All families"], ["some", "Selected families"], ["one", "One family only"]];
   function expenseSharingTotals(expenses = state.data.expenses) {
     const totals = { all: { cents: 0, count: 0 }, some: { cents: 0, count: 0 }, one: { cents: 0, count: 0 } };
-    expenses.forEach(expense => { const bucket = totals[expenseShareSummary(expense).kind]; bucket.cents += Math.round(Number(expense.amount || 0) * 100); bucket.count++; });
+    const units = expenseSharingUnits();
+    expenses.forEach(expense => { const bucket = totals[expenseShareCategory(expense, units).kind]; bucket.cents += Math.round(Number(expense.amount || 0) * 100); bucket.count++; });
     return totals;
   }
-  function filterExpensesBySharing(expenses, kind = state.expenseSharingFilter || "any") {
-    return kind === "any" ? expenses : expenses.filter(expense => expenseShareSummary(expense).kind === kind);
+  function expenseSharingModel(expenses = state.data.expenses) {
+    const units = expenseSharingUnits(), categories = new Map();
+    const ensure = category => {
+      if (!categories.has(category.key)) categories.set(category.key, { ...category, cents: 0, count: 0 });
+      return categories.get(category.key);
+    };
+    ensure({ key: "all", kind: "all", label: "Shared by all", detail: "Everyone", chosen: units });
+    const addCombination = selected => ensure(expenseShareCategory({ sharedBy: selected.flatMap(unit => unit.members).join("|") }, units));
+    // Show all six exception rows for three families, including zero amounts.
+    if (units.length === 3) [[0, 1], [1, 2], [2, 0]].forEach(pair => addCombination(pair.map(index => units[index])));
+    else if (units.length <= 4) units.forEach((left, i) => units.slice(i + 1).forEach(right => addCombination([left, right])));
+    if (units.length > 1) units.forEach(unit => addCombination([unit]));
+    const families = units.map(unit => ({ ...unit, commonCents: 0, pairCents: 0, ownCents: 0, totalCents: 0 }));
+    let totalCents = 0;
+    expenses.forEach(expense => {
+      const category = expenseShareCategory(expense, units), bucket = ensure(category), cents = Math.round(Number(expense.amount || 0) * 100);
+      bucket.cents += cents; bucket.count++; totalCents += cents;
+      expenseShareAllocations(expense, units).forEach(({ unit, amount }) => {
+        const family = families[units.indexOf(unit)], shareCents = Math.round(amount * 100);
+        if (!family) return;
+        family[category.kind === "all" ? "commonCents" : category.kind === "one" ? "ownCents" : "pairCents"] += shareCents;
+        family.totalCents += shareCents;
+      });
+    });
+    const common = categories.get("all"), others = [...categories.values()].filter(category => category.key !== "all");
+    return { units, categories: [...categories.values()], common, others, families, totalCents, otherCents: totalCents - common.cents, otherCount: others.reduce((sum, row) => sum + row.count, 0) };
+  }
+  function filterExpensesBySharing(expenses, key = state.expenseSharingFilter || "any") {
+    if (key === "any") return expenses;
+    const units = expenseSharingUnits();
+    if (!["all", "some", "one"].includes(key) && !expenseSharingModel().categories.some(category => category.key === key)) return expenses;
+    return expenses.filter(expense => { const category = expenseShareCategory(expense, units); return ["some", "one"].includes(key) ? category.kind === key : category.key === key; });
+  }
+  function renderFamilyDivision(model, interactive = true) {
+    if (!model.families.length) return "";
+    const cols = ["commonCents", "pairCents", "ownCents", "totalCents"];
+    const table = `<div class="family-division-scroll" tabindex="0" aria-label="Family division table, scroll horizontally if needed"><table class="family-division-table"><caption>Whole-trip allocation · each expense counted once</caption><thead><tr><th>Family / share</th><th>Common</th><th>Pair / selected</th><th>Own</th><th>Total share</th></tr></thead><tbody>${model.families.map(row => `<tr><th><b>${esc(row.code)}</b><small>${esc(row.name)}</small></th>${cols.map(key => `<td${key === "totalCents" ? ' class="family-share-total"' : ""}>${money.format(row[key] / 100)}</td>`).join("")}</tr>`).join("")}</tbody><tfoot><tr><th>Total</th>${cols.map(key => `<td>${money.format(model.families.reduce((sum, row) => sum + row[key], 0) / 100)}</td>`).join("")}</tr></tfoot></table></div><p class="family-division-note">Common + pair/selected + own = total expense share. Settle Up compares this with who paid and repayments already recorded.</p>`;
+    return interactive ? `<details class="family-division"><summary><b>Family division</b><small>Common + pair + own</small></summary>${table}</details>` : `<section class="family-division-print"><h3>Family division</h3>${table}</section>`;
   }
   function renderExpenseSharingSummary(interactive = true) {
-    const totals = expenseSharingTotals();
-    const familyMode = shareUnits().some(members => members.length > 1);
-    const labels = familyMode ? expenseSharingKinds : [["all", "All travellers"], ["some", "Selected travellers"], ["one", "One traveller only"]];
-    return `${interactive ? `<details class="expense-sharing-summary" data-sharing-panel${state.expenseSharingPanelOpen ? " open" : ""}><summary><b>Who shares</b><small>Tap to view totals and filters</small></summary><div class="expense-sharing-panel-body">` : `<section class="expense-sharing-summary" aria-label="Whole-trip spending by sharing">`}<div class="expense-sharing-totals">${labels.map(([kind, label]) => `<article class="expense-sharing-total ${kind}"><small>${label}</small><strong>${money.format(totals[kind].cents / 100)}</strong><span>${totals[kind].count} ${totals[kind].count === 1 ? "expense" : "expenses"}</span></article>`).join("")}</div><p>Whole trip · these three totals add up to trip spending. Repayments are separate.</p>${interactive ? `<div class="expense-sharing-filters" role="group" aria-label="Filter expenses by sharing">${[["any", "All expenses"], ...labels].map(([kind, label]) => `<button type="button" data-expense-sharing="${kind}" class="${(state.expenseSharingFilter || "any") === kind ? "on" : ""}" aria-pressed="${(state.expenseSharingFilter || "any") === kind}">${label}</button>`).join("")}</div>` : ""}${interactive ? "</div></details>" : "</section>"}`;
+    const model = expenseSharingModel();
+    const selected = model.categories.some(category => category.key === state.expenseSharingFilter) ? state.expenseSharingFilter : "any";
+    const rows = model.others.map(category => `<div class="sharing-breakdown-row ${category.kind}" title="${esc(category.detail)}"><span><b>${esc(category.label)}</b><small>${category.count} ${category.count === 1 ? "expense" : "expenses"}</small></span><strong>${money.format(category.cents / 100)}</strong></div>`).join("") || `<p>No expenses with a different sharing arrangement.</p>`;
+    return `<section class="sharing-overview" aria-label="Whole-trip expense sharing"><article class="sharing-common-card"><div><small>SHARED BY ALL</small><strong>${money.format(model.common.cents / 100)}</strong></div><span>${model.common.count} ${model.common.count === 1 ? "expense" : "expenses"}</span></article>${model.units.length ? `<p class="sharing-family-key">${model.units.map(unit => `<span><b>${esc(unit.code)}</b> · ${esc(unit.name)}</span>`).join("")}</p>` : ""}${interactive ? `<details class="sharing-other" data-sharing-panel${state.expenseSharingPanelOpen ? " open" : ""}><summary><b>Other sharing</b><strong>${money.format(model.otherCents / 100)}</strong><small>${model.otherCount} ${model.otherCount === 1 ? "expense" : "expenses"}</small></summary><div class="sharing-breakdown">${rows}</div></details>` : `<section class="sharing-other-print"><h3>Other sharing · ${money.format(model.otherCents / 100)}</h3>${rows}</section>`}${renderFamilyDivision(model, interactive)}${interactive ? `<label class="sharing-select-label">Sharing<select data-expense-sharing-select aria-label="Filter by sharing"><option value="any"${selected === "any" ? " selected" : ""}>All expenses</option>${model.categories.map(category => `<option value="${esc(category.key)}"${selected === category.key ? " selected" : ""}>${esc(category.label)}</option>`).join("")}</select></label>` : ""}<p class="sharing-scope-note">Whole-trip totals · common + other sharing = ${money.format(model.totalCents / 100)}. Repayments are separate.</p></section>`;
   }
 
   function openSplitMembers() {
@@ -2374,10 +2421,11 @@
   document.addEventListener("toggle", event => {
     if (event.target.matches?.("[data-sharing-panel]")) state.expenseSharingPanelOpen = event.target.open;
   }, true);
-  document.addEventListener("click", event => {
-    const button = event.target.closest("[data-expense-sharing]");
-    if (!button || !["any", "all", "some", "one"].includes(button.dataset.expenseSharing)) return;
-    state.expenseSharingFilter = button.dataset.expenseSharing; render();
+  document.addEventListener("change", event => {
+    if (!event.target.matches?.("[data-expense-sharing-select]")) return;
+    const key = event.target.value;
+    if (key !== "any" && !expenseSharingModel().categories.some(category => category.key === key)) return;
+    state.expenseSharingFilter = key; render();
   });
   document.addEventListener("click", (event) => { const c = event.target.closest("[data-mt-xfilter]"); if (c) { state.mtExpFilter = c.dataset.mtXfilter; render(); } });
   document.addEventListener("click", (event) => { const c = event.target.closest("[data-mt-xtraveller]"); if (c) { state.expenseTravellerFilter = c.dataset.mtXtraveller; render(); } });
@@ -2539,7 +2587,7 @@
       const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
       return `<div class="expense-row"><span class="expense-description"><i>₹</i><span><b>${esc(expense.label)}</b>${expenseShareBadge(expense)}</span></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${expense.receiptUrl || canEditRecords("Expenses") ? `<button class="receipt-btn${expense.receiptUrl ? " has" : ""}" data-receipt-open="${esc(expense.id)}" title="${expense.receiptUrl ? "View receipt" : "Add receipt photo"}">🧾</button>` : ""}${editActions}${deleteAction}</span></div>`;
     }).join("");
-    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}${canAdd("expense") ? textImportStrip("auto") : ""}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderSpendChart(total, budget)}<section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-expense-columns>⇔ Reset</button></label>`)}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${renderExpenseSharingSummary()}${travellerFilterBar}<p class="expense-filter-result" role="status">${visibleExpenses.length} ${visibleExpenses.length === 1 ? "expense" : "expenses"} shown · ${money.format(filteredTotal)}</p><div class="expense-table expense-action-table" style="${expenseColumnStyle()}"><div class="expense-table-header">${expenseColumnLabels.map((label, index) => `<span>${label}${index < expenseColumnLabels.length - 1 ? `<i class="expense-col-grip" data-exp-col="${index}" title="Drag to resize this column">⋮⋮</i>` : ""}</span>`).join("")}</div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
+    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}${canAdd("expense") ? textImportStrip("auto") : ""}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderExpenseSharingSummary()}${renderSpendChart(total, budget)}<section class="traveller-expense-panel"><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Only travellers with a positive recorded payment are shown.</p></div><strong>${money.format(total)} total</strong></div><div class="traveller-expense-grid">${travellerCards || `<p class="empty-overview">No traveller expenses recorded.</p>`}</div></section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-expense-columns>⇔ Reset</button></label>`)}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${travellerFilterBar}<p class="expense-filter-result" role="status">${visibleExpenses.length} ${visibleExpenses.length === 1 ? "expense" : "expenses"} shown · ${money.format(filteredTotal)}</p><div class="expense-table expense-action-table" style="${expenseColumnStyle()}"><div class="expense-table-header">${expenseColumnLabels.map((label, index) => `<span>${label}${index < expenseColumnLabels.length - 1 ? `<i class="expense-col-grip" data-exp-col="${index}" title="Drag to resize this column">⋮⋮</i>` : ""}</span>`).join("")}</div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
   }
   document.addEventListener("click", (event) => { const t = event.target.closest("[data-expense-traveller-filter]"); if (!t) return; event.preventDefault(); state.expenseTravellerFilter = t.dataset.expenseTravellerFilter; render(); });
 

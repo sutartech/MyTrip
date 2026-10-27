@@ -100,8 +100,8 @@ test("Only selected-family and one-family bills display sharing badges",()=>{
  vm.runInContext(frontendFunction("expenseShareUnits","function openSplitMembers"),c);
  assert.equal(c.expenseShareBadge({sharedBy:""}),"");
  assert.equal(c.expenseShareBadge({sharedBy:"A|B|C"}),"");
- assert.match(c.expenseShareBadge({sharedBy:"A|B"}),/2 OF 3 FAMILIES/);
- assert.match(c.expenseShareBadge({sharedBy:"B"}),/ONE FAMILY/);
+ assert.match(c.expenseShareBadge({sharedBy:"A|B"}),/A \+ B/);
+ assert.match(c.expenseShareBadge({sharedBy:"B"}),/B only/);
  assert.ok(!c.expenseShareBadge({sharedBy:"A|B"}).includes('C only'));
 });
 
@@ -113,4 +113,31 @@ test("Legacy quick-link Install opens the independent app with the private token
  vm.runInContext(appSource.slice(start,end),c);await c.installQuickExpenseOnPhone();
  const url=new URL(location.href);assert.equal(url.pathname,"/QuickExpense/index.html");assert.equal(url.searchParams.get("icon-help"),"1");
  assert.equal(new URLSearchParams(url.hash.slice(1)).get("qe"),token);assert.equal(url.searchParams.has('qe'),false);
+});
+
+test("All seven sharing categories reconcile to the proposed 6900 trip and settlement shares",()=>{
+ const rows=[{amount:3000,sharedBy:""},{amount:600,sharedBy:"A|B"},{amount:900,sharedBy:"B|C"},{amount:1200,sharedBy:"C|A"},{amount:300,sharedBy:"A"},{amount:400,sharedBy:"B"},{amount:500,sharedBy:"C"}].map((e,i)=>({...e,id:String(i),paidBy:"C2"}));
+ const state={data:{trip:{splitMembers:"A+A2|B+B2|C+C2"},expenses:rows,settlements:[]}};
+ const groups=[["A","A2"],["B","B2"],["C","C2"]];
+ const c=vm.createContext({state,shareUnits:()=>groups,visibleTripMembers:()=>groups.flat().map(name=>({name})),esc:String});
+ vm.runInContext(frontendFunction("splitGroups","function expenseShareUnits")+frontendFunction("expenseShareUnits","function openSplitMembers")+frontendFunction("settleUpPlan","function settleShown"),c);
+ const model=c.expenseSharingModel();assert.equal(model.categories.length,7);assert.equal(model.common.cents,300000);assert.equal(model.otherCents,390000);assert.equal(model.totalCents,690000);
+ assert.deepEqual(Array.from(model.others,x=>x.label),["A + B","B + C","C + A","A only","B only","C only"]);
+ assert.deepEqual(Array.from(model.families,x=>x.totalCents),[220000,215000,255000]);
+ assert.deepEqual(Array.from(model.families,x=>[x.commonCents,x.pairCents,x.ownCents]),[[100000,90000,30000],[100000,75000,40000],[100000,105000,50000]]);
+ for(const cat of model.categories){assert.equal(c.filterExpensesBySharing(rows,cat.key).length,1);assert.equal(c.filterExpensesBySharing(rows,cat.key)[0].amount*100,cat.cents);}
+ assert.equal(c.filterExpensesBySharing(rows.filter(x=>x.paidBy==="A"),"set:A_B").length,0);
+ const settled=c.settleUpPlan();for(const family of model.families)assert.equal(settled.people.find(x=>x.lead===family.members[0]).owed*100,family.totalCents);
+ state.data.settlements=[{fromPerson:"A",toPerson:"C",amount:2200}];assert.equal(c.expenseSharingModel().totalCents,690000);
+ assert.equal(c.expenseShareCategory({sharedBy:"A2|B2"}).key,"set:A_B");assert.equal(c.expenseShareCategory({sharedBy:"B|A"}).key,"set:A_B");
+});
+test("Family division conserves paise and handles empty, one-share and more-than-three trips",()=>{
+ const state={data:{expenses:[{amount:100.01,sharedBy:""},{amount:0.01,sharedBy:"A|B"}]}};
+ let groups=[["A","A2"],["B","B2"],["C","C2"]];
+ const c=vm.createContext({state,shareUnits:()=>groups});vm.runInContext(frontendFunction("expenseShareUnits","function openSplitMembers"),c);
+ let model=c.expenseSharingModel();assert.equal(model.families.reduce((s,x)=>s+x.totalCents,0),10002);assert.equal(model.common.cents+model.otherCents,model.totalCents);
+ state.data.expenses=[];assert.equal(c.expenseSharingModel().categories.length,7);
+ groups=[["A"]];state.data.expenses=[{amount:100,sharedBy:"A"}];model=c.expenseSharingModel();assert.equal(model.otherCents,0);assert.equal(model.families[0].totalCents,10000);
+ groups=[["A"],["B"],["C"],["D"]];state.data.expenses=[{amount:90,sharedBy:"A|B|C"}];model=c.expenseSharingModel();assert.ok(model.categories.some(x=>x.key==="set:A_B_C"));assert.equal(model.families.reduce((s,x)=>s+x.totalCents,0),9000);
+ groups=[];state.data.expenses=[];assert.equal(c.expenseSharingModel().totalCents,0);
 });

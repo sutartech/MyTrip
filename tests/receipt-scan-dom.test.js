@@ -22,7 +22,7 @@ function setup(url = "https://example.test/MyTrip/") {
 }
 function loadScanner(win) {
   win.eval(fs.readFileSync(path.join(root, "receipt-parser.js"), "utf8"));
-  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.7" } });
+  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.8" } });
   win.eval(fs.readFileSync(path.join(root, "receipt-scan.js"), "utf8"));
 }
 const billText = "SEA VIEW CAFE\nInvoice No: A-129\nDate 25/10/2026\nSubtotal 1000\nGST 50\nGrand Total INR 1050.00";
@@ -196,15 +196,16 @@ test("Sharing totals and filters work on desktop and mobile without changing tri
    assert.equal(view.querySelector('[data-sharing-panel]').open,false);
    view.querySelector('[data-sharing-panel]>summary').click();await tick();
    assert.equal(view.querySelector('[data-sharing-panel]').open,true);
-   assert.equal(view.querySelectorAll('.expense-sharing-total').length,3);
-   assert.equal(view.querySelectorAll('[data-expense-sharing]').length,4);
-   const before=Array.from(view.querySelectorAll('.expense-sharing-total strong'),x=>x.textContent);
+   assert.equal(view.querySelectorAll('.sharing-common-card').length,1);
+   assert.equal(view.querySelectorAll('[data-expense-sharing-select]').length,1);
+   assert.equal(view.querySelector('.family-division').open,false);
+   const before=Array.from(view.querySelectorAll('.sharing-common-card strong'),x=>x.textContent);
    assert.equal(view.querySelector('.expense-share-badge.all'),null,'ordinary all-share expenses stay quiet');
-   view.querySelector('[data-expense-sharing="one"]').click();await tick();
-   assert.equal(view.querySelector('[data-expense-sharing="one"]').getAttribute('aria-pressed'),'true');
-   assert.deepEqual(Array.from(view.querySelectorAll('.expense-sharing-total strong'),x=>x.textContent),before);
+   const select=view.querySelector('[data-expense-sharing-select]');select.value='set:A';select.dispatchEvent(new app.win.Event('change',{bubbles:true}));await tick();
+   assert.equal(view.querySelector('[data-expense-sharing-select]').value,'set:A');
+   assert.deepEqual(Array.from(view.querySelectorAll('.sharing-common-card strong'),x=>x.textContent),before);
    for(const badge of view.querySelectorAll('.expense-share-badge'))assert.ok(badge.classList.contains('one'));
-   view.querySelector('[data-expense-sharing="any"]').click();await tick();
+   const reset=view.querySelector('[data-expense-sharing-select]');reset.value='any';reset.dispatchEvent(new app.win.Event('change',{bubbles:true}));await tick();
    assert.equal(view.querySelector('.expense-share-badge.all'),null);
    assert.equal(app.errors.length,0,app.errors.map(e=>e.message).join('\n'));
   }finally{app.dispose();}
