@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.13";
+  const frontendVersion = "4.67.14";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -4742,10 +4742,11 @@
     travellers = [...travellers].sort((a, b) => String(a.name || a.travellerId).localeCompare(String(b.name || b.travellerId), undefined, { sensitivity: "base" }));
     state.planCtx = { travellers, trips, administratorSecret, demoMode };
     showModal("Traveller profiles", `<div class="traveller-manager"><div class="all-trips-summary"><span><small>PERMANENT TRAVELLER DIRECTORY</small><b>${travellers.length} profiles</b></span><span class="summary-actions"><button id="backToAllTrips" class="secondary-action" type="button">← All trips</button><button id="proRulesToggle" type="button" class="secondary-action">Pro rules…</button><button id="createTravellerAccount" type="button">＋ Add traveller</button></span></div><p class="directory-note">Use <b>Edit details</b> to manage unique mobile/email login and email OTP access. Mobile numbers are saved but are not verified. Use <b>Trip limit</b> to cap how many trips a traveller may create.</p><div class="account-list">${travellers.map((traveller) => `<article class="account-card ${traveller.active ? "" : "inactive"}"><span class="account-avatar${isAdmin() || state.administratorSecret ? " avatar-edit" : ""}"${isAdmin() || state.administratorSecret ? ` data-photo-upload="${esc(traveller.travellerId)}" title="Change ${esc(traveller.name)}'s photo"` : ""}>${avatarSlot(traveller)}${isAdmin() || state.administratorSecret ? "<em>📷</em>" : ""}</span><div class="account-profile"><span>${esc(traveller.travellerId)}</span><h3>${esc(traveller.name)}</h3><p>${[traveller.phone, traveller.email].filter(Boolean).map(esc).join(" · ") || "Contact details not added"}</p><small>${[traveller.city, traveller.emergencyContact ? `Emergency: ${traveller.emergencyContact}` : ""].filter(Boolean).map(esc).join(" · ") || "City and emergency contact not added"}</small><b class="otp-status-pill ${traveller.otpEnabled ? "enabled" : ""}">${traveller.otpEnabled ? "EMAIL OTP ENABLED" : "EMAIL OTP DISABLED"}</b><div class="account-trip-status ${Number(traveller.tripCount || 0) ? "assigned" : "unassigned"}">${Number(traveller.tripCount || 0) ? `${Number(traveller.tripCount)} assigned ${Number(traveller.tripCount) === 1 ? "trip" : "trips"}: ${(traveller.tripIds || []).map(esc).join(", ")}` : "NO TRIP ASSIGNED"}</div></div><div class="account-actions"><button data-view-account="${esc(traveller.travellerId)}">View profile</button><button data-account-trips="${esc(traveller.travellerId)}">Assign trips</button><button class="pin-account-control" data-edit-account-login="${esc(traveller.travellerId)}">✎ Edit login</button><button class="plan-account-control${traveller.plan === "pro" ? " is-pro" : ""}" data-account-plan="${esc(traveller.travellerId)}">${traveller.plan === "pro" ? `<span class="pro-coin" aria-hidden="true">✦</span>PRO MEMBER` : "Free · tap to give Pro"}${traveller.plan === "pro" && traveller.planExpires ? ` · till ${esc(traveller.planExpires)}` : ""}</button><button class="global-profile-control" data-toggle-account="${esc(traveller.travellerId)}" data-active="${Boolean(traveller.active)}">${traveller.active ? "Disable everywhere" : "Enable profile"}</button><button class="delete-profile-control" data-delete-account="${esc(traveller.travellerId)}">Delete profile</button></div></article>`).join("") || `<div class="empty-trips"><b>No traveller profiles</b><p>Add a traveller profile now. A trip does not need to be assigned.</p></div>`}</div></div>`);
+    $("#modalBody").scrollTop = 0;
     const directorySummary = $(".traveller-manager .all-trips-summary b");
-    if (directorySummary) directorySummary.textContent = `All ${travellers.length} profiles loaded`;
+    if (directorySummary) directorySummary.textContent = `${travellers.length} traveller profiles`;
     const directoryNote = $(".traveller-manager .directory-note");
-    if (directoryNote) directoryNote.innerHTML = `<b>Every permanent login profile is listed below.</b> Search by name, username, mobile, email, city or Trip ID. Names added only inside one trip are trip members—not permanent login profiles—until an account is created for them.`;
+    if (directoryNote) directoryNote.outerHTML = `<details class="directory-note"><summary>About traveller profiles</summary><p>Every permanent login profile is listed below. Search by name, username, mobile, email, city or Trip ID. Names added only inside one trip are trip members until an account is created for them.</p></details>`;
     const directoryList = $(".traveller-manager .account-list");
     if (directoryList) {
       directoryList.id = "travellerDirectoryList";
@@ -4775,7 +4776,7 @@
       const count = $("#travellerDirectoryCount");
       if (count) count.textContent = query ? `Showing ${shown} of ${travellers.length} profiles` : `Showing all ${travellers.length} profiles`;
       $("#travellerDirectoryEmpty")?.classList.toggle("hidden", shown !== 0 || travellers.length === 0);
-      if (query && $("#travellerDirectoryList")) $("#travellerDirectoryList").scrollTop = 0;
+      if (query && directorySearch) directorySearch.scrollIntoView?.({ block: "nearest" });
     };
     directorySearch?.addEventListener("input", updateDirectoryFilter);
     $("#backToAllTrips").addEventListener("click", () => renderAllTrips(trips, administratorSecret, demoMode));

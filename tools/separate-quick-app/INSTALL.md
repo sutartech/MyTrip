@@ -6,7 +6,7 @@ The icon is the same colourful MyTrip arrow, with a small superimposed ₹ badge
 
 ## First update the existing MyTrip website
 
-Upload the supplied main MyTrip FE v4.67.13 frontend. Keep the working Apps Script
+Upload the supplied main MyTrip FE v4.67.14 frontend. Keep the working Apps Script
 /exec URL in config.js. Deploy BE v4.32.2 so the no-login form can display
 family groups; existing links remain valid. No new sheet is needed.
 The shared app.js must support standalone mode; the shell checks this before

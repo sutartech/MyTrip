@@ -3659,3 +3659,21 @@ html body .sharing-breakdown-row[data-sharing-key] b{border-left-color:var(--sha
 html body .sharing-breakdown-row[data-sharing-key] strong{color:var(--share-ink,#705113)}
 html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-key]{background:var(--share-bg,#e8f5ec);border-color:var(--share-edge,#a6cfb4)}
 html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-key]>summary,html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-key]>summary small{color:var(--share-ink,#285e3b)}
+
+/* One scroll area prevents directory headings from squeezing profiles to zero. */
+html body #modal:has(.traveller-manager)>section>header{flex:0 0 auto}
+html body #modal:has(.traveller-manager) #modalBody{display:block!important;overflow-y:auto!important;overflow-x:hidden!important;min-height:0;padding:12px 16px calc(20px + env(safe-area-inset-bottom))!important;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+html body .traveller-manager{display:block!important;width:100%;min-width:0}
+html body .traveller-manager .account-list{height:auto!important;max-height:none!important;overflow:visible!important;scrollbar-gutter:auto;padding:0!important;margin-top:10px;gap:10px}
+html body .traveller-manager .account-card{flex-shrink:0;min-width:0}
+html body .traveller-manager .all-trips-summary{padding:10px 12px!important;flex-wrap:wrap;gap:8px;margin:0 0 9px!important}
+html body .traveller-manager .all-trips-summary b{font-family:inherit;font-size:18px!important;line-height:1.4;margin:0}
+html body .traveller-manager .all-trips-summary small{font-size:9px;line-height:1.5}
+html body .traveller-manager .summary-actions{display:flex!important;flex-direction:row!important;flex-wrap:wrap;gap:6px}
+html body .traveller-manager .summary-actions button{min-height:40px;padding:8px 10px!important;font-size:12px!important;white-space:normal}
+html body .traveller-manager details.directory-note{padding:0 10px;margin:0 0 9px;border-radius:10px}
+html body .traveller-manager .directory-note>summary{padding:10px 0;min-height:40px;cursor:pointer;font-size:12px}
+html body .traveller-manager .directory-note p{font-size:12px;line-height:1.6;margin:0 0 10px}
+html body .traveller-manager .traveller-directory-tools{margin-bottom:10px;gap:8px;padding:8px 10px}
+html body .traveller-manager .traveller-directory-tools input{font-size:16px;min-height:44px}
+@media(max-width:760px){html body #modal:has(.traveller-manager)>section>header{padding:12px!important;gap:8px;flex-wrap:wrap}html body #modal:has(.traveller-manager)>section>header>div{min-width:0}html body #modal:has(.traveller-manager)>section>header h2{font-size:18px!important;line-height:1.3}html body .traveller-manager .summary-actions{width:100%}html body .traveller-manager .summary-actions button{flex:1 1 auto}html body .traveller-manager .traveller-directory-tools{flex-direction:row;align-items:center}html body .traveller-manager .traveller-directory-tools>b{font-size:10px;padding:6px 8px;white-space:normal;max-width:98px}html body .traveller-manager .all-trips-summary{background:#f7faf8!important}}
