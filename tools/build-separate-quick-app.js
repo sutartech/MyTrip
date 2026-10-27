@@ -4,7 +4,7 @@ const fs = require("fs"), path = require("path");
 const root = path.resolve(__dirname, "..");
 const output = process.argv[2];
 if (!output || !path.isAbsolute(output)) throw new Error("Pass an absolute destination directory outside the MyTrip runtime folder.");
-const main = process.env.MYTRIP_PREVIEW_MAIN_BASE || "https://sutartech.github.io/MyTrip/", version = "4.67.12";
+const main = process.env.MYTRIP_PREVIEW_MAIN_BASE || "https://sutartech.github.io/MyTrip/", version = "4.67.13";
 const source = fs.readFileSync(path.join(root, "index.html"), "utf8");
 let html = source
   .replace("<title>MyTrip · Plan, share &amp; split trips together</title>", "<title>Quick Expense · MyTrip · No login</title>")

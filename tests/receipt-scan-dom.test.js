@@ -22,7 +22,7 @@ function setup(url = "https://example.test/MyTrip/") {
 }
 function loadScanner(win) {
   win.eval(fs.readFileSync(path.join(root, "receipt-parser.js"), "utf8"));
-  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.12" } });
+  Object.defineProperty(win.document, "currentScript", { configurable: true, value: { src: "https://example.test/MyTrip/receipt-scan.js?v=4.67.13" } });
   win.eval(fs.readFileSync(path.join(root, "receipt-scan.js"), "utf8"));
 }
 const billText = "SEA VIEW CAFE\nInvoice No: A-129\nDate 25/10/2026\nSubtotal 1000\nGST 50\nGrand Total INR 1050.00";

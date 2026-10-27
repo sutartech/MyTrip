@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.12";
+  const frontendVersion = "4.67.13";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -2158,8 +2158,8 @@
   }
   function expenseShareBadge(expense, units = expenseSharingUnits()) {
     const category = expenseShareCategory(expense, units);
-    if (category.kind === "all") return `<em class="expense-share-badge all" title="Shared by all configured families or travellers" aria-label="Shared by all"><b>All shared</b></em>`;
-    return `<em class="expense-share-badge ${category.kind}" title="Shared by ${esc(category.detail)}" aria-label="${esc(category.label)}: ${esc(category.detail)}"><b>${esc(category.label)}</b></em>`;
+    if (category.kind === "all") return `<em class="expense-share-badge all" data-sharing-key="all" title="Shared by all configured families or travellers" aria-label="Shared by all"><b>All shared</b></em>`;
+    return `<em class="expense-share-badge ${category.kind}" data-sharing-key="${esc(category.key)}" title="Shared by ${esc(category.detail)}" aria-label="${esc(category.label)}: ${esc(category.detail)}"><b>${esc(category.label)}</b></em>`;
   }
 
   function expenseSharingTotals(expenses = state.data.expenses) {
@@ -2260,7 +2260,7 @@
   function renderExpenseSharingSummary(interactive = true) {
     const model = expenseSharingModel();
     const selected = model.categories.some(category => category.key === state.expenseSharingFilter) ? state.expenseSharingFilter : "any";
-    const rows = model.others.map(category => `<div class="sharing-breakdown-row ${category.kind}" title="${esc(category.detail)}"><span><b>${esc(category.label)}</b><small>${category.count} ${category.count === 1 ? "expense" : "expenses"}</small></span><strong>${money.format(category.cents / 100)}</strong></div>`).join("") || `<p>No expenses with a different sharing arrangement.</p>`;
+    const rows = model.others.map(category => `<div class="sharing-breakdown-row ${category.kind}" data-sharing-key="${esc(category.key)}" title="${esc(category.detail)}"><span><b>${esc(category.label)}</b><small>${category.count} ${category.count === 1 ? "expense" : "expenses"}</small></span><strong>${money.format(category.cents / 100)}</strong></div>`).join("") || `<p>No expenses with a different sharing arrangement.</p>`;
     return `<section class="sharing-overview" aria-label="Whole-trip expense sharing"><article class="sharing-common-card"><div><small>SHARED BY ALL</small><strong>${money.format(model.common.cents / 100)}</strong></div><span>${model.common.count} ${model.common.count === 1 ? "expense" : "expenses"}</span></article>${model.units.length ? `<p class="sharing-family-key">${model.units.length} ${model.units.some(unit => unit.members.length > 1) ? "family shares" : "traveller shares"}</p>` : ""}${interactive ? `<details class="sharing-other" data-sharing-panel${state.expenseSharingPanelOpen ? " open" : ""}><summary><b>Other sharing</b><strong>${money.format(model.otherCents / 100)}</strong><small>${model.otherCount} ${model.otherCount === 1 ? "expense" : "expenses"}</small></summary><div class="sharing-breakdown">${rows}</div></details>` : `<section class="sharing-other-print"><h3>Other sharing · ${money.format(model.otherCents / 100)}</h3>${rows}</section>`}${renderFamilyDivision(model, interactive)}${interactive ? renderSharingGuide() : ""}${interactive ? `<label class="sharing-select-label">Sharing<select data-expense-sharing-select aria-label="Filter by sharing"><option value="any"${selected === "any" ? " selected" : ""}>All expenses</option>${model.categories.map(category => `<option value="${esc(category.key)}"${selected === category.key ? " selected" : ""}>${esc(category.label)}</option>`).join("")}</select></label>` : ""}<p class="sharing-scope-note">Whole-trip totals · common + other sharing = ${money.format(model.totalCents / 100)}. Repayments are separate.</p></section>`;
   }
 
@@ -6127,7 +6127,10 @@
     if (shareLabel) shareLabel.textContent = picked.size ? quickExpenseShareLabel({ sharedBy: groups.filter((_, index) => picked.has(index)).flat().join("|") }, groups) : "No shares selected";
     const chosen = groups.filter((_, index) => picked.has(index));
     const disclosure = form.querySelector(".quick-expense-share-disclosure");
-    if (disclosure) disclosure.dataset.sharingKind = chosen.length === groups.length ? "all" : chosen.length === 1 ? "one" : "some";
+    if (disclosure) {
+      disclosure.dataset.sharingKind = chosen.length === groups.length ? "all" : chosen.length === 1 ? "one" : "some";
+      disclosure.dataset.sharingKey = chosen.length === groups.length ? "all" : "set:" + groups.map((_, index) => index).filter(index => picked.has(index)).map(index => index < 26 ? String.fromCharCode(65 + index) : String(index + 1)).join("_");
+    }
     if (!chosen.length) { preview.textContent = "Select at least one share before saving."; return; }
     const amount = Number(form.elements.amount?.value || 0);
     const noun = groups.some((group) => group.length > 1) ? "families" : "travellers";

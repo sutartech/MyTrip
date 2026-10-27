@@ -3642,3 +3642,20 @@ html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-kind=
 /* A small all-shared marker; family names appear only for exceptions. */
 html body .expense-share-badge.all,html body .mt-xwhat>.expense-share-badge.all{display:inline-flex;align-self:flex-start;flex-direction:row;gap:0;width:fit-content;max-width:100%;padding:2px 7px;margin:0;border:1px solid #c4e1ce;border-radius:7px;background:#eaf6ee;color:#326c49;font-style:normal;line-height:1.4}
 html body .expense-share-badge.all>b,html body .mt-xwhat>.expense-share-badge.all>b{font-size:10px;font-weight:750;line-height:1.4;letter-spacing:0;text-transform:none}
+
+/* Named sharing combinations retain distinct, light colors across both apps. */
+html body [data-sharing-key="all"],html body .expense-compact-card:has(.expense-share-badge[data-sharing-key="all"]){--share-bg:#e8f5ec;--share-card:#f6fbf7;--share-edge:#a6cfb4;--share-ink:#285e3b}
+html body [data-sharing-key="set:A_B"],html body .expense-compact-card:has(.expense-share-badge[data-sharing-key="set:A_B"]){--share-bg:#fff1cd;--share-card:#fffcf4;--share-edge:#dfc27d;--share-ink:#705113}
+html body [data-sharing-key="set:B_C"],html body .expense-compact-card:has(.expense-share-badge[data-sharing-key="set:B_C"]){--share-bg:#e3f0ff;--share-card:#f6faff;--share-edge:#aac8e8;--share-ink:#28577d}
+html body [data-sharing-key="set:A_C"],html body .expense-compact-card:has(.expense-share-badge[data-sharing-key="set:A_C"]){--share-bg:#eee7fc;--share-card:#faf7ff;--share-edge:#c5b3e2;--share-ink:#58407d}
+html body [data-sharing-key="set:A"],html body .expense-compact-card:has(.expense-share-badge[data-sharing-key="set:A"]){--share-bg:#ffe9dc;--share-card:#fff8f3;--share-edge:#e6bca3;--share-ink:#804927}
+html body [data-sharing-key="set:B"],html body .expense-compact-card:has(.expense-share-badge[data-sharing-key="set:B"]){--share-bg:#fbe4ed;--share-card:#fff7fa;--share-edge:#dfaabd;--share-ink:#7b3f58}
+html body [data-sharing-key="set:C"],html body .expense-compact-card:has(.expense-share-badge[data-sharing-key="set:C"]){--share-bg:#ddf3f2;--share-card:#f3fbfb;--share-edge:#9fcfcc;--share-ink:#286367}
+html body .expense-share-badge[data-sharing-key],html body .mt-xwhat>.expense-share-badge[data-sharing-key]{background:var(--share-bg,#fff1cd);color:var(--share-ink,#705113);border:1px solid var(--share-edge,#dfc27d)}
+html body .expense-compact-card:has(.expense-share-badge.some),html body .expense-compact-card:has(.expense-share-badge.one){background:var(--share-card,#fffcf4)!important;border-inline-start-color:var(--share-edge,#dfc27d)!important}
+html body .expense-compact-card:has(.expense-share-badge.some) .mt-xamount,html body .expense-compact-card:has(.expense-share-badge.one) .mt-xamount{color:var(--share-ink,#705113)}
+html body .sharing-breakdown-row[data-sharing-key]{background:var(--share-bg,#fff1cd)}
+html body .sharing-breakdown-row[data-sharing-key] b{border-left-color:var(--share-edge,#dfc27d)}
+html body .sharing-breakdown-row[data-sharing-key] strong{color:var(--share-ink,#705113)}
+html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-key]{background:var(--share-bg,#e8f5ec);border-color:var(--share-edge,#a6cfb4)}
+html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-key]>summary,html body .expense-entry-form .quick-expense-share-disclosure[data-sharing-key]>summary small{color:var(--share-ink,#285e3b)}
