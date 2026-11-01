@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.15";
+  const frontendVersion = "4.67.16";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -801,11 +801,13 @@
       if (key === "expenses" || key === "settlements") value = value.map((item) => ({ ...item, amount: Number(item.amount || 0) }));
       state.data[key] = value;
     });
+    if (Array.isArray(section.settlements)) state.settlementDataFresh = true;
     if (section.profilePhotos) setProfilePhotos(section.profilePhotos);
     if (section.permissions) state.permissions = section.permissions;
     state.sectionLoadedAt[section.section || state.tab] = Date.now();
   }
 
+  let financialMutationRevision = 0;
   let sectionRequest = "";
   async function loadTripSection(tab, force = false) {
     if (!state.data || state.demoMode || !apiUrlReady() || navigator.onLine === false || tab === "help") return;
@@ -813,12 +815,13 @@
     if (!force && age < 45000) return;
     const requestKey = `${state.data.trip.tripId}:${tab}`;
     const principal = `${state.accessRole}:${state.accountUsername}:${state.travellerId}`;
+    const revision = financialMutationRevision;
     if (sectionRequest === requestKey) return;
     sectionRequest = requestKey;
     document.body.classList.add("section-refreshing");
     try {
       const section = await api("getTripSection", authPayload({ section: tab }));
-      if (!state.data || requestKey !== `${state.data.trip.tripId}:${tab}` || principal !== `${state.accessRole}:${state.accountUsername}:${state.travellerId}`) return;
+      if (!state.data || revision !== financialMutationRevision || requestKey !== `${state.data.trip.tripId}:${tab}` || principal !== `${state.accessRole}:${state.accountUsername}:${state.travellerId}`) return;
       mergeTripSection(section);
       const y = window.scrollY; render(); hydrateShell(); updatePrintArea(); try { window.scrollTo(0, y); } catch {}
     } catch (error) {
@@ -979,6 +982,7 @@
   async function openTrip(data, pin, demoMode, name, roleOverride, travellerId = "", loginMode = "trip") {
     if (!data || !data.trip) throw new Error("This trip could not be opened. Please pick it again from the list.");
     if (!demoMode) saveOfflineTripCache({ data, name, roleOverride, travellerId, loginMode });
+    state.settlementDataFresh = data._settlementSnapshotCached !== true;
     state.data = normalize(clone(data)); state.pin = pin; state.demoMode = demoMode;
     state.accessRole = roleOverride || data.accessRole || "traveller";
     state.currentUser = name || (state.accessRole === "administrator" ? ((data.trip && data.trip.createdBy) || "Administrator") : "Traveller");
@@ -1287,7 +1291,8 @@
   function renderSettleStatusCard() {
     if (!canViewExpenses()) return "";
     const plan = settleUpPlan();
-    if (!plan.total) return "";
+    if (state.settlementDataFresh === false) return `<section class="settle-status-card"><h3>Checking saved repayments…</h3><p>Current balances will appear after the saved payment history is refreshed.</p></section>`;
+    if (!plan.total && !(state.data.settlements || []).length) return "";
     const shown = settleShown();
     if (!shown && !isAdmin()) return "";
     const forced = String((state.data.trip || {}).settleVisible).toUpperCase() === "TRUE";
@@ -1822,14 +1827,15 @@
   function undoableDelete(sheet, collection, id, label) {
     const list = state.data[collection] || []; const index = list.findIndex((x) => String(x.id) === String(id));
     if (index < 0) return;
+    if (sheet === "Expenses") { financialMutationRevision++; state.mtSettleOpen = true; }
     const [item] = list.splice(index, 1);
     hydrateShell(); render(); updatePrintArea();
     try { navigator.vibrate && navigator.vibrate(10); } catch {}
     const key = sheet + ":" + id;
-    const commit = async () => { pendingDeletes.delete(key); hideUndoBar(key); if (state.demoMode) return; try { await api("deleteRecord", authPayload({ sheet, id })); } catch (error) { (state.data[collection] || []).splice(Math.min(index, (state.data[collection] || []).length), 0, item); hydrateShell(); render(); toast(error.message, true); } };
+    const commit = async () => { if (sheet === "Expenses") financialMutationRevision++; pendingDeletes.delete(key); hideUndoBar(key); if (state.demoMode) return; try { await api("deleteRecord", authPayload({ sheet, id })); } catch (error) { (state.data[collection] || []).splice(Math.min(index, (state.data[collection] || []).length), 0, item); hydrateShell(); render(); toast(error.message, true); } };
     const timer = setTimeout(commit, 5000);
     pendingDeletes.set(key, { timer, commit, payload: authPayload({ sheet, id }) });
-    showUndoBar(key, label, () => { clearTimeout(timer); pendingDeletes.delete(key); const arr = state.data[collection] || (state.data[collection] = []); arr.splice(Math.min(index, arr.length), 0, item); hydrateShell(); render(); updatePrintArea(); toast("Restored"); });
+    showUndoBar(key, label, () => { clearTimeout(timer); pendingDeletes.delete(key); if (sheet === "Expenses") financialMutationRevision++; const arr = state.data[collection] || (state.data[collection] = []); arr.splice(Math.min(index, arr.length), 0, item); hydrateShell(); render(); updatePrintArea(); toast("Restored"); });
   }
   function showUndoBar(key, label, onUndo) {
     let el = document.getElementById("undoBar");
@@ -2339,10 +2345,19 @@
       return { name: grp.length > 1 ? `${grp[0]} family` : grp[0], members: grp, lead: grp[0], paid: people.reduce((s, p) => s + p.paid, 0), shares: true };
     });
     [...paid.values()].forEach((p) => { if (!used.has(p.name.toLowerCase()) && p.paid > 0) units.push({ name: p.name, members: [p.name], lead: p.name, paid: p.paid, shares: false }); });
+    const unitFor = (name) => { const k = String(name || "").trim().toLowerCase(); return units.find((u) => String(u.name).toLowerCase() === k || u.members.some((m) => m.toLowerCase() === k)); };
+    // A later correction can remove the last bill paid by a participant.
+    // Keep every recorded repayment participant so any refund is still owed.
+    (state.data.settlements || []).forEach((payment) => {
+      [payment.fromPerson, payment.toPerson].forEach((value) => {
+        const name = String(value || "").trim();
+        if (name && !unitFor(name)) units.push({ name, members: [name], lead: name, paid: 0, shares: false });
+      });
+    });
     const total = units.reduce((s, u) => s + u.paid, 0);
     const shareCount = units.filter((u) => u.shares).length;
-    if (!units.length || !total || !shareCount) return { people: [], transfers: [], share: 0, total, shareCount: 0 };
-    const share = total / shareCount;
+    if (!units.length || (!total && !(state.data.settlements || []).length)) return { people: [], transfers: [], share: 0, total, shareCount: 0 };
+    const share = shareCount ? total / shareCount : 0;
     const sharing = units.filter((u) => u.shares); units.forEach((u) => { u.owed = 0; });
     state.data.expenses.forEach((e) => {
       const amt = Number(e.amount || 0); if (!amt) return;
@@ -2353,7 +2368,6 @@
        two people outside the shared expense pool, so they adjust the net
        balance here rather than being added as a new trip expense (which
        would wrongly get split across everyone again). */
-    const unitFor = (name) => { const k = String(name || "").trim().toLowerCase(); return units.find((u) => String(u.name).toLowerCase() === k || u.members.some((m) => m.toLowerCase() === k)); };
     (state.data.settlements || []).forEach((s) => {
       const amt = Number(s.amount || 0); if (!amt) return;
       const from = unitFor(s.fromPerson), to = unitFor(s.toPerson);
@@ -2394,9 +2408,46 @@
     event.preventDefault(); setSettleVisible(button.dataset.settleToggle === "show");
   });
 
+  function renderPostSettlementActions() {
+    if (!canViewExpenses() || (!isAdmin() && !settleShown()) || !(state.data.settlements || []).length) return "";
+    const actions = `${canAdd("expense") ? `<button type="button" class="primary" data-post-settlement-add>＋ Add missed expense</button>` : ""}${canEditRecords("Expenses") ? `<button type="button" class="secondary" data-post-settlement-edit>Find &amp; edit expense</button>` : ""}`;
+    return `<section class="post-settlement-actions"><div><span class="kicker">AFTER SETTLEMENT</span><h3>Remembered another expense?</h3><p>Add the forgotten bill or correct an existing entry. Previous repayments stay recorded; only the remaining balance is recalculated, including any refund due.</p></div>${actions ? `<div class="post-settlement-buttons">${actions}</div>` : `<small>Ask an account with expense editing permission to make a correction.</small>`}</section>`;
+  }
+
+  function postSettlementExpenseHelp() {
+    return (state.data.settlements || []).length ? `<p class="post-settlement-help"><b>Correction after settlement:</b> enter the actual bill date, payer and sharing families. Recorded repayments will be kept and the current balance recalculated automatically.</p>` : "";
+  }
+
+  function openPostSettlementExpenseReview() {
+    if (!canViewExpenses() || !canEditRecords("Expenses")) return toast("Expense editing is not enabled for this account", true);
+    const rows = state.data.expenses.filter((expense) => canEditRecords("Expenses", expense)).slice().sort((a, b) => `${b.date || ""}`.localeCompare(`${a.date || ""}`));
+    showModal("Find & edit an expense", `<div class="post-settlement-review">${postSettlementExpenseHelp()}<label>Find an expense<input type="search" id="postSettlementSearch" placeholder="Description, date, payer or amount" autocomplete="off"></label><div id="postSettlementResults" class="post-settlement-results" aria-live="polite"></div><div class="form-actions"><button type="button" data-post-settlement-close>Close</button></div></div>`);
+    const input = $("#postSettlementSearch"), results = $("#postSettlementResults");
+    const draw = () => {
+      const query = input.value.trim().toLowerCase();
+      const matches = rows.filter((expense) => [expense.label, expense.date, displayDate(expense.date), expense.paidBy, expense.category, expense.notes, expense.amount].join(" ").toLowerCase().includes(query));
+      results.innerHTML = matches.map((expense) => `<button type="button" class="post-settlement-result" data-post-settlement-expense="${esc(expense.id)}"><span><b>${esc(expense.label || expense.category || "Expense")}</b><small>${esc(displayDate(expense.date))} · Paid by ${esc(expense.paidBy || "—")}</small></span><strong>${money.format(expense.amount)}</strong><em>Edit →</em></button>`).join("") || `<p>No editable expenses match. Try another search.</p>`;
+    };
+    input.addEventListener("input", draw); draw(); input.focus();
+    results.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-post-settlement-expense]");
+      if (button) showEditRecord("Expenses", button.dataset.postSettlementExpense);
+    });
+    $("[data-post-settlement-close]").addEventListener("click", closeModal);
+  }
+
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-post-settlement-add]")) {
+      event.preventDefault(); state.mtSettleOpen = true; showAddModal("expense");
+    } else if (event.target.closest("[data-post-settlement-edit]")) {
+      event.preventDefault(); openPostSettlementExpenseReview();
+    }
+  });
+
   function renderSettleUp() {
+    if (state.settlementDataFresh === false) return `<section class="settle-collapsed"><div><b>Checking saved repayments…</b><small>The cached copy is being refreshed before showing who owes whom.</small></div><button type="button" data-settlement-refresh>↻ Refresh repayments</button></section>`;
     const plan = settleUpPlan();
-    if (!plan.total) return "";
+    if (!plan.total && !(state.data.settlements || []).length) return "";
     const forced = String((state.data.trip || {}).settleVisible).toUpperCase() === "TRUE";
     if (!settleShown()) return isAdmin() ? `<section class="settle-collapsed"><div><b>Settle up is hidden</b><small>Travellers will see who owes whom after the trip ends.</small></div><div class="settle-collapsed-actions"><button type="button" data-split-members>Choose who shares</button><button type="button" data-resplit>Re-split past expenses</button><button type="button" data-currency-setup>Currency</button><button type="button" class="settle-show" data-settle-toggle="show">Show now</button></div></section>` : "";
     const rows = plan.people.map((p) => `<div class="settle-person"><span class="settle-name">${avatarSlot({ name: p.lead })}<b>${esc(p.name)}</b></span><small>${p.members.length > 1 ? `${p.members.map(esc).join(" + ")} · ` : ""}<b>Paid ${money.format(p.paid)}</b> · Expense share ${money.format(p.owed)}${p.shares ? "" : " · not sharing"}</small>${Math.abs(p.net) < 0.005 ? `<strong class="settle-clear">✓ Settled</strong>` : `<strong class="${p.net >= 0 ? "settle-get" : "settle-owe"}">${p.net >= 0 ? "Gets back " : "Owes "}${money.format(Math.abs(p.net))}</strong>`}</div>`).join("");
@@ -2405,9 +2456,9 @@
     const settledRows = settlements.map((x) => `<li class="settle-settled"><em class="settle-status settled">✓ SETTLED</em><b>${esc(x.fromPerson)}</b><span>paid</span><b>${esc(x.toPerson)}</b><strong>${money.format(x.amount)}</strong><small>${x.method ? `<b class="settle-method">${esc(x.method)}</b> · ` : ""}${displayDate(String(x.paidOn || x.createdAt || "").slice(0, 10))}${x.reference ? ` · Ref ${esc(x.reference)}` : ""}${x.settledBy ? ` · confirmed by ${esc(x.settledBy)}` : ""}${x.note ? ` · ${esc(x.note)}` : ""}</small>${isAdmin() ? `<button type="button" class="settle-undo" data-settle-undo="${esc(x.id)}">Undo</button>` : ""}</li>`).join("");
     const moves = `${pendingRows}${settledRows}${!plan.transfers.length && !settlements.length ? `<li class="settle-done"><b>All settled</b><span>Every share is paid equally.</span></li>` : ""}`;
     const settledTotal = settlements.reduce((sum, x) => sum + Number(x.amount || 0), 0);
-    const history = settlements.length ? `<p class="settle-history-foot settle-summary">✓ ${settlements.length} settlement${settlements.length === 1 ? "" : "s"} saved · ${money.format(settledTotal)} paid back${isAdmin() ? " · stored in your Google Sheet, tab “Settlements”" : ""}</p>` : "";
-    const banner = !plan.transfers.length && settlements.length ? `<div class="settle-allclear"><i>✓</i><div><b>ALL SETTLED</b><small>Every payment has been made and confirmed by the Administrator.</small></div></div>` : "";
-    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>${state.data.expenses.some((e) => String(e.sharedBy || "").trim()) ? `Sharing is calculated for each expense separately · ${plan.shareCount} ${plan.families ? "family shares" : "travellers"} configured` : `Split equally across ${plan.shareCount} ${plan.families ? "family shares" : "travellers"} · about ${money.format(plan.share)} each; exact shares below`}</p></div>${isAdmin() ? `<div class="settle-admin">${canPrintReports() ? `<button type="button" class="ghost-button" data-print="settlements">▤ Print settlement</button>` : ""}<button type="button" class="ghost-button" data-split-members>Choose who shares</button><button type="button" class="ghost-button" data-resplit>Re-split</button><button type="button" class="ghost-button" data-currency-setup>Currency</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : canPrintReports() ? `<button type="button" class="ghost-button" data-print="settlements">▤ Print settlement</button>` : ""}</div><p class="settle-explainer"><b>Trip total ${money.format(plan.total)}</b> is money spent, counted once. <b>Paid</b> shows who paid; <b>Expense share</b> shows who benefits. The balance shows only the repayment still due—never add it again as an expense.</p>${banner}<div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div>${history}</section>`;
+    const history = settlements.length ? `<p class="settle-history-foot settle-summary">✓ ${settlements.length} settlement${settlements.length === 1 ? "" : "s"} saved · ${money.format(settledTotal)} paid back${isAdmin() ? " · stored in your Google Sheet, tab “Settlements”" : ""}</p>` : `<p class="settle-history-foot">No recorded repayments loaded for this trip. If you already confirmed a payment, refresh the saved records before entering it again.</p>`;
+    const banner = !plan.transfers.length && settlements.length ? `<div class="settle-allclear"><i>✓</i><div><b>ALL SETTLED</b><small>Current balances are clear. You can still add or correct an expense; any new balance will reopen automatically.</small></div></div>` : settlements.length ? `<div class="settle-recalculated"><b>Remaining balance after recorded payments</b><small>Earlier repayments are retained. New or corrected expenses can change who owes whom, including refunds after an overpayment.</small></div>` : "";
+    return `<section class="settle-panel"><div class="settle-head"><div><span class="kicker">SETTLE UP</span><h2>Who owes whom</h2><p>${state.data.expenses.some((e) => String(e.sharedBy || "").trim()) ? `Sharing is calculated for each expense separately · ${plan.shareCount} ${plan.families ? "family shares" : "travellers"} configured` : `Split equally across ${plan.shareCount} ${plan.families ? "family shares" : "travellers"} · about ${money.format(plan.share)} each; exact shares below`}</p></div>${isAdmin() ? `<div class="settle-admin">${canPrintReports() ? `<button type="button" class="ghost-button" data-print="settlements">▤ Print settlement</button>` : ""}<button type="button" class="ghost-button" data-settlement-refresh>↻ Refresh repayments</button><button type="button" class="ghost-button" data-split-members>Choose who shares</button><button type="button" class="ghost-button" data-resplit>Re-split</button><button type="button" class="ghost-button" data-currency-setup>Currency</button>${forced ? `<button type="button" class="ghost-button" data-settle-toggle="hide">Hide</button>` : ""}</div>` : canPrintReports() ? `<button type="button" class="ghost-button" data-print="settlements">▤ Print settlement</button>` : ""}</div><p class="settle-explainer"><b>Trip total ${money.format(plan.total)}</b> is money spent, counted once. <b>Paid</b> shows who paid; <b>Expense share</b> shows who benefits. The balance shows only the repayment still due—never add it again as an expense.</p>${banner}<div class="settle-grid"><div class="settle-people">${rows}</div><ol class="settle-moves">${moves}</ol></div>${history}</section>`;
   }
   const SETTLE_METHODS = ["Cash", "UPI (GPay / PhonePe / Paytm)", "Bank transfer", "Cheque", "Other"];
   function openSettlementConfirm(from, to, amount) {
@@ -2424,11 +2475,12 @@
     if (!confirm("Undo this settlement? The amount will count as outstanding again in Settle Up.")) return;
     try {
       if (!state.demoMode) await api("deleteRecord", authPayload({ sheet: "Settlements", id }));
-      state.data.settlements = (state.data.settlements || []).filter((s) => String(s.id) !== String(id)); state.mtSettleOpen = true;
-      render(); toast("Settlement removed");
+      financialMutationRevision++; state.data.settlements = (state.data.settlements || []).filter((s) => String(s.id) !== String(id)); state.mtSettleOpen = true;
+      render(); updatePrintArea(); toast("Settlement removed · balances recalculated");
     } catch (error) { toast(error.message, true); }
   }
   document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-settlement-refresh]")) { event.preventDefault(); refreshTrip(); return; }
     const mark = event.target.closest("[data-settle-from]");
     if (mark) { openSettlementConfirm(mark.dataset.settleFrom, mark.dataset.settleTo, mark.dataset.settleAmount); return; }
     const undo = event.target.closest("[data-settle-undo]");
@@ -2445,7 +2497,7 @@
     const categories = ["Food", "Stay", "Travel", "Local travel", "Activities", "Shopping", "Other"];
     const members = visibleTripMembers(), payers = members.length ? members : [{ name: state.currentUser }];
     const payer = payers.some(member => member.name === last.paidBy) ? last.paidBy : payers.some(member => member.name === state.currentUser) ? state.currentUser : payers[0].name;
-    return `<form class="modal-form quick-expense-form expense-entry-form" data-form="expense"><header><span><small>ADD TO TRIP REGISTER</small><h2>Quick expense</h2></span><button type="button" data-expense-jump="entry-paid">Who paid</button></header><label class="quick-expense-amount"><span>₹</span><input name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0" aria-label="Expense amount" required autofocus></label><label>What was it for?<input name="label" maxlength="180" placeholder="e.g. Lunch, taxi, tickets" required></label><label>Paid by<select name="paidBy" required>${payers.map(member => `<option${member.name === payer ? " selected" : ""}>${esc(member.name)}</option>`).join("")}</select></label>${quickExpenseShareFields({}, shareUnits())}<div class="quick-expense-two"><label>Category<select name="category">${categories.map(category => `<option${category === last.category ? " selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label>Date<input name="date" type="date" value="${esc(mtDefaultDate())}" required></label></div><label>Note <small>(optional)</small><textarea name="notes" rows="2" maxlength="1000" placeholder="Any useful detail"></textarea></label>${receiptCaptureField()}<div class="form-actions expense-entry-actions"><button type="submit" class="quick-expense-save">Save expense</button><button type="submit" class="quick-expense-save-again" data-again>Save &amp; add another</button><button type="button" data-cancel>Cancel</button></div></form>`;
+    return `<form class="modal-form quick-expense-form expense-entry-form" data-form="expense">${postSettlementExpenseHelp()}<header><span><small>ADD TO TRIP REGISTER</small><h2>Quick expense</h2></span><button type="button" data-expense-jump="entry-paid">Who paid</button></header><label class="quick-expense-amount"><span>₹</span><input name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0" aria-label="Expense amount" required autofocus></label><label>What was it for?<input name="label" maxlength="180" placeholder="e.g. Lunch, taxi, tickets" required></label><label>Paid by<select name="paidBy" required>${payers.map(member => `<option${member.name === payer ? " selected" : ""}>${esc(member.name)}</option>`).join("")}</select></label>${quickExpenseShareFields({}, shareUnits())}<div class="quick-expense-two"><label>Category<select name="category">${categories.map(category => `<option${category === last.category ? " selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label>Date<input name="date" type="date" value="${esc(mtDefaultDate())}" required></label></div><label>Note <small>(optional)</small><textarea name="notes" rows="2" maxlength="1000" placeholder="Any useful detail"></textarea></label>${receiptCaptureField()}<div class="form-actions expense-entry-actions"><button type="submit" class="quick-expense-save">Save expense</button><button type="submit" class="quick-expense-save-again" data-again>Save &amp; add another</button><button type="button" data-cancel>Cancel</button></div></form>`;
   }
   function renderCompactExpenseContent(expense, { quick = false, payer = "", enteredBy = "" } = {}) {
     const units = quick ? quickExpenseShareGroups().map((members, index) => ({ members, short: members[0], name: members.length > 1 ? `${members[0]} family` : members[0], code: String.fromCharCode(65 + index) })) : expenseSharingUnits();
@@ -2472,7 +2524,7 @@
     const travellerCards = expenseTotalsByTraveller().map((row) => `<article class="traveller-expense-card"><i>${avatarSlot(row)}</i><div><b>${esc(row.name)}</b><small>${row.count} ${row.count === 1 ? "payment" : "payments"}</small></div><strong>${money.format(row.total)}</strong></article>`).join("");
     const fold = (t, s, body, open) => `<details class="mt-fold"${t === "Who paid" ? " data-expense-paid-panel" : t === "Settle up" ? " data-expense-settle-panel" : ""}${open ? " open" : ""}><summary><span><b>${t}</b><small>${s}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>`;
     const left = budget - total;
-    return `<section class="mt-money">${expenseViewShortcuts()}<div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<div class="mt-money-actions"><button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button><button type="button" class="mt-today-add mt-paste-import" data-text-import="auto">▤ Paste &amp; import</button></div>` : ""}${renderExpenseSharingSummary()}<div class="mt-xfilters">${chips}</div>${travellerChips}<p class="expense-filter-result" role="status">${shown.length} ${shown.length === 1 ? "expense" : "expenses"} shown · ${money.format(sum(shown))}</p><div class="mt-xlist">${list || `<p class="mt-today-empty">${travellerFilter ? `No expenses for ${esc(travellerFilter)}${f !== "all" ? " on this day" : ""}.` : f === "all" ? "No expenses match these filters. Try All expenses or another date." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", renderExpensePaidBreakdown(state.data.expenses))}${fold("Settle up", "Who owes whom", renderSettleUp(), state.mtSettleOpen)}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
+    return `<section class="mt-money">${expenseViewShortcuts()}<div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<div class="mt-money-actions"><button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button><button type="button" class="mt-today-add mt-paste-import" data-text-import="auto">▤ Paste &amp; import</button></div>` : ""}${renderPostSettlementActions()}${renderExpenseSharingSummary()}<div class="mt-xfilters">${chips}</div>${travellerChips}<p class="expense-filter-result" role="status">${shown.length} ${shown.length === 1 ? "expense" : "expenses"} shown · ${money.format(sum(shown))}</p><div class="mt-xlist">${list || `<p class="mt-today-empty">${travellerFilter ? `No expenses for ${esc(travellerFilter)}${f !== "all" ? " on this day" : ""}.` : f === "all" ? "No expenses match these filters. Try All expenses or another date." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", renderExpensePaidBreakdown(state.data.expenses))}${fold("Settle up", "Who owes whom", renderSettleUp(), state.mtSettleOpen)}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
   }
   document.addEventListener("click", event => {
     const button = event.target.closest("[data-expense-jump]"); if (!button) return;
@@ -2652,7 +2704,7 @@
       const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
       return `<div class="expense-row"><span class="expense-description"><i>₹</i><span><b>${esc(expense.label)}</b>${expenseShareBadge(expense)}</span></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${expense.receiptUrl || canEditRecords("Expenses") ? `<button class="receipt-btn${expense.receiptUrl ? " has" : ""}" data-receipt-open="${esc(expense.id)}" title="${expense.receiptUrl ? "View receipt" : "Add receipt photo"}">🧾</button>` : ""}${editActions}${deleteAction}</span></div>`;
     }).join("");
-    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}${expenseViewShortcuts()}${canAdd("expense") ? textImportStrip("auto") : ""}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderExpenseSharingSummary()}${renderSpendChart(total, budget)}<section class="traveller-expense-panel" data-expense-paid-panel><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Expand a traveller to review their bills. Paid is money advanced; Family division shows each share.</p></div><strong>${money.format(total)} total</strong></div>${renderExpensePaidBreakdown(state.data.expenses)}</section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-expense-columns>⇔ Reset</button></label>`)}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${travellerFilterBar}<p class="expense-filter-result" role="status">${visibleExpenses.length} ${visibleExpenses.length === 1 ? "expense" : "expenses"} shown · ${money.format(filteredTotal)}</p><div class="expense-table expense-action-table" style="${expenseColumnStyle()}"><div class="expense-table-header">${expenseColumnLabels.map((label, index) => `<span>${label}${index < expenseColumnLabels.length - 1 ? `<i class="expense-col-grip" data-exp-col="${index}" title="Drag to resize this column">⋮⋮</i>` : ""}</span>`).join("")}</div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
+    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}${expenseViewShortcuts()}${canAdd("expense") ? textImportStrip("auto") : ""}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderPostSettlementActions()}${renderExpenseSharingSummary()}${renderSpendChart(total, budget)}<section class="traveller-expense-panel" data-expense-paid-panel><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Expand a traveller to review their bills. Paid is money advanced; Family division shows each share.</p></div><strong>${money.format(total)} total</strong></div>${renderExpensePaidBreakdown(state.data.expenses)}</section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-expense-columns>⇔ Reset</button></label>`)}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${travellerFilterBar}<p class="expense-filter-result" role="status">${visibleExpenses.length} ${visibleExpenses.length === 1 ? "expense" : "expenses"} shown · ${money.format(filteredTotal)}</p><div class="expense-table expense-action-table" style="${expenseColumnStyle()}"><div class="expense-table-header">${expenseColumnLabels.map((label, index) => `<span>${label}${index < expenseColumnLabels.length - 1 ? `<i class="expense-col-grip" data-exp-col="${index}" title="Drag to resize this column">⋮⋮</i>` : ""}</span>`).join("")}</div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
   }
   document.addEventListener("click", (event) => { const t = event.target.closest("[data-expense-traveller-filter]"); if (!t) return; event.preventDefault(); state.expenseTravellerFilter = t.dataset.expenseTravellerFilter; render(); });
 
@@ -2688,7 +2740,7 @@
     submit.disabled = true; submit.textContent = "Saving…";
     try {
       if (!state.demoMode) await api("updateRecord", authPayload({ sheet: "Expenses", id, record: update }));
-      Object.assign(expense, update); state.expenseRowEditId = ""; render(); hydrateShell(); updatePrintArea(); toast("Expense row saved to Google Sheet");
+      financialMutationRevision++; Object.assign(expense, update); state.expenseRowEditId = ""; render(); hydrateShell(); updatePrintArea(); toast("Expense row saved to Google Sheet");
     } catch (error) { submit.disabled = false; submit.textContent = "Save row"; toast(error.message, true); }
   }
 
@@ -2964,14 +3016,18 @@
   let pulling = false;
   async function pullRefresh(quiet = false) {
     if (pulling || !state.data || state.demoMode) return; pulling = true;
+    const revision = financialMutationRevision, tripId = state.data.trip.tripId;
+    const principal = `${state.accessRole}:${state.accountUsername}:${state.travellerId}`;
     try {
       const fresh = await api("getTripSection", authPayload({ section: state.tab || "overview" }));
+      if (!state.data || revision !== financialMutationRevision || state.data.trip.tripId !== tripId || principal !== `${state.accessRole}:${state.accountUsername}:${state.travellerId}`) return;
       mergeTripSection(fresh);
       saveOfflineTripCache({ ...(readOfflineTripCache(state.data.trip.tripId) || {}), data: state.data });
-      hydrateShell(); render(); setOfflineState(false); if (!quiet) toast("This section is up to date");
+      hydrateShell(); render(); updatePrintArea(); setOfflineState(false); if (!quiet) toast("This section is up to date");
     } catch (error) { if (!quiet) toast(error.message, true); }
-    pulling = false;
+    finally { pulling = false; }
   }
+
   (function bindTouchGestures() {
     const mobile = () => matchMedia("(max-width: 760px)").matches;
     let sx = 0, sy = 0, row = null, pull = 0, mode = "", ind = null;
@@ -4477,10 +4533,12 @@
         const cached = readCachedTrip(tripId);
         if (cached && cached.meta && cached.meta.role === role && (traveller ? String(cached.meta.travellerId || "") === String(traveller.travellerId) && cached.meta.loginMode === "personal" : !cached.meta.travellerId && (cached.meta.loginMode || "admin") === "admin")) {
           closeModal();
-          await openTrip(cached.data, pin, false, cached.meta.name, cached.meta.role, cached.meta.travellerId || "", cached.meta.loginMode || "admin");
+          await openTrip({ ...cached.data, _settlementSnapshotCached: true }, pin, false, cached.meta.name, cached.meta.role, cached.meta.travellerId || "", cached.meta.loginMode || "admin");
           syncPill("refreshing");
-          api("getTripSection", { ...payload, section: "overview" }).then((fresh) => {
-            if (!fresh || !state.data || String(state.data.trip.tripId) !== String(tripId)) return syncPill("");
+          const refreshRevision = financialMutationRevision;
+          const refreshPrincipal = `${state.accessRole}:${state.accountUsername}:${state.travellerId}`;
+          api("getTrip", payload).then((fresh) => {
+            if (!fresh || !state.data || refreshRevision !== financialMutationRevision || refreshPrincipal !== `${state.accessRole}:${state.accountUsername}:${state.travellerId}` || String(state.data.trip.tripId) !== String(tripId)) return syncPill("");
             mergeTripSection(fresh);
             cacheTripBundle(state.data, cached.meta);
             const y = window.scrollY; loadStickyNotes(); hydrateShell(); render(); updatePrintArea(); stickyRefreshAt = Date.now(); try { window.scrollTo(0, y); } catch {}
@@ -5578,6 +5636,29 @@
     const form = $('#modalBody [data-form]'); if (type === "expense") prepareExpenseSharing(form); if (form) form.addEventListener("submit", saveForm); const cancel = $('[data-cancel]'); if (cancel) cancel.addEventListener("click", closeModal);
   }
 
+  async function persistVerifiedSettlement(form, record) {
+    const access = authPayload(), tripId = access.tripId;
+    const principal = `${state.accessRole}:${state.accountUsername}:${state.travellerId}`;
+    // Retrying the SAME form must reuse the ID if a save succeeded but its
+    // verification request failed. The backend already deduplicates by ID.
+    form.dataset.settlementId = form.dataset.settlementId || record.id;
+    record.id = form.dataset.settlementId;
+    const saved = await api("addSettlement", { ...access, record });
+    financialMutationRevision++;
+    if (saved && saved.id) record.id = form.dataset.settlementId = String(saved.id);
+    let latest;
+    try { latest = await api("getTrip", access); }
+    catch (error) { throw new Error("The payment was submitted, but its saved record could not be reloaded. Refresh to check it before recording another payment. Retrying this same form reuses its reference."); }
+    const stored = Array.isArray(latest.settlements) && latest.settlements.find((payment) => String(payment.id) === String(record.id));
+    const sameName = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+    if (!stored || !Number.isFinite(Number(stored.amount)) || Math.round(Number(stored.amount) * 100) !== Math.round(record.amount * 100) || !sameName(stored.fromPerson, record.fromPerson) || !sameName(stored.toPerson, record.toPerson)) {
+      throw new Error("The backend did not return a matching saved settlement. This payment has not been marked settled here. Refresh and check the Settlements sheet; do not create a second payment for the same transfer.");
+    }
+    if (!state.data || String(state.data.trip.tripId) !== String(tripId) || principal !== `${state.accessRole}:${state.accountUsername}:${state.travellerId}`) throw new Error("The payment was saved to its original trip. Reopen that trip to see the updated settlement.");
+    mergeTripSection(latest);
+    return { ...record, ...stored, amount: Number(stored.amount) };
+  }
+
   async function saveForm(event) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -5597,7 +5678,10 @@
     record.createdByAccount = isAdmin() ? `administrator:${state.accountUsername}` : state.travellerId ? `traveller:${state.travellerId}` : `shared:${state.data.trip.tripId}`;
     const collection = { plan: "itinerary", place: "places", expense: "expenses", experience: "experiences", member: "members", settlement: "settlements" }[type];
     try {
-      if (!state.demoMode) await api(`add${type[0].toUpperCase()}${type.slice(1)}`, authPayload({ record }));
+      if (!state.demoMode) {
+        if (type === "settlement") Object.assign(record, await persistVerifiedSettlement(form, record));
+        else { await api(`add${type[0].toUpperCase()}${type.slice(1)}`, authPayload({ record })); if (type === "expense") financialMutationRevision++; }
+      }
       let receiptWarning = "";
       const receipt = type === "expense" ? receiptFileByForm.get(form) : null;
       if (receipt) {
@@ -5607,8 +5691,8 @@
           else { const uploaded = await api("uploadExpenseReceipt", authPayload({ id: record.id, file: await readPhotoFile(prepared) })); record.receiptUrl = uploaded.receiptUrl || ""; }
         } catch (photoError) { receiptWarning = photoError.message || "Receipt photo could not be uploaded"; }
       }
-      state.data[collection].push(record); closeModal(); render(); hydrateShell(); updatePrintArea(); if (type === "expense") { try { localStorage.setItem("mytrip_last_expense", JSON.stringify({ paidBy: record.paidBy, category: record.category })); } catch {} if (again) setTimeout(() => showAddModal("expense"), 60); }
-      toast(receiptWarning ? `Expense saved, but receipt failed: ${receiptWarning}` : type === "experience" ? `Experience note saved · Written by ${values.writer}` : type === "settlement" ? "Settlement saved and recorded in your Google Sheet" : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`, Boolean(receiptWarning));
+      if (type === "expense" || type === "settlement") { financialMutationRevision++; state.mtSettleOpen = true; } state.data[collection] = uniqById([...state.data[collection], record]); closeModal(); render(); hydrateShell(); updatePrintArea(); if (type === "expense") { try { localStorage.setItem("mytrip_last_expense", JSON.stringify({ paidBy: record.paidBy, category: record.category })); } catch {} if (again) setTimeout(() => showAddModal("expense"), 60); }
+      toast(receiptWarning ? `Expense saved, but receipt failed: ${receiptWarning}` : type === "experience" ? `Experience note saved · Written by ${values.writer}` : type === "settlement" ? (state.demoMode ? "Demo settlement recorded" : "Settlement saved and verified in your Google Sheet") : type === "expense" && (state.data.settlements || []).length ? "Expense added · balances recalculated · earlier repayments kept" : `${type === "member" ? "Traveller" : type[0].toUpperCase() + type.slice(1)} saved for everyone`, Boolean(receiptWarning));
     } catch (error) { toast(error.message, true); }
   }
 
@@ -5731,6 +5815,7 @@
     if (sheet === "ExperienceNotes") fields = `<div class="form-row"><label>Experience date<input name="date" type="date" min="${esc(state.data.trip.startDate)}" max="${esc(state.data.trip.endDate)}" value="${esc(record.date)}" required></label><label>Place <small>(optional)</small><input name="place" maxlength="180" value="${esc(record.place || "")}"></label></div><label>Experience note${noteToolbarHtml()}<textarea name="note" rows="5" maxlength="4000" required>${esc(record.note || "")}</textarea></label><div class="form-row"><label>Written by<input name="writer" maxlength="80" value="${esc(record.writer || "")}" required></label><label>Who can see this<select name="visibility"><option value="Everyone"${record.visibility === "Only me" ? "" : " selected"}>Everyone on the trip</option><option value="Only me"${record.visibility === "Only me" ? " selected" : ""}>Only me</option></select></label></div><label>What kind of note is this?<select name="noteType"><option value="Memory"${record.noteType === "Learning" ? "" : " selected"}>✍ Memory — something worth remembering</option><option value="Learning"${record.noteType === "Learning" ? " selected" : ""}>💡 Learning — a shortcoming or tip for next time</option></select></label>${experiencePhotoFieldHtml(record.photoUrl || "")}`;
     if (sheet === "Places") fields = `<label>Place name<input name="name" value="${esc(record.name)}" required></label><label>Area or address<input name="area" value="${esc(record.area || "")}"></label><div class="form-row"><label>Category<input name="category" value="${esc(record.category || "")}"></label><label>Planned day<input name="plannedDay" value="${esc(record.plannedDay || "Unplanned")}"></label></div><label>Notes<textarea name="notes" rows="3">${esc(record.notes || "")}</textarea></label>`;
     if (sheet === "Expenses") fields = `<label>Expense description<input name="label" value="${esc(record.label)}" required></label><div class="form-row"><label>Amount<input name="amount" type="number" min="0.01" step="0.01" value="${esc(record.amount)}" required></label><label>Date<input name="date" type="date" value="${esc(record.date)}" required></label></div><div class="form-row"><label>Category<input name="category" value="${esc(record.category || "")}"></label><label>Paid by<input name="paidBy" value="${esc(record.paidBy || "")}" required></label></div><label>Notes<textarea name="notes" rows="3">${esc(record.notes || "")}</textarea></label>`;
+    if (sheet === "Expenses") fields = postSettlementExpenseHelp() + fields;
     showModal(sheet === "ExperienceNotes" ? "Edit experience note" : `Edit ${sheet === "Itinerary" ? "plan" : sheet.slice(0, -1).toLowerCase()}`, `<form class="modal-form" id="editRecordForm">${fields}<div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save changes</button></div></form>`);
     if (sheet === "Expenses") prepareExpenseSharing($("#editRecordForm"), record);
     $("#editRecordForm").addEventListener("submit", async (event) => {
@@ -5745,7 +5830,7 @@
           try { const prepared = await prepareReceiptPhoto(scannedReceipt); if (state.demoMode) update.receiptUrl = URL.createObjectURL(prepared); else { const result = await api("uploadExpenseReceipt", authPayload({ id, file: await readPhotoFile(prepared) })); update.receiptUrl = result.receiptUrl; } }
           catch (error) { receiptWarning = error.message; }
         }
-        Object.assign(record, update); closeModal(); render(); updatePrintArea(); toast("Changes saved for everyone");
+        if (sheet === "Expenses") { financialMutationRevision++; state.mtSettleOpen = true; } Object.assign(record, update); closeModal(); render(); updatePrintArea(); toast(sheet === "Expenses" && (state.data.settlements || []).length ? "Expense corrected · balances recalculated · earlier repayments kept" : "Changes saved for everyone");
         if (receiptWarning) toast(`Expense saved, but receipt failed: ${receiptWarning}`, true);
       } catch (error) { toast(error.message, true); }
     });
@@ -5766,6 +5851,7 @@
 
   function renderSettlementPrint() {
     if (!canPrintReports() || !canViewExpenses() || (!isAdmin() && !settleShown())) return "";
+    if (state.settlementDataFresh === false) return `<section class="print-settlements"><h2>Settlement verification needed</h2><p>Saved repayments are still being refreshed. Reload the trip before printing current balances.</p></section>`;
     const plan = settleUpPlan();
     const settlements = (state.data.settlements || []).slice().sort((a, b) => `${a.paidOn || a.createdAt || ""}`.localeCompare(`${b.paidOn || b.createdAt || ""}`));
     const cents = (value) => Math.round((Number(value) || 0) * 100);
@@ -5780,7 +5866,7 @@
       return `<tr><td>${date ? displayDate(date) : "—"}</td><td><b>${esc(payment.fromPerson)}</b><br>paid ${esc(payment.toPerson)}</td><td>${money.format(Number(payment.amount) || 0)}</td><td>${details}</td><td>${confirmation}</td></tr>`;
     }).join("");
     const status = !plan.total && !settlements.length ? "No expenses or settlements recorded." : plan.transfers.length ? "Payments are still pending." : "ALL SETTLED — no payment remains due.";
-    return `<section class="print-settlements"><h2>Final settlement · Who owes whom</h2><p class="print-settlement-scope"><b>Entire trip · after recorded settlements</b> · Printed ${esc(new Date().toLocaleString("en-IN"))}</p><p>Trip expenses are counted once. Repayments below reduce the balance owed; they are not additional trip expenses. This whole-trip summary is included even when the expense list is printed for one traveller.</p><div class="print-totals"><span><small>Trip expenses</small><b>${money.format(plan.total)}</b></span><span><small>Repayments recorded</small><b>${money.format(settledTotal)}</b></span><span><small>Remaining payments</small><b>${money.format(pendingTotal)}</b></span></div><p class="print-settlement-status"><b>${status}</b></p><h3>Pending · who pays whom now</h3><table class="print-expense-table"><thead><tr><th>Who pays</th><th>Who receives</th><th>Amount due</th><th>Status</th></tr></thead><tbody>${pendingRows || `<tr><td colspan="4">No pending payments.</td></tr>`}</tbody></table><h3>Family / traveller balances after settlements</h3><table class="print-expense-table"><thead><tr><th>Family / traveller</th><th>Paid for trip expenses</th><th>Expense share</th><th>Remaining balance</th></tr></thead><tbody>${balanceRows || `<tr><td colspan="4">No expense balances available.</td></tr>`}</tbody></table><h3>Settled · payments recorded</h3><table class="print-expense-table"><thead><tr><th>Date paid</th><th>Paid by → Paid to</th><th>Amount paid</th><th>Method / reference</th><th>Confirmation / note</th></tr></thead><tbody>${settledRows || `<tr><td colspan="5">No settlement payments have been recorded yet.</td></tr>`}</tbody><tfoot><tr><td colspan="2"><b>Total repayments recorded</b></td><td><b>${money.format(settledTotal)}</b></td><td colspan="2">${settlements.length} payment${settlements.length === 1 ? "" : "s"}</td></tr></tfoot></table><p>Only payments saved through Mark settled appear as recorded. A partial payment is listed above; its unpaid balance remains in Pending.</p></section>`;
+    return `<section class="print-settlements"><h2>Final settlement · Who owes whom</h2><p class="print-settlement-scope"><b>Entire trip · after recorded settlements</b> · Printed ${esc(new Date().toLocaleString("en-IN"))}</p><p>Trip expenses are counted once. Repayments below reduce the balance owed; they are not additional trip expenses. This whole-trip summary is included even when the expense list is printed for one traveller.</p><div class="print-totals"><span><small>Trip expenses</small><b>${money.format(plan.total)}</b></span><span><small>Repayments recorded</small><b>${money.format(settledTotal)}</b></span><span><small>Remaining payments</small><b>${money.format(pendingTotal)}</b></span></div><p class="print-settlement-status"><b>${status}</b></p><h3>Pending · who pays whom now</h3><table class="print-expense-table"><thead><tr><th>Who pays</th><th>Who receives</th><th>Amount due</th><th>Status</th></tr></thead><tbody>${pendingRows || `<tr><td colspan="4">No pending payments.</td></tr>`}</tbody></table><h3>Family / traveller balances after settlements</h3><table class="print-expense-table"><thead><tr><th>Family / traveller</th><th>Paid for trip expenses</th><th>Expense share</th><th>Remaining balance</th></tr></thead><tbody>${balanceRows || `<tr><td colspan="4">No expense balances available.</td></tr>`}</tbody></table><h3>Settled · payments recorded</h3><table class="print-expense-table"><thead><tr><th>Date paid</th><th>Paid by → Paid to</th><th>Amount paid</th><th>Method / reference</th><th>Confirmation / note</th></tr></thead><tbody>${settledRows || `<tr><td colspan="5">No settlement payments have been recorded yet.</td></tr>`}</tbody><tfoot><tr><td colspan="2"><b>Total repayments recorded</b></td><td><b>${money.format(settledTotal)}</b></td><td colspan="2">${settlements.length} payment${settlements.length === 1 ? "" : "s"}</td></tr></tfoot></table><p>Balances recalculate after later expense additions or corrections; earlier repayments stay recorded. Only payments saved through Mark settled appear as recorded. A partial payment is listed above; its unpaid balance remains in Pending.</p></section>`;
   }
 
   function buildPrintArea() {
@@ -5822,11 +5908,12 @@
 
   function updatePrintArea(force = false) { printAreaDirty = true; if (force) buildPrintArea(); }
 
-  function printReport(target, day = "") { if (!canPrintReports()) return toast("Print & Export is hidden for your Traveller ID", true); if ((target === "itinerary" || target === "plan") && !canViewItinerary()) return toast("Itinerary access is hidden for your Traveller ID", true); if ((target === "expenses" || target === "settlements") && !canViewExpenses()) return toast("Expense access is hidden for your Traveller ID", true); if (target === "settlements" && !isAdmin() && !settleShown()) return toast("Settle up is hidden until the trip ends or the Administrator shows it", true); state.printDay = day; document.body.dataset.print = target; buildPrintArea(); const clear = () => { delete document.body.dataset.print; state.printDay = ""; printAreaDirty = true; removeEventListener("afterprint", clear); }; addEventListener("afterprint", clear); print(); setTimeout(clear, 1200); }
+  function printReport(target, day = "") { if (!canPrintReports()) return toast("Print & Export is hidden for your Traveller ID", true); if ((target === "itinerary" || target === "plan") && !canViewItinerary()) return toast("Itinerary access is hidden for your Traveller ID", true); if ((target === "expenses" || target === "settlements") && !canViewExpenses()) return toast("Expense access is hidden for your Traveller ID", true); if (target === "settlements" && !isAdmin() && !settleShown()) return toast("Settle up is hidden until the trip ends or the Administrator shows it", true); if (["expenses", "settlements", "full"].includes(target) && canViewExpenses() && state.settlementDataFresh === false) return toast("Saved repayments are still being checked. Refresh repayments before printing current balances.", true); state.printDay = day; document.body.dataset.print = target; buildPrintArea(); const clear = () => { delete document.body.dataset.print; state.printDay = ""; printAreaDirty = true; removeEventListener("afterprint", clear); }; addEventListener("afterprint", clear); print(); setTimeout(clear, 1200); }
 
   async function refreshTrip() {
     if (state.demoMode) return toast("Demo data is already up to date");
-    try { const data = await api("getTrip", authPayload()); state.data = normalize(data); state.accessRole = data.accessRole; state.permissions = data.permissions || {}; state.plan = data.plan === "pro" ? "pro" : "free"; state.planSource = data.planSource || "free"; state.ratingStatus = data.ratingStatus || {}; state.proEnforced = data.proEnforced === true; renderPlanPill(); cacheTripBundle(data, { name: state.currentUser, role: state.accessRole, travellerId: state.travellerId, loginMode: state.loginMode }); loadStickyNotes(); hydrateShell(); render(); renderStickyNotes(); updatePrintArea(); migrateCompletedStickyNotes(); toast("Latest trip data loaded"); } catch (error) { toast(error.message, true); }
+    const refreshRevision = financialMutationRevision, refreshTripId = state.data && state.data.trip.tripId;
+    try { const data = await api("getTrip", authPayload()); if (!state.data || financialMutationRevision !== refreshRevision || state.data.trip.tripId !== refreshTripId) return toast("A recent change was saved. Refresh once more to load its current balance."); state.settlementDataFresh = true; state.data = normalize(data); state.accessRole = data.accessRole; state.permissions = data.permissions || {}; state.plan = data.plan === "pro" ? "pro" : "free"; state.planSource = data.planSource || "free"; state.ratingStatus = data.ratingStatus || {}; state.proEnforced = data.proEnforced === true; renderPlanPill(); cacheTripBundle(data, { name: state.currentUser, role: state.accessRole, travellerId: state.travellerId, loginMode: state.loginMode }); loadStickyNotes(); hydrateShell(); render(); renderStickyNotes(); updatePrintArea(); migrateCompletedStickyNotes(); toast(`Latest trip data loaded · ${(state.data.settlements || []).length} recorded repayment${(state.data.settlements || []).length === 1 ? "" : "s"}`); } catch (error) { toast(error.message, true); }
   }
 
   function showCreateTrip() {

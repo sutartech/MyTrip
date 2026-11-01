@@ -3700,3 +3700,21 @@ html body .traveller-manager .traveller-directory-tools input{font-size:16px;min
   body[data-print=settlements] .print-cover-photo { display: none; }
   body[data-print=settlements] .print-settlements { break-before: auto; margin-top: 12px; }
 }
+
+/* Corrections keep actual repayments intact and show the revised balance. */
+html body .post-settlement-actions{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:16px 0;padding:18px 20px;border:1px solid #b8d9d3;border-radius:16px;background:#f1faf7}
+html body .post-settlement-actions h3{margin:5px 0 7px;font-size:18px;color:#153b3a}
+html body .post-settlement-actions p,html body .post-settlement-actions small{margin:0;max-width:760px;font-size:13px;line-height:1.5;color:#496360}
+html body .post-settlement-buttons{display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}
+html body .post-settlement-buttons button{min-height:42px;padding:10px 14px;font-weight:800}
+html body .post-settlement-help{padding:12px;border-radius:10px;background:#edf7f4;color:#294f47;font-size:13px;line-height:1.5}
+html body .post-settlement-results{max-height:50vh;overflow:auto;display:grid;gap:8px;margin-top:12px}
+html body .post-settlement-result{display:flex;align-items:center;gap:12px;text-align:left;padding:13px;border:1px solid #d2e3df;border-radius:10px;background:#fff;color:#193d3d}
+html body .post-settlement-result span{min-width:0;flex:1;overflow-wrap:anywhere}
+html body .post-settlement-result b,html body .post-settlement-result small{display:block}
+html body .post-settlement-result small{margin-top:5px;color:#596e69;font-size:12px}
+html body .post-settlement-result em{font-size:12px;font-style:normal;color:#117a70}
+html body .settle-recalculated{padding:12px 15px;margin:12px 0;background:#fff8e9;border:1px solid #e4ca83;border-radius:10px}
+html body .settle-recalculated small{display:block;margin-top:5px;line-height:1.5}
+@media(max-width:900px){html body .post-settlement-actions{flex-direction:column;align-items:stretch}html body .post-settlement-buttons{flex-shrink:1}html body .post-settlement-buttons button{flex:1}}
+@media print{.post-settlement-actions{display:none!important}}

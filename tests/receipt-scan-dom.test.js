@@ -26,6 +26,40 @@ function loadScanner(win) {
   win.eval(fs.readFileSync(path.join(root, "receipt-scan.js"), "utf8"));
 }
 const billText = "SEA VIEW CAFE\nInvoice No: A-129\nDate 25/10/2026\nSubtotal 1000\nGST 50\nGrand Total INR 1050.00";
+test("A fully settled trip accepts a missed expense and a searched correction without losing repayments", async () => {
+  const app = setup();
+  try {
+    app.win.print = () => {};
+    app.document.querySelector("#previewDemoButton").click(); await tick();
+    (app.document.querySelector('[data-open-admin-trip="GOA26"]') || app.document.querySelector("[data-open-admin-trip]")).click(); await tick();
+    app.document.querySelector('#mainNav [data-tab="expenses"]').click(); await tick();
+    const show = app.document.querySelector('[data-settle-toggle="show"]'); if (show) { show.click(); await tick(); }
+    for (let index = 0; index < 12; index++) {
+      const payment = app.document.querySelector("[data-settle-amount]"); if (!payment) break;
+      payment.click(); await tick();
+      app.document.querySelector('[data-form="settlement"]').dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    }
+    assert.ok(app.document.querySelector(".settle-allclear"));
+    const paidCount = app.document.querySelectorAll(".settle-settled").length; assert.ok(paidCount > 0);
+    app.document.querySelector("[data-post-settlement-add]").click(); await tick();
+    let form = app.document.querySelector('[data-form="expense"]'); assert.ok(form.querySelector(".post-settlement-help"));
+    form.elements.amount.value = "90"; form.elements.label.value = "Forgotten coffee";
+    form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    assert.ok(app.document.querySelector(".settle-pending")); assert.equal(app.document.querySelectorAll(".settle-settled").length, paidCount);
+    app.document.querySelector("[data-post-settlement-edit]").click(); await tick();
+    const search = app.document.querySelector("#postSettlementSearch"); search.value = "Forgotten coffee";
+    search.dispatchEvent(new app.win.Event("input", { bubbles: true }));
+    assert.equal(app.document.querySelectorAll("[data-post-settlement-expense]").length, 1);
+    app.document.querySelector("[data-post-settlement-expense]").click(); await tick();
+    form = app.document.querySelector("#editRecordForm"); assert.ok(form.querySelector(".post-settlement-help"));
+    form.elements.amount.value = "60"; form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    assert.equal(app.document.querySelectorAll(".settle-settled").length, paidCount);
+    app.document.querySelector('#view [data-print="settlements"]').click();
+    assert.ok(app.document.querySelector(".print-settlements").textContent.includes("PENDING"));
+    assert.equal(app.document.querySelectorAll(".print-settlements table")[2].querySelectorAll("tbody tr").length, paidCount);
+    assert.equal(app.errors.length, 0, app.errors.map(error => error.message).join("\n"));
+  } finally { app.dispose(); }
+});
 test("Settlement print button, recorded partial payments and expense/full reports work together", async () => {
   const app = setup(), printed = [];
   try {
