@@ -26,6 +26,34 @@ function loadScanner(win) {
   win.eval(fs.readFileSync(path.join(root, "receipt-scan.js"), "utf8"));
 }
 const billText = "SEA VIEW CAFE\nInvoice No: A-129\nDate 25/10/2026\nSubtotal 1000\nGST 50\nGrand Total INR 1050.00";
+test("Settlement print button, recorded partial payments and expense/full reports work together", async () => {
+  const app = setup(), printed = [];
+  try {
+    app.win.print = () => printed.push({ target: app.document.body.dataset.print, text: app.document.querySelector("#printArea").textContent });
+    app.document.querySelector("#previewDemoButton").click(); await tick();
+    (app.document.querySelector('[data-open-admin-trip="GOA26"]') || app.document.querySelector("[data-open-admin-trip]")).click(); await tick();
+    app.document.querySelector('#mainNav [data-tab="expenses"]').click(); await tick();
+    const show = app.document.querySelector('[data-settle-toggle="show"]'); if (show) { show.click(); await tick(); }
+    const payment = app.document.querySelector('[data-settle-amount]'); assert.ok(payment);
+    payment.click(); await tick();
+    const form = app.document.querySelector('[data-form="settlement"]'); assert.ok(form);
+    form.elements.amount.value = "1"; form.elements.reference.value = "PRINT-QA-UTR"; form.elements.note.value = "Partial repayment QA";
+    form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    app.document.querySelector('#view [data-print="settlements"]').click();
+    assert.equal(printed.length, 1); assert.equal(printed[0].target, "settlements");
+    for (const text of ["Who owes whom", "PRINT-QA-UTR", "Partial repayment QA", "PENDING", "SETTLED"]) assert.ok(printed[0].text.includes(text));
+    const report = app.document.querySelector(".print-settlements"); assert.ok(report);
+    assert.equal(report.querySelectorAll("table").length, 3);
+    app.document.querySelector('#view [data-print="expenses"]').click(); await tick();
+    app.document.querySelector("[data-xp-go]").click(); await new Promise(resolve => setTimeout(resolve, 120));
+    assert.equal(printed.at(-1).target, "expenses"); assert.ok(printed.at(-1).text.includes("PRINT-QA-UTR"));
+    app.document.querySelector('#mainNav [data-tab="print"]').click(); await tick();
+    assert.ok(app.document.querySelector('#view [data-print="settlements"]'));
+    app.document.querySelector('#view [data-print="full"]').click();
+    assert.equal(printed.at(-1).target, "full"); assert.ok(printed.at(-1).text.includes("PRINT-QA-UTR"));
+    assert.equal(app.errors.length, 0, app.errors.map(error => error.message).join("\n"));
+  } finally { app.dispose(); }
+});
 test("Full dashboard starts without loading OCR, Control Centre and Health render", async () => {
   const app = setup();
   try {
@@ -240,3 +268,4 @@ test("Login Quick Add expense shows sharing immediately after payer and updates 
 test("Traveller directory lists profiles below collapsed help and supports search and clear", async () => {
  const app=setup();try{app.win.matchMedia=query=>({matches:query==='(max-width: 760px)',addEventListener(){},removeEventListener(){},addListener(){}});app.document.querySelector('#previewDemoButton').click();await tick();app.document.querySelector('#manageTravellerAccounts').click();await tick();const manager=app.document.querySelector('.traveller-manager');assert.ok(manager);const help=manager.querySelector('details.directory-note');assert.ok(help&&!help.open);const cards=[...manager.querySelectorAll('[data-directory-card]')];assert.ok(cards.length>0);assert.ok(cards.every(c=>!c.classList.contains('hidden')));const search=manager.querySelector('#travellerDirectorySearch');search.value='no-such-traveller-xyz';search.dispatchEvent(new app.win.Event('input',{bubbles:true}));assert.ok(cards.every(c=>c.classList.contains('hidden')));assert.equal(manager.querySelector('#travellerDirectoryEmpty').classList.contains('hidden'),false);search.value='';search.dispatchEvent(new app.win.Event('input',{bubbles:true}));assert.ok(cards.every(c=>!c.classList.contains('hidden')));cards[0].querySelector('[data-view-account]').click();await tick();assert.ok(app.document.querySelector('#modalBody .traveller-profile-view'));assert.equal(app.errors.length,0,app.errors.map(e=>e.message).join('\n'));}finally{app.dispose();}
 });
+

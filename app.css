@@ -3677,3 +3677,26 @@ html body .traveller-manager .directory-note p{font-size:12px;line-height:1.6;ma
 html body .traveller-manager .traveller-directory-tools{margin-bottom:10px;gap:8px;padding:8px 10px}
 html body .traveller-manager .traveller-directory-tools input{font-size:16px;min-height:44px}
 @media(max-width:760px){html body #modal:has(.traveller-manager)>section>header{padding:12px!important;gap:8px;flex-wrap:wrap}html body #modal:has(.traveller-manager)>section>header>div{min-width:0}html body #modal:has(.traveller-manager)>section>header h2{font-size:18px!important;line-height:1.3}html body .traveller-manager .summary-actions{width:100%}html body .traveller-manager .summary-actions button{flex:1 1 auto}html body .traveller-manager .traveller-directory-tools{flex-direction:row;align-items:center}html body .traveller-manager .traveller-directory-tools>b{font-size:10px;padding:6px 8px;white-space:normal;max-width:98px}html body .traveller-manager .all-trips-summary{background:#f7faf8!important}}
+
+
+/* Settlement reports use full-width, wrapping tables so references survive printing. */
+@media print {
+  .print-settlements { margin-top: 25px; break-before: page; }
+  .print-settlements h2, .print-settlements h3 { break-after: avoid; }
+  .print-settlements h3 { margin: 16px 0 6px; font-size: 13px; }
+  .print-settlements p { font-size: 10px; line-height: 1.45; }
+  .print-settlements .print-settlement-status { padding: 9px; border: 1px solid #596c7a; }
+  .print-settlements table { width: 100%; margin-top: 8px; border-collapse: collapse; }
+  .print-settlements thead { display: table-header-group; }
+  .print-settlements tfoot { display: table-row-group; }
+  .print-settlements tr, .print-settlements .print-totals { break-inside: avoid; }
+  body.print-plan-nowrap .print-settlements .print-expense-table td,
+  .print-settlements .print-expense-table th { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+  body[data-print=plan] .print-settlements,
+  body[data-print=itinerary] .print-settlements { display: none; }
+  body[data-print=settlements] .print-plan,
+  body[data-print=settlements] .print-experiences,
+  body[data-print=settlements] .print-expenses,
+  body[data-print=settlements] .print-cover-photo { display: none; }
+  body[data-print=settlements] .print-settlements { break-before: auto; margin-top: 12px; }
+}

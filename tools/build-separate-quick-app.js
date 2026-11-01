@@ -4,7 +4,7 @@ const fs = require("fs"), path = require("path");
 const root = path.resolve(__dirname, "..");
 const output = process.argv[2];
 if (!output || !path.isAbsolute(output)) throw new Error("Pass an absolute destination directory outside the MyTrip runtime folder.");
-const main = process.env.MYTRIP_PREVIEW_MAIN_BASE || "https://sutartech.github.io/MyTrip/", version = "4.67.14";
+const main = process.env.MYTRIP_PREVIEW_MAIN_BASE || "https://sutartech.github.io/MyTrip/", version = "4.67.15";
 const source = fs.readFileSync(path.join(root, "index.html"), "utf8");
 let html = source
   .replace("<title>MyTrip · Plan, share &amp; split trips together</title>", "<title>Quick Expense · MyTrip · No login</title>")
@@ -32,3 +32,4 @@ for (const name of ["quick-expense-icon.svg", "quick-expense-icon-192.png", "qui
   await sharp({ create: { width: 512, height: 512, channels: 4, background: "#102a43" } }).composite([{ input: centered, left: 64, top: 64 }]).png().toFile(path.join(output, "quick-expense-maskable-512.png"));
   console.log("Separate Quick Expense app prepared at " + output);
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
+
