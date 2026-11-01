@@ -3718,3 +3718,92 @@ html body .settle-recalculated{padding:12px 15px;margin:12px 0;background:#fff8e
 html body .settle-recalculated small{display:block;margin-top:5px;line-height:1.5}
 @media(max-width:900px){html body .post-settlement-actions{flex-direction:column;align-items:stretch}html body .post-settlement-buttons{flex-shrink:1}html body .post-settlement-buttons button{flex:1}}
 @media print{.post-settlement-actions{display:none!important}}
+
+/* Temporary cash borrowing: independent of shared trip spending. */
+html body .cash-ledger{margin:16px 0;border:1px solid #d5c7ed;border-radius:16px;background:#faf7ff;overflow:hidden}
+html body .cash-ledger>summary{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;cursor:pointer;list-style:none;color:#443660}
+html body .cash-ledger>summary b{display:block;font-size:17px;font-weight:900}
+html body .cash-ledger>summary small{display:block;margin-top:5px;font-size:12px;color:#6b617b}
+html body .cash-ledger>summary strong{padding:8px 11px;border-radius:20px;background:#eee5fa;font-size:13px;white-space:nowrap}
+html body .cash-ledger-body{padding:0 18px 18px}
+html body .cash-help{font-size:13px;line-height:1.55;color:#58636e}
+html body .cash-ledger-actions,html body .cash-loan-actions{display:flex;gap:8px;flex-wrap:wrap;margin:13px 0}
+html body .cash-ledger-actions button,html body .cash-loan-actions button{padding:10px 13px;min-height:40px;border-radius:9px;font-weight:800}
+html body .cash-ledger-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+html body .cash-ledger-totals>span{padding:12px;border:1px solid #e3daee;border-radius:10px;background:#fff;font-size:12px;color:#6b617b}
+html body .cash-ledger-totals b{display:block;font-size:21px;margin-top:6px;color:#493265;overflow-wrap:anywhere}
+html body .cash-loan-list{display:grid;gap:12px}
+html body .cash-loan-card{padding:15px;border:1px solid #dfd8e8;border-left:4px solid #ad8cce;border-radius:12px;background:#fff;min-width:0}
+html body .cash-loan-card.closed{border-left-color:#299979}
+html body .cash-loan-card>header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+html body .cash-loan-card>header b{font-size:15px;color:#302b39;overflow-wrap:anywhere}
+html body .cash-loan-card>header b span{font-weight:600;color:#7e7489}
+html body .cash-loan-card>header small{display:block;margin-top:6px;color:#727b85;font-size:12px;overflow-wrap:anywhere}
+html body .cash-loan-card>header strong{font-size:13px;padding:7px 9px;border-radius:8px;background:#fff2d5;color:#8a5d09}
+html body .cash-loan-card.closed>header strong{background:#e8f7f0;color:#167350}
+html body .cash-loan-amounts{display:flex;gap:18px;margin-top:13px;font-size:13px;flex-wrap:wrap}
+html body .cash-loan-amounts b{color:#433354}
+html body .cash-loan-card>p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+html body .cash-return-history{margin-top:10px;border-top:1px solid #e9e4ee;padding-top:10px;font-size:12px}
+html body .cash-return-history>summary{font-weight:800;cursor:pointer}
+html body .cash-return-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #eee;flex-wrap:wrap}
+html body .cash-return-row small{display:block;margin-top:5px;overflow-wrap:anywhere}
+html body .cash-return-row button{padding:7px 9px;margin-right:5px;border:1px solid #ddd;border-radius:7px;background:#fff}
+html body .cash-entry-form .cash-help{padding:12px;border:1px solid #ddd1ed;background:#f7f1fe;border-radius:10px}
+html body .cash-download{display:inline-block;padding:13px;border-radius:10px;color:#fff;text-decoration:none}
+@media(max-width:600px){html body .cash-ledger>summary{align-items:flex-start;flex-direction:column}html body .cash-ledger-totals b{font-size:18px}html body .cash-ledger-totals>span{padding:10px 8px}html body .cash-ledger-actions button{flex:1}html body .cash-loan-card{padding:12px}html body .cash-loan-actions button{flex:1}}
+@media print{
+ .cash-ledger{display:none!important}
+ body[data-print=cash] .print-plan,body[data-print=cash] .print-experiences,body[data-print=cash] .print-expenses,body[data-print=cash] .print-cover-photo,body[data-print=cash] .print-settlements:not(.print-cash-borrowing){display:none}
+ body[data-print=cash] .print-cash-borrowing{break-before:auto;margin-top:12px}
+}
+
+@media(max-width:600px){
+ html body .cash-ledger-totals{grid-template-columns:repeat(2,minmax(0,1fr))}
+ html body .cash-ledger-totals>span:last-child{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px}
+ html body .cash-ledger-totals b{white-space:nowrap;overflow-wrap:normal}
+ html body .cash-ledger-totals>span:last-child b{margin-top:0}
+ html body .cash-ledger-actions{display:grid;grid-template-columns:1fr 1fr}
+ html body .cash-ledger-actions .primary{grid-column:1/-1}
+ html body .cash-ledger-actions button{min-width:0;line-height:1.4}
+}
+
+/* A single thumbnail strip above the first expense-report heading. */
+.print-photo-collage{display:none}
+html body .xp-photo-options{border:1px solid #cbdeda;border-radius:12px;background:#f7fbfa;overflow:hidden}
+html body .xp-photo-options>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;font-size:13px;font-weight:800;cursor:pointer;list-style:none}
+html body .xp-photo-options>summary b{font-size:12px;color:#117a70}
+html body .xp-photo-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px 12px;font-size:12px;line-height:1.5;color:#5c6c70}
+html body .xp-photo-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:0 14px 14px;max-height:260px;overflow:auto}
+html body .xp-photo-choice{position:relative;display:grid!important;gap:6px;align-content:start;padding:6px;border:1px solid #d7e5e1;border-radius:9px;background:#fff;cursor:pointer;min-width:0}
+html body .xp-photo-choice:has(input:checked){border-color:#187c71;box-shadow:0 0 0 1px #187c71}
+html body .xp-photo-choice input{position:absolute;top:10px;left:10px;width:19px!important;height:19px;margin:0;accent-color:#137c70;z-index:1}
+html body .xp-photo-choice img{display:block;width:100%;height:74px;object-fit:cover;border-radius:5px;background:#edf1f0}
+html body .xp-photo-choice span{font-size:11px;line-height:1.35;color:#41565a;overflow-wrap:anywhere}
+html body .xp-photo-empty{font-size:12px;padding:12px;border:1px dashed #c5d8d2;border-radius:9px;color:#596e6b;line-height:1.5}
+@media(max-width:460px){html body .xp-photo-choices{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media print{
+ body[data-print=expenses] .print-photo-collage,body[data-print=full] .print-photo-collage{display:grid;grid-template-columns:repeat(var(--print-photo-columns,5),minmax(0,1fr));gap:2mm;margin:0 0 4mm;break-inside:avoid;break-after:avoid;position:static}
+ body[data-print=expenses] .print-photo-collage figure,body[data-print=full] .print-photo-collage figure{margin:0;height:26mm;border:0.2mm solid #d0d8db;border-radius:2mm;overflow:hidden;background:#fff;break-inside:avoid}
+ body[data-print=expenses] .print-photo-collage img,body[data-print=full] .print-photo-collage img{display:block;width:100%;height:100%;object-fit:cover}
+ body[data-print=expenses] .print-cover-photo{display:none}
+}
+
+/* Trip-wide shared photo header. Originals remain in the existing Drive gallery. */
+#tripHeaderCollage[hidden],.trip-header-photo-notice button[hidden]{display:none!important}
+.trip-header-moments{margin:0 0 18px;padding:12px;border:1px solid #e1e9e6;border-radius:18px;background:var(--card,#fff);overflow:hidden}
+.trip-header-moments-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
+.trip-header-moments-bar>span{font-size:11px;font-weight:800;letter-spacing:1.3px;color:#526d67}
+.trip-header-moments-bar>button,.trip-header-photo-notice>button{min-height:34px;padding:6px 11px;border:1px solid #c9ddda;border-radius:9px;background:#edf6f3;color:#116a63;font-size:12px;font-weight:750;cursor:pointer}
+.trip-header-photo-grid{display:grid;grid-template-columns:repeat(var(--trip-header-columns,5),minmax(0,1fr));gap:7px}
+.trip-header-photo-grid>figure{min-width:0;height:128px;margin:0;overflow:hidden;border-radius:10px;background:#eaf0ed}
+.trip-header-photo-grid img{display:block;width:100%;height:100%;object-fit:cover}
+.trip-header-photo-notice{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#6c7673;font-size:12px}
+.trip-header-photo-notice:has(span:empty){display:none}
+.trip-header-enable{display:flex!important;align-items:center;gap:10px;font-weight:750}
+.trip-header-enable input{width:20px!important;height:20px!important;flex:0 0 20px}
+@media(max-width:760px){.trip-header-moments{padding:9px;margin-bottom:12px;border-radius:14px}.trip-header-photo-grid{gap:4px}.trip-header-photo-grid>figure{height:84px;border-radius:7px}.trip-header-moments-bar{gap:6px}.trip-header-moments-bar>button{font-size:11px;padding:5px 8px}.trip-header-moments-bar>span{font-size:10px;letter-spacing:.8px}}
+@media print{#tripHeaderCollage{display:none!important}}
+
+@media print{#printArea:has(.print-photo-collage)>.print-cover-photo{display:none!important}}
+.xp-photo-source{display:flex;gap:6px;flex-wrap:wrap;padding:0 14px 10px}

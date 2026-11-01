@@ -26,6 +26,99 @@ function loadScanner(win) {
   win.eval(fs.readFileSync(path.join(root, "receipt-scan.js"), "utf8"));
 }
 const billText = "SEA VIEW CAFE\nInvoice No: A-129\nDate 25/10/2026\nSubtotal 1000\nGST 50\nGrand Total INR 1050.00";
+test("Administrator selects five shared header photos and optionally prints the same header in expenses and Trip Book", async () => {
+  const app = setup(), printed = []; let photoNumber = 0;
+  try {
+    app.win.URL.createObjectURL = () => "blob:trip-photo-" + (++photoNumber);
+    app.win.print = () => printed.push({ target: app.document.body.dataset.print, photos: [...app.document.querySelectorAll("#printArea .print-photo-collage img")].map(img => img.getAttribute("src")) });
+    app.document.querySelector("#previewDemoButton").click(); await tick();
+    (app.document.querySelector('[data-open-admin-trip="GOA26"]') || app.document.querySelector("[data-open-admin-trip]")).click(); await tick();
+    app.document.querySelector('#mainNav [data-tab="photos"]').click(); await tick();
+    for (let n = 0; n < 4; n++) {
+      app.document.querySelector("[data-add-trip-photo]").click(); await tick();
+      const form = app.document.querySelector("#tripGalleryPhotoForm"); Object.defineProperty(form.elements.photoFile, "files", { value: [new app.win.File(["photo"], "memory.jpg", { type: "image/jpeg" })] });
+      form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    }
+    app.document.querySelector("#view [data-trip-header-settings]").click(); await tick();
+    const form = app.document.querySelector("#tripHeaderPhotoForm"); assert.ok(form); const choices = [...form.querySelectorAll("[data-trip-header-choice]")]; assert.ok(choices.length > 5);
+    assert.equal(choices.filter(input => input.checked).length, 5); choices[5].checked = true; choices[5].dispatchEvent(new app.win.Event("change", { bubbles: true })); assert.equal(choices[5].checked, false);
+    form.elements.enabled.checked = true; form.elements.printDefault.checked = true; form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    const header = app.document.querySelector("#tripHeaderCollage"), headerImages = [...header.querySelectorAll("img")]; assert.equal(header.hidden, false); assert.equal(headerImages.length, 5);
+    const urls = headerImages.map(img => img.getAttribute("src")); headerImages.forEach(img => img.dispatchEvent(new app.win.Event("load")));
+    app.document.querySelector('#mainNav [data-tab="expenses"]').click(); await tick(); assert.equal(app.document.querySelector("#tripHeaderCollage"), header); assert.deepEqual([...header.querySelectorAll("img")].map(img => img.getAttribute("src")), urls);
+    app.document.querySelector('#view [data-print="expenses"]').click(); await tick(); assert.ok(app.document.querySelector('[data-xp-photo-source="header"]').classList.contains("on"));
+    app.document.querySelector("[data-xp-go]").click(); await new Promise(resolve => setTimeout(resolve, 100));
+    app.document.querySelectorAll("#printArea .print-photo-collage img").forEach(img => img.dispatchEvent(new app.win.Event("load"))); await tick();
+    assert.equal(printed.length, 1); assert.deepEqual(printed[0].photos, urls); app.win.dispatchEvent(new app.win.Event("afterprint"));
+    app.document.querySelector('#mainNav [data-tab="print"]').click(); await tick(); app.document.querySelector('#view [data-print="full"]').click(); await tick();
+    app.document.querySelectorAll("#printArea .print-photo-collage img").forEach(img => img.dispatchEvent(new app.win.Event("load"))); await tick();
+    assert.equal(printed.length, 2); assert.equal(printed[1].target, "full"); assert.deepEqual(printed[1].photos, urls); app.win.dispatchEvent(new app.win.Event("afterprint"));
+    app.document.querySelector("#tripHeaderCollage [data-trip-header-settings]").click(); await tick(); const off = app.document.querySelector("#tripHeaderPhotoForm"); off.elements.enabled.checked = false;
+    off.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick(); assert.equal(header.hidden, true);
+    assert.equal(app.errors.length, 0, app.errors.map(error => error.message).join("\n"));
+  } finally { app.dispose(); }
+});
+test("Expense photo picker controls one first-page collage and waits for its thumbnails", async () => {
+  const app = setup(), printed = [];
+  try {
+    app.win.print = () => printed.push({ photos: app.document.querySelectorAll("#printArea .print-photo-collage img").length, collages: app.document.querySelectorAll("#printArea .print-photo-collage").length });
+    app.document.querySelector("#previewDemoButton").click(); await tick();
+    (app.document.querySelector('[data-open-admin-trip="GOA26"]') || app.document.querySelector("[data-open-admin-trip]")).click(); await tick();
+    app.document.querySelector('#mainNav [data-tab="expenses"]').click(); await tick();
+    app.document.querySelector('#view [data-print="expenses"]').click(); await tick();
+    let choices = [...app.document.querySelectorAll("[data-xp-photo]")]; assert.ok(choices.length > 0 && choices.length <= 5);
+    const count = choices.length; choices[0].checked = false; choices[0].dispatchEvent(new app.win.Event("change", { bubbles: true }));
+    assert.equal(app.document.querySelector("#xpPhotoSelectedCount").textContent, `${count - 1} selected`);
+    app.document.querySelector("[data-xp-photo-toggle]").click(); await tick(); assert.ok([...app.document.querySelectorAll("[data-xp-photo]")].every(input => input.disabled));
+    app.document.querySelector("[data-xp-photo-toggle]").click(); await tick();
+    choices = [...app.document.querySelectorAll("[data-xp-photo]")]; choices[0].checked = true; choices[0].dispatchEvent(new app.win.Event("change", { bubbles: true }));
+    app.document.querySelector("[data-xp-go]").click(); await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(printed.length, 0, "Printing must wait for the image readiness events");
+    const images = [...app.document.querySelectorAll("#printArea .print-photo-collage img")]; assert.equal(images.length, count);
+    images.forEach(image => image.dispatchEvent(new app.win.Event("load"))); await tick();
+    assert.equal(printed.length, 1); assert.equal(printed[0].collages, 1); assert.equal(printed[0].photos, count);
+    assert.ok(app.document.querySelector("#printArea").firstElementChild.classList.contains("print-photo-collage"));
+    assert.equal(app.errors.length, 0, app.errors.map(error => error.message).join("\n"));
+  } finally { app.dispose(); }
+});
+test("Cash borrowing supports quick entry, partial returns, corrections, final return and print without changing spending", async () => {
+  const app = setup(), printed = [];
+  try {
+    app.win.print = () => printed.push({ target: app.document.body.dataset.print, text: app.document.querySelector(".print-cash-borrowing")?.textContent });
+    app.document.querySelector("#previewDemoButton").click(); await tick();
+    (app.document.querySelector('[data-open-admin-trip="GOA26"]') || app.document.querySelector("[data-open-admin-trip]")).click(); await tick();
+    app.document.querySelector('#mainNav [data-tab="expenses"]').click(); await tick();
+    const spending = app.document.querySelector(".spent-card strong").textContent;
+    app.document.querySelector("#globalQuickAdd").click(); await tick();
+    app.document.querySelector('[data-quick-add="cash"]').click(); await tick(); app.document.querySelector("#modalBody [data-cash-add]").click(); await tick();
+    let form = app.document.querySelector('[data-cash-form="loan"]'); assert.ok(form);
+    form.elements.lender.value = "Ravi"; form.elements.borrower.value = "Sarada"; form.elements.amount.value = "2000";
+    form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    assert.equal(app.document.querySelector(".spent-card strong").textContent, spending);
+    assert.match(app.document.querySelector(".cash-loan-card").textContent, /Still to return ₹2,000/);
+    app.document.querySelector("[data-cash-return]").click(); await tick();
+    form = app.document.querySelector('[data-cash-form="return"]'); form.elements.amount.value = "500"; form.elements.reference.value = "CASH-RETURN-1";
+    form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    assert.match(app.document.querySelector(".cash-loan-card").textContent, /Still to return ₹1,500/);
+    app.document.querySelector("[data-cash-edit-loan]").click(); await tick();
+    form = app.document.querySelector('[data-cash-form="loan"]'); form.elements.amount.value = "499";
+    form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    assert.ok(app.document.querySelector("#toast").textContent.includes("Correct the existing returns"));
+    app.document.querySelector("[data-cash-cancel]").click(); await tick();
+    app.document.querySelector("#modalBody [data-cash-edit-return]").click(); await tick();
+    form = app.document.querySelector('[data-cash-form="return"]'); form.elements.amount.value = "300";
+    form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    assert.match(app.document.querySelector(".cash-loan-card").textContent, /Still to return ₹1,700/);
+    app.document.querySelector("[data-cash-return]").click(); await tick();
+    form = app.document.querySelector('[data-cash-form="return"]'); assert.equal(form.elements.amount.value, "1700");
+    form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
+    assert.ok(app.document.querySelector(".cash-loan-card.closed")); assert.match(app.document.querySelector(".cash-loan-card").textContent, /Returned fully/);
+    app.document.querySelector("[data-cash-print]").click();
+    assert.equal(printed.at(-1).target, "cash"); assert.ok(printed.at(-1).text.includes("RETURNED FULLY")); assert.ok(printed.at(-1).text.includes("CASH-RETURN-1"));
+    assert.equal(app.document.querySelector(".spent-card strong").textContent, spending);
+    assert.equal(app.errors.length, 0, app.errors.map(error => error.message).join("\n"));
+  } finally { app.dispose(); }
+});
 test("A fully settled trip accepts a missed expense and a searched correction without losing repayments", async () => {
   const app = setup();
   try {
@@ -80,6 +173,7 @@ test("Settlement print button, recorded partial payments and expense/full report
     assert.equal(report.querySelectorAll("table").length, 3);
     app.document.querySelector('#view [data-print="expenses"]').click(); await tick();
     app.document.querySelector("[data-xp-go]").click(); await new Promise(resolve => setTimeout(resolve, 120));
+    app.document.querySelectorAll("#printArea .print-photo-collage img").forEach(image => image.dispatchEvent(new app.win.Event("load"))); await tick();
     assert.equal(printed.at(-1).target, "expenses"); assert.ok(printed.at(-1).text.includes("PRINT-QA-UTR"));
     app.document.querySelector('#mainNav [data-tab="print"]').click(); await tick();
     assert.ok(app.document.querySelector('#view [data-print="settlements"]'));

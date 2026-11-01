@@ -19,11 +19,11 @@ for (const file of ["manifest.webmanifest", "quick-expense.webmanifest", "quick-
 const app = read("app.js"), html = read("index.html"), sw = read("sw.js"), backend = read("backend/Code.gs");
 const fe = (app.match(/frontendVersion\s*=\s*"([^"]+)"/) || [])[1];
 const be = (app.match(/requiredBackendVersion\s*=\s*"([^"]+)"/) || [])[1];
-check(fe === "4.67.16", `frontend version is 4.67.16 (found ${fe || "none"})`);
+check(fe === "4.67.19", `frontend version is 4.67.19 (found ${fe || "none"})`);
 check(be === "4.32.2", `required backend is 4.32.2 (found ${be || "none"})`);
 check(html.includes(`app.js?v=${fe}`) && html.includes(`app.css?v=${fe}`), "HTML cache-bust versions match frontend");
 check(sw.includes(`mytrip-static-v${fe}`), "service-worker cache matches frontend");
-check(backend.includes("version: '4.32.2'"), "Code.gs reports backend 4.32.2");
+check(backend.includes("version: '4.32.5'"), "Code.gs reports backend 4.32.5");
 ["granularPermissions", "systemHealth", "sectionLoading", "offlineExpenseQueue", "receiptReadForScan"].forEach(cap => check(app.includes(`info.${cap}`) && backend.includes(`${cap}: true`), `${cap} capability is enforced`));
 check(app.includes('api("getTripSection"'), "section-only refresh is wired");
 check(app.includes('id="systemHealthButton"'), "System Health is in the Control Centre");
@@ -38,7 +38,7 @@ try { require("zlib").gunzipSync(fs.readFileSync(path.join(root, "ocr/lang/eng.t
 for (const file of ["quick-expense/install.html", "quick-expense-install.html"]) {
   for (const [, code] of read(file).matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) { try { new vm.Script(code, { filename: file }); } catch (error) { check(false, `${file} inline script: ${error.message}`); } }
 }
-check(child.spawnSync(process.execPath, ["--test", "tests/mytrip-release.test.js", "tests/settlement-print.test.js", "tests/settlement-reopen.test.js"], { cwd: root, stdio: "inherit" }).status === 0, "Behaviour/security and settlement print regression tests");
+check(child.spawnSync(process.execPath, ["--test", "tests/mytrip-release.test.js", "tests/settlement-print.test.js", "tests/settlement-reopen.test.js", "tests/cash-ledger.test.js", "tests/expense-photo-print.test.js", "tests/trip-header-collage.test.js"], { cwd: root, stdio: "inherit" }).status === 0, "Behaviour/security and settlement print regression tests");
 if (failed) process.exit(1);
 console.log("\nRelease verification passed.");
 

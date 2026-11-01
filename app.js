@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.16";
+  const frontendVersion = "4.67.19";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -536,16 +536,18 @@
   }
 
   async function api(action, payload = {}) {
+    const cashChange = /^addCash(?:Loan|Return)$/.test(action) || ["CashLoans", "CashReturns"].includes(payload.sheet);
+    if (cashChange && navigator.onLine === false) throw new Error("Cash borrowing and returns need an internet connection so the saved balance can be verified.");
     if (!apiUrlReady()) throw new Error("Connect the Google backend first.");
     if (["login", "loginWithOtp", "getTrip", "recordAccessEvent", "quickAddExpense", "createQuickExpensePass", "setQuickExpensePassEnabled", "updateQuickExpensePassSettings"].includes(action) && !payload.client) payload = { ...payload, client: clientAuditContext() };
     if (/^add/.test(action) && payload && payload.record && typeof payload.record === "object" && !payload.record.id) payload.record.id = uid();
     const flightKey = /^add/.test(action) && payload && payload.record && payload.record.id ? action + ":" + payload.record.id : "";
     if (flightKey && inFlightAdds.has(flightKey)) return inFlightAdds.get(flightKey);
-    if (QUEUEABLE.has(action) && navigator.onLine === false) return queueOffline(action, payload);
-    if (flightKey) { const p = requestAt(apiUrl, action, payload).finally(() => setTimeout(() => inFlightAdds.delete(flightKey), 4000)); inFlightAdds.set(flightKey, p); try { return await p; } catch (error) { if (/No internet|Failed to fetch|NetworkError|Load failed|aborted/i.test(String(error && error.message || ""))) return queueOffline(action, payload); throw error; } }
+    if (!cashChange && QUEUEABLE.has(action) && navigator.onLine === false) return queueOffline(action, payload);
+    if (flightKey) { const p = requestAt(apiUrl, action, payload).finally(() => setTimeout(() => inFlightAdds.delete(flightKey), 4000)); inFlightAdds.set(flightKey, p); try { return await p; } catch (error) { if (!cashChange && /No internet|Failed to fetch|NetworkError|Load failed|aborted/i.test(String(error && error.message || ""))) return queueOffline(action, payload); throw error; } }
     try { return await requestAt(apiUrl, action, payload); }
     catch (error) {
-      if (QUEUEABLE.has(action) && /No internet|Failed to fetch|NetworkError|Load failed|aborted/i.test(String(error && error.message || ""))) return queueOffline(action, payload);
+      if (!cashChange && QUEUEABLE.has(action) && /No internet|Failed to fetch|NetworkError|Load failed|aborted/i.test(String(error && error.message || ""))) return queueOffline(action, payload);
       throw error;
     }
   }
@@ -788,19 +790,21 @@
 
   function uniqById(list) { const seen = new Set(); return list.filter((x) => { const k = x && x.id != null && x.id !== "" ? String(x.id) : ""; if (!k) return true; if (seen.has(k)) return false; seen.add(k); return true; }); }
   function normalize(data) {
+    if (data && typeof data.cashBorrowing === "boolean") state.cashLedgerAvailable = data.cashBorrowing;
     if (data && data.profilePhotos) setProfilePhotos(data.profilePhotos);
-    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: uniqById(data.itinerary || []), experiences: uniqById(data.experiences || []), photos: data.photos || [], stickyDiary: data.stickyDiary || [], stickyNotes: data.stickyNotes || [], checklist: uniqById(data.checklist || []), expenses: uniqById(data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })), settlements: uniqById(data.settlements || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
+    return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: uniqById(data.itinerary || []), experiences: uniqById(data.experiences || []), photos: data.photos || [], stickyDiary: data.stickyDiary || [], stickyNotes: data.stickyNotes || [], checklist: uniqById(data.checklist || []), expenses: uniqById(data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })), settlements: uniqById(data.settlements || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })), cashLoans: uniqById(data.cashLoans || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })), cashReturns: uniqById(data.cashReturns || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
   }
 
   function mergeTripSection(section) {
     if (!section || !state.data) return;
     if (section.trip && String(section.trip.tripId) === String(state.data.trip.tripId)) state.data.trip = section.trip;
-    ["members", "assignments", "places", "itinerary", "experiences", "photos", "stickyDiary", "stickyNotes", "checklist", "expenses", "settlements"].forEach((key) => {
+    ["members", "assignments", "places", "itinerary", "experiences", "photos", "stickyDiary", "stickyNotes", "checklist", "expenses", "settlements", "cashLoans", "cashReturns"].forEach((key) => {
       if (!(key in section)) return;
       let value = Array.isArray(section[key]) ? uniqById(section[key]) : section[key];
-      if (key === "expenses" || key === "settlements") value = value.map((item) => ({ ...item, amount: Number(item.amount || 0) }));
+      if (["expenses", "settlements", "cashLoans", "cashReturns"].includes(key)) value = value.map((item) => ({ ...item, amount: Number(item.amount || 0) }));
       state.data[key] = value;
     });
+    if (typeof section.cashBorrowing === "boolean") state.cashLedgerAvailable = section.cashBorrowing;
     if (Array.isArray(section.settlements)) state.settlementDataFresh = true;
     if (section.profilePhotos) setProfilePhotos(section.profilePhotos);
     if (section.permissions) state.permissions = section.permissions;
@@ -891,11 +895,11 @@
     return allowed[type] !== false && (isAdmin() || state.permissions[`add${type[0].toUpperCase()}${type.slice(1)}`] !== false);
   }
   function featurePermissionKeys(sheet) {
-    return { Itinerary: ["editPlanOwn", "editPlanAll"], ExperienceNotes: ["editExperienceOwn", "editExperienceAll"], Places: ["editPlaceOwn", "editPlaceAll"], Expenses: ["editExpenseOwn", "editExpenseAll"] }[sheet] || [];
+    return { Itinerary: ["editPlanOwn", "editPlanAll"], ExperienceNotes: ["editExperienceOwn", "editExperienceAll"], Places: ["editPlaceOwn", "editPlaceAll"], Expenses: ["editExpenseOwn", "editExpenseAll"], CashLoans: ["editExpenseOwn", "editExpenseAll"], CashReturns: ["editExpenseOwn", "editExpenseAll"] }[sheet] || [];
   }
   function canEditRecords(sheet = "", record = null) {
     if (isAdmin()) return true;
-    const visible = { Itinerary: canViewItinerary(), ExperienceNotes: canViewExperiences(), Places: canViewPlaces(), Expenses: canViewExpenses() };
+    const visible = { Itinerary: canViewItinerary(), ExperienceNotes: canViewExperiences(), Places: canViewPlaces(), Expenses: canViewExpenses(), CashLoans: canViewExpenses(), CashReturns: canViewExpenses() };
     if (sheet && visible[sheet] === false) return false;
     const keys = featurePermissionKeys(sheet);
     if (keys.length) {
@@ -982,6 +986,7 @@
   async function openTrip(data, pin, demoMode, name, roleOverride, travellerId = "", loginMode = "trip") {
     if (!data || !data.trip) throw new Error("This trip could not be opened. Please pick it again from the list.");
     if (!demoMode) saveOfflineTripCache({ data, name, roleOverride, travellerId, loginMode });
+    state.cashLedgerAvailable = data.cashBorrowing === true;
     state.settlementDataFresh = data._settlementSnapshotCached !== true;
     state.data = normalize(clone(data)); state.pin = pin; state.demoMode = demoMode;
     state.accessRole = roleOverride || data.accessRole || "traveller";
@@ -1318,7 +1323,7 @@
     const balance = budget - total;
     const members = visibleTripMembers();
     const photo = tripPhotoUrl(state.data.trip.photoUrl);
-    const cover = photo ? `<section class="trip-cover"><img loading="lazy" decoding="async" src="${esc(photo)}" alt="Cover photo for ${esc(state.data.trip.name)}" fetchpriority="high" decoding="async" width="1600" height="900" referrerpolicy="no-referrer" decoding="async" fetchpriority="high"><div><span>TRIP PHOTO</span><h2>${esc(state.data.trip.name)}</h2><p>${esc(state.data.trip.destination)}</p>${isAdmin() ? `<button data-trip-photo>Change photo</button>` : ""}</div></section>` : (isAdmin() ? `<section class="trip-cover trip-cover-empty"><div><span>TRIP PHOTO</span><h2>Add a memorable cover photo</h2><p>Use a public HTTPS image or Google Drive sharing link.</p><button data-trip-photo>Add photo</button></div></section>` : "");
+    const cover = tripHeaderCollagePhotos().length ? "" : photo ? `<section class="trip-cover"><img loading="lazy" decoding="async" src="${esc(photo)}" alt="Cover photo for ${esc(state.data.trip.name)}" fetchpriority="high" decoding="async" width="1600" height="900" referrerpolicy="no-referrer" decoding="async" fetchpriority="high"><div><span>TRIP PHOTO</span><h2>${esc(state.data.trip.name)}</h2><p>${esc(state.data.trip.destination)}</p>${isAdmin() ? `<button data-trip-photo>Change photo</button>` : ""}</div></section>` : (isAdmin() ? `<section class="trip-cover trip-cover-empty"><div><span>TRIP PHOTO</span><h2>Add a memorable cover photo</h2><p>Use a public HTTPS image or Google Drive sharing link.</p><button data-trip-photo>Add photo</button></div></section>` : "");
     const planQuickAction = canViewItinerary() ? `<button data-add="plan"><i>＋</i><span><b>Add plan</b><small>Itinerary</small></span></button>` : "";
     const expenseQuickAction = canViewExpenses() ? `<button data-add="expense"><i>₹</i><span><b>Add expense</b><small>Spending</small></span></button>` : "";
     const placeQuickAction = canViewPlaces() ? `<button data-add="place"><i>⌖</i><span><b>Add place</b><small>Map</small></span></button>` : "";
@@ -1871,20 +1876,193 @@
     } catch (error) { if (error && error.name === "AbortError") return; toast("Could not create the image on this device", true); }
   }
   document.addEventListener("click", (e) => { if (e.target.closest("[data-share-day]")) { e.preventDefault(); e.stopPropagation(); shareDayImage(); } }, true);
+  function tripCollagePhotoChoices() {
+    if (!state.data) return [];
+    const input = [{ id: "trip-cover", photoUrl: state.data.trip.photoUrl, caption: "Trip cover" }, ...(state.data.photos || []).map((photo, index) => ({ ...photo, id: `gallery:${photo.id || index}`, caption: photo.caption || `Trip photo ${index + 1}` }))];
+    const seen = new Set();
+    return input.flatMap((photo) => {
+      const raw = String(photo.photoUrl || "").trim();
+      if (!/^(https:\/\/|blob:|data:image\/(?:jpeg|png|webp);base64,)/i.test(raw)) return [];
+      let key = raw, thumbnail = raw, driveId = "";
+      try {
+        const url = new URL(raw);
+        if (/^(?:drive\.google\.com|drive\.usercontent\.google\.com|lh3\.googleusercontent\.com)$/i.test(url.hostname)) {
+          const match = url.pathname.match(/\/(?:file\/)?d\/([A-Za-z0-9_-]+)/), id = match ? match[1] : url.searchParams.get("id");
+          if (id) { driveId = id; key = `drive:${id}`; thumbnail = `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w360`; }
+        } else if (url.protocol === "https:") {
+          const canonical = new URL(raw); ["w", "h", "width", "height", "sz", "q", "auto", "fit", "crop"].forEach((name) => canonical.searchParams.delete(name)); canonical.hash = ""; key = canonical.href;
+          if (url.hostname === "images.unsplash.com") { url.searchParams.set("w", "360"); url.searchParams.set("q", "75"); thumbnail = url.href; }
+        }
+      } catch {}
+      if (seen.has(key)) return []; seen.add(key);
+      return [{ id: String(photo.id), caption: String(photo.caption || "Trip memory"), url: thumbnail, driveId, backendPhotoId: String(photo.id).replace(/^gallery:/, "") }];
+    });
+  }
+  function expensePrintPhotoChoices() { return canViewExpenses() ? tripCollagePhotoChoices() : []; }
+  function tripHeaderPhotoSettings() {
+    const trip = state.data.trip; let ids = trip.headerPhotoIds;
+    if (typeof ids === "string") { try { ids = JSON.parse(ids); } catch { ids = []; } }
+    return { enabled: trip.headerCollageEnabled === true || String(trip.headerCollageEnabled).toUpperCase() === "TRUE", ids: Array.isArray(ids) ? [...new Set(ids.map(String))].slice(0, 5) : [] };
+  }
+  function tripHeaderCollagePhotos() {
+    if (!state.data) return [];
+    const settings = tripHeaderPhotoSettings(); if (!settings.enabled) return [];
+    const choices = tripCollagePhotoChoices();
+    return settings.ids.map((id) => choices.find((photo) => photo.id === id)).filter(Boolean);
+  }
+  function renderTripHeaderCollage() {
+    const photos = tripHeaderCollagePhotos(); if (!photos.length) return "";
+    return `<section class="trip-header-moments" aria-label="Trip header photo collage"><div class="trip-header-moments-bar"><span>TRIP MOMENTS</span>${isAdmin() ? `<button type="button" data-trip-header-settings>Choose header photos</button>` : ""}</div><div class="trip-header-photo-grid" style="--trip-header-columns:${photos.length}">${photos.map((photo) => `<figure><img data-trip-header-thumbnail data-print-photo-id="${esc(photo.backendPhotoId)}" data-print-drive-id="${esc(photo.driveId)}" src="${esc(photo.url)}" alt="${esc(photo.caption)}" loading="eager" decoding="async" width="360" height="240"></figure>`).join("")}</div><div class="trip-header-photo-notice"><span id="tripHeaderPhotoStatus" role="status"></span><button type="button" data-trip-header-retry hidden>Retry photos</button></div></section>`;
+  }
+  function updateTripHeaderCollage(force = false) {
+    const host = $("#tripHeaderCollage"); if (!host) return;
+    const photos = tripHeaderCollagePhotos(), signature = JSON.stringify([state.data?.trip.tripId, isAdmin(), photos]);
+    if (!force && host.dataset.signature === signature) return;
+    host.dataset.signature = signature; host.innerHTML = renderTripHeaderCollage(); host.hidden = !photos.length;
+    const images = [...host.querySelectorAll("[data-trip-header-thumbnail]")];
+    if (images.length) prepareExpensePrintPhotos(images, { header: true }).catch(() => {});
+  }
+  function showTripHeaderPhotoSettings() {
+    if (!isAdmin()) return toast("Administrator access required to choose trip header photos", true);
+    if (!state.demoMode && !(backendInfo?.tripHeaderCollage || state.data.tripHeaderCollage)) return toast("Update the Google script to BE 4.32.5 to save shared trip header photos", true);
+    const choices = tripCollagePhotoChoices(), current = tripHeaderPhotoSettings();
+    const selected = current.ids.length ? current.ids : choices.slice(0, 5).map((photo) => photo.id);
+    showModal("Trip header collage", `<form class="modal-form" id="tripHeaderPhotoForm"><p>Choose four or five trip photos for the header. Everyone who opens this trip sees the same selection. You can change it during the trip.</p><label class="trip-header-enable"><input type="checkbox" name="enabled"${current.enabled ? " checked" : ""}><span>Show collage in this trip’s header</span></label><label class="trip-header-enable"><input type="checkbox" name="printDefault"${tripSettingOn(state.data.trip.headerCollagePrintDefault) ? " checked" : ""}><span>Include trip header collage in expense and Trip Book prints by default</span></label>${choices.length ? `<p class="form-help"><b id="tripHeaderSelectedCount">${selected.filter((id) => choices.some((photo) => photo.id === id)).length} selected</b> · maximum five. Fewer photos can be used while your gallery grows.</p><div class="xp-photo-choices trip-header-photo-choices">${choices.map((photo) => `<label class="xp-photo-choice"><input type="checkbox" data-trip-header-choice value="${esc(photo.id)}"${selected.includes(photo.id) ? " checked" : ""}><img src="${esc(photo.url)}" loading="lazy" decoding="async" alt=""><span>${esc(photo.caption)}</span></label>`).join("")}</div>` : `<p class="form-help">Add photos in Trip Photos first, then choose them here.</p>`}<p class="form-help">Originals stay in Drive; the header uses thumbnails. Expense-print photo selection is separate.</p><div class="form-actions"><button type="button" data-trip-header-add>Add trip photo</button><button type="button" data-cancel>Cancel</button><button type="submit">Save header</button></div></form>`);
+    const form = $("#tripHeaderPhotoForm");
+    form.addEventListener("change", (event) => {
+      if (!event.target.matches("[data-trip-header-choice]")) return;
+      const checked = [...form.querySelectorAll("[data-trip-header-choice]:checked")];
+      if (checked.length > 5) { event.target.checked = false; return toast("Choose up to five header photos", true); }
+      $("#tripHeaderSelectedCount").textContent = `${checked.length} selected`;
+    });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault(); const button = form.querySelector('[type="submit"]');
+      const ids = [...form.querySelectorAll("[data-trip-header-choice]:checked")].map((input) => input.value), enabled = form.elements.enabled.checked;
+      if (enabled && !ids.length) return toast("Choose at least one photo for the header", true);
+      const tripId = state.data.trip.tripId, update = { headerCollageEnabled: enabled ? "TRUE" : "FALSE", headerPhotoIds: JSON.stringify(ids), headerCollagePrintDefault: form.elements.printDefault.checked ? "TRUE" : "FALSE" };
+      try {
+        button.disabled = true; button.textContent = "Saving…";
+        const saved = state.demoMode ? update : await api("updateTrip", authPayload({ trip: update }));
+        if (state.data?.trip.tripId !== tripId) return;
+        state.data.trip = { ...state.data.trip, ...saved, ...update }; closeModal(); render(); toast(enabled ? "Trip header collage saved for everyone" : "Trip header collage turned off");
+      } catch (error) { button.disabled = false; button.textContent = "Save header"; toast(error.message, true); }
+    });
+    form.querySelector("[data-cancel]").addEventListener("click", closeModal);
+    form.querySelector("[data-trip-header-add]").addEventListener("click", () => { closeModal(); setTab("photos"); showTripGalleryPhotoEditor(); });
+  }
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-trip-header-settings]")) { event.preventDefault(); showTripHeaderPhotoSettings(); }
+    if (event.target.closest("[data-trip-header-retry]")) { event.preventDefault(); updateTripHeaderCollage(true); }
+  });
+  function expensePrintPhotoSettings() {
+    const key = `mytrip_expense_print_photos_v1:${state.data.trip.tripId}`;
+    let saved = state.expensePrintPhotoSettings && state.expensePrintPhotoSettings[key];
+    if (!saved) { try { saved = JSON.parse(localStorage.getItem(key) || "null"); } catch {} }
+    const choices = expensePrintPhotoChoices();
+    const defaultSource = tripSettingOn(state.data.trip.headerCollagePrintDefault) && tripHeaderCollagePhotos().length ? "header" : "custom";
+    const source = saved && ["header", "custom"].includes(saved.source) ? saved.source : defaultSource;
+    return { enabled: !saved || saved.enabled !== false, source, ids: saved && Array.isArray(saved.ids) ? [...new Set(saved.ids.map(String))].filter((id) => choices.some((photo) => photo.id === id)).slice(0, 5) : choices.slice(0, 5).map((photo) => photo.id) };
+  }
+  function saveExpensePrintPhotoSettings(settings) {
+    const key = `mytrip_expense_print_photos_v1:${state.data.trip.tripId}`;
+    state.expensePrintPhotoSettings = state.expensePrintPhotoSettings || {}; state.expensePrintPhotoSettings[key] = settings;
+    try { localStorage.setItem(key, JSON.stringify(settings)); } catch {}
+    printAreaDirty = true;
+  }
+  function expensePrintPhotoOptions() {
+    const choices = expensePrintPhotoChoices(), settings = expensePrintPhotoSettings();
+    if (!choices.length) return `<p class="xp-photo-empty">Photo header: add photos in Trip Photos to include a collage on the first expense page.</p>`;
+    const headerPhotos = tripHeaderCollagePhotos(), count = settings.source === "header" ? headerPhotos.length : settings.ids.length;
+    return `<details class="xp-photo-options" id="expensePrintPhotoPicker"${state.printPhotoPickerOpen ? " open" : ""}><summary><span>First-page photo collage</span><b id="xpPhotoSelectedCount">${settings.enabled ? `${count} selected` : "Off"}</b></summary><div class="xp-photo-toolbar"><span>Shown once, above the trip heading.</span><button type="button" class="xp-switch${settings.enabled ? " on" : ""}" data-xp-photo-toggle aria-pressed="${settings.enabled}">${settings.enabled ? "On" : "Off"}</button></div>${headerPhotos.length ? `<div class="xp-seg xp-photo-source" role="group" aria-label="Print photo source"><button type="button" data-xp-photo-source="header"${settings.source === "header" ? ' class="on"' : ""}>Use trip header</button><button type="button" data-xp-photo-source="custom"${settings.source === "custom" ? ' class="on"' : ""}>Choose other photos</button></div>` : ""}${settings.source === "header" ? `<p class="form-help">Uses the ${headerPhotos.length} photos selected for this trip’s header, in the same order.${headerPhotos.length ? "" : " The header is currently turned off or its photos are unavailable."}</p>` : `<p class="form-help">Choose up to five photos.</p><div class="xp-photo-choices">${choices.map((photo) => `<label class="xp-photo-choice"><input type="checkbox" data-xp-photo="${esc(photo.id)}"${settings.ids.includes(photo.id) ? " checked" : ""}${settings.enabled ? "" : " disabled"}><img src="${esc(photo.url)}" loading="lazy" decoding="async" alt=""><span>${esc(photo.caption)}</span></label>`).join("")}</div>`}</details>`;
+  }
+  function renderExpensePrintCollage() {
+    const settings = expensePrintPhotoSettings(); if (!settings.enabled) return "";
+    const photos = settings.source === "header" ? tripHeaderCollagePhotos() : expensePrintPhotoChoices().filter((photo) => settings.ids.includes(photo.id)).slice(0, 5);
+    return renderTripPhotoPrintCollage(photos);
+  }
+  function renderTripPhotoPrintCollage(photos) {
+    if (!photos.length) return "";
+    return `<div class="print-photo-collage" aria-label="Trip photo collage" style="--print-photo-columns:${Math.max(4, photos.length)}">${photos.map((photo) => `<figure><img data-print-thumbnail data-print-photo-id="${esc(photo.backendPhotoId)}" data-print-drive-id="${esc(photo.driveId)}" src="${esc(photo.url)}" alt="${esc(photo.caption)}" loading="eager" decoding="async" width="360" height="240"></figure>`).join("")}</div>`;
+  }
+  const expensePrintThumbnailCache = new Map();
+  async function prepareExpensePrintPhotos(images, options = {}) {
+    const isHeader = options.header === true, isHeaderUI = isHeader && !options.printing, tripId = state.data?.trip.tripId;
+    const headerHost = isHeaderUI ? images[0]?.closest(".trip-header-moments") : null;
+    const load = (img, retryDrive = true) => new Promise((resolve) => {
+      let finished = false, timer, retried = false;
+      const finish = (ok) => { if (finished) return; finished = true; clearTimeout(timer); img.removeEventListener("load", loaded); img.removeEventListener("error", failed); resolve(ok); };
+      const loaded = () => finish(true);
+      const failed = () => {
+        if (retryDrive && img.dataset && img.dataset.printDriveId && !retried) {
+          retried = true; img.src = `https://lh3.googleusercontent.com/d/${encodeURIComponent(img.dataset.printDriveId)}=w360`; return;
+        }
+        finish(false);
+      };
+      if (img.complete && img.naturalWidth > 0) { finish(true); return; }
+      img.addEventListener("load", loaded, { once: true }); img.addEventListener("error", failed);
+      timer = setTimeout(() => finish(false), 5000);
+      if (img.complete && !img.naturalWidth) failed();
+    });
+    const results = await Promise.all(images.map((img) => load(img)));
+    const failedDrive = images.filter((img, index) => !results[index] && img.dataset && img.dataset.printDriveId);
+    if (failedDrive.length && !state.demoMode && state.data?.trip.tripId === tripId && backendInfo && (isHeader ? backendInfo.tripHeaderCollage === true : backendInfo.printPhotoThumbnails === true)) {
+      try {
+        const cacheKey = (img) => `${tripId}:${img.dataset.printPhotoId}:${img.dataset.printDriveId}`;
+        const missing = failedDrive.filter((img) => !expensePrintThumbnailCache.has(cacheKey(img)));
+        if (missing.length) {
+          let deadline;
+          const response = await Promise.race([api(isHeader ? "getTripHeaderThumbnails" : "getPrintPhotoThumbnails", authPayload({ photoIds: missing.map((img) => img.dataset.printPhotoId) })), new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error("Thumbnail retrieval timed out")), 8000); })]).finally(() => clearTimeout(deadline));
+          for (const photo of response.photos || []) {
+            if (!/^image\/(jpeg|png|webp)$/.test(photo.type || "") || !/^[A-Za-z0-9+/=\s]+$/.test(photo.data || "") || photo.data.length > 1500000) continue;
+            const img = missing.find((item) => item.dataset.printPhotoId === String(photo.photoId));
+            if (img) expensePrintThumbnailCache.set(cacheKey(img), `data:${photo.type};base64,${photo.data}`);
+          }
+        }
+        await Promise.all(failedDrive.map(async (img) => {
+          const cached = expensePrintThumbnailCache.get(cacheKey(img)); if (!cached) return;
+          img.src = cached; const ok = await load(img, false); if (ok) results[images.indexOf(img)] = true;
+        }));
+      } catch {}
+    }
+    images.forEach((img, index) => { if (!results[index]) img.closest("figure")?.remove(); });
+    const collage = $(isHeaderUI ? "#tripHeaderCollage .trip-header-photo-grid" : "#printArea .print-photo-collage");
+    if (collage && !collage.querySelector("img")) collage.remove();
+    const failed = results.filter((ok) => !ok).length;
+    if (isHeaderUI) {
+      if (collage && collage.style) collage.style.setProperty("--trip-header-columns", String(Math.max(1, results.filter(Boolean).length)));
+      if (failed && state.data?.trip.tripId === tripId && headerHost?.isConnected) {
+        const status = headerHost.querySelector("#tripHeaderPhotoStatus"), retry = headerHost.querySelector("[data-trip-header-retry]");
+        if (status) status.textContent = `${failed} photo${failed === 1 ? " is" : "s are"} unavailable right now.`;
+        if (retry) retry.hidden = false;
+      }
+    } else if (failed) toast(`${failed} photo${failed === 1 ? "" : "s"} could not be loaded; unavailable thumbnails were left out of this printout.`, true);
+  }
+
+  document.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-xp-photo]"); if (!checkbox) return;
+    const picker = checkbox.closest(".xp-photo-options"), ids = [...picker.querySelectorAll("[data-xp-photo]:checked")].map((item) => item.dataset.xpPhoto);
+    if (ids.length > 5) { checkbox.checked = false; return toast("Choose up to five photos for the print header", true); }
+    const settings = expensePrintPhotoSettings(); saveExpensePrintPhotoSettings({ ...settings, ids });
+    $("#xpPhotoSelectedCount").textContent = `${ids.length} selected`;
+  });
+
   function showExpensePrintSheet() {
     const people = [...new Set([...visibleTripMembers().map((m) => m.name), ...state.data.expenses.map((e) => e.paidBy).filter(Boolean)])];
     const who = state.printPerson || "";
     const xpLock = proLocked("personPrint");
     const chip = (v, l) => `<button type="button" data-xp-person="${esc(v)}" class="${who === v ? "on" : ""}${v && xpLock ? " locked" : ""}">${v && xpLock ? "🔒 " : ""}${l}</button>`;
     const seg = (attr, list, cur) => list.map(([v, l]) => `<button type="button" ${attr}="${v}" class="${cur === v ? "on" : ""}">${l}</button>`).join("");
-    showModal("Print expenses", `<div class="xp-sheet"><div class="xp-group"><span class="xp-label">Whose expenses</span><div class="xp-chips">${chip("", "Everyone")}${chip("__each", "Person-wise (each separately)")}${people.map((n) => chip(n, esc(n))).join("")}</div></div><div class="xp-line"><span>Text size</span><span class="xp-step"><button type="button" data-xp-size="-1" aria-label="Smaller">−</button><b>${printPlanScale()}pt</b><button type="button" data-xp-size="1" aria-label="Larger">＋</button></span></div><div class="xp-line"><span>Wrap long text</span><button type="button" class="xp-switch${printPlanWrap() ? " on" : ""}" data-xp-wrap>${printPlanWrap() ? "On" : "Off"}</button></div><div class="xp-line"><span>Page layout</span><span class="xp-seg">${seg("data-xp-layout", [["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]], printPlanLayout())}</span></div><div class="xp-line"><span>Alignment</span><span class="xp-seg">${seg("data-xp-align", [["left", "Left"], ["center", "Centre"], ["right", "Right"]], printPlanAlign())}</span></div><div class="xp-actions"><button type="button" class="primary" data-print="expenses" data-xp-go>▤ Print</button><button type="button" data-cancel>Cancel</button></div></div>`);
+    showModal("Print expenses", `<div class="xp-sheet"><div class="xp-group"><span class="xp-label">Whose expenses</span><div class="xp-chips">${chip("", "Everyone")}${chip("__each", "Person-wise (each separately)")}${people.map((n) => chip(n, esc(n))).join("")}</div></div><div class="xp-line"><span>Text size</span><span class="xp-step"><button type="button" data-xp-size="-1" aria-label="Smaller">−</button><b>${printPlanScale()}pt</b><button type="button" data-xp-size="1" aria-label="Larger">＋</button></span></div><div class="xp-line"><span>Wrap long text</span><button type="button" class="xp-switch${printPlanWrap() ? " on" : ""}" data-xp-wrap>${printPlanWrap() ? "On" : "Off"}</button></div><div class="xp-line"><span>Page layout</span><span class="xp-seg">${seg("data-xp-layout", [["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]], printPlanLayout())}</span></div><div class="xp-line"><span>Alignment</span><span class="xp-seg">${seg("data-xp-align", [["left", "Left"], ["center", "Centre"], ["right", "Right"]], printPlanAlign())}</span></div>${expensePrintPhotoOptions()}<div class="xp-actions"><button type="button" class="primary" data-print="expenses" data-xp-go>▤ Print</button><button type="button" data-cancel>Cancel</button></div></div>`);
+    const photoPicker = $("#expensePrintPhotoPicker"); if (photoPicker) photoPicker.addEventListener("toggle", () => { state.printPhotoPickerOpen = photoPicker.open; });
   }
   document.addEventListener("click", (e) => {
     const go = e.target.closest("[data-xp-go]"); if (go) { e.preventDefault(); e.stopPropagation(); closeModal(); setTimeout(() => printReport("expenses"), 80); return; }
     if (e.target.closest(".xp-sheet [data-cancel]")) { e.preventDefault(); e.stopPropagation(); closeModal(); return; }
-    const t = e.target.closest("[data-xp-person],[data-xp-size],[data-xp-wrap],[data-xp-layout],[data-xp-align]"); if (!t) return;
+    const t = e.target.closest("[data-xp-person],[data-xp-size],[data-xp-wrap],[data-xp-layout],[data-xp-align],[data-xp-photo-toggle],[data-xp-photo-source]"); if (!t) return;
     e.preventDefault(); e.stopPropagation(); const set = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
-    if (t.hasAttribute("data-xp-person")) { if (t.dataset.xpPerson && !requirePro("personPrint")) return; state.printPerson = t.dataset.xpPerson; }
+    if (t.hasAttribute("data-xp-photo-toggle")) { const settings = expensePrintPhotoSettings(); saveExpensePrintPhotoSettings({ ...settings, enabled: !settings.enabled }); }
+    else if (t.hasAttribute("data-xp-photo-source")) { const settings = expensePrintPhotoSettings(); saveExpensePrintPhotoSettings({ ...settings, source: t.dataset.xpPhotoSource }); }
+    else if (t.hasAttribute("data-xp-person")) { if (t.dataset.xpPerson && !requirePro("personPrint")) return; state.printPerson = t.dataset.xpPerson; }
     else if (t.dataset.xpSize) set(printWidthKey, String(Math.min(13, Math.max(7, printPlanScale() + Number(t.dataset.xpSize)))));
     else if (t.hasAttribute("data-xp-wrap")) set(printWrapKey, printPlanWrap() ? "off" : "on");
     else if (t.dataset.xpLayout) set(printLayoutKey, t.dataset.xpLayout);
@@ -2088,7 +2266,7 @@
     const cards = photos.map((photo, index) => `<article class="trip-photo-card colour-${index % 6}"><button class="trip-photo-open" data-open-photo="${esc(photo.id)}" aria-label="View photo"><img src="${esc(tripPhotoUrl(photo.photoUrl, 800))}" loading="lazy" decoding="async" alt="${esc(photo.caption || `Trip photo by ${photo.uploadedBy || "Trip member"}`)}" width="900" height="600" loading="lazy" decoding="async" fetchpriority="low"></button><div><span class="photo-number">PHOTO ${String(index + 1).padStart(2, "0")}</span><h3>${esc(photo.caption || "A trip memory")}</h3><p>📷 ${esc(photo.uploadedBy || "Trip member")} · ${displayDate(String(photo.createdAt || "").slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</p>${mayManagePhoto(photo) ? `<span class="trip-photo-actions"><button data-edit-caption="${esc(photo.id)}">Edit caption</button>${mayReplacePhoto(photo) ? `<button data-replace-photo="${esc(photo.id)}">Replace</button>` : ""}<button class="delete" data-delete-photo="${esc(photo.id)}">Delete</button></span>` : ""}</div></article>`).join("");
     const albumUrl = String((state.data.trip || {}).photoAlbumUrl || "").trim();
     const albumPanel = `<section class="photo-album-panel"><div class="photo-album-head"><div><span class="kicker">SHARED ALBUM</span><h3>Google Photos album</h3><p>Everyone with the link can view, and add their own photos &amp; videos if Collaborate is turned on.</p></div>${isAdmin() ? `<button type="button" class="ghost-button" data-manage-photo-album>${albumUrl ? "Replace link" : "Add album link"}</button>` : ""}</div>${albumUrl ? `<a class="photo-album-open" target="_blank" rel="noopener" href="${esc(albumUrl)}">📷 Open the shared album ↗</a>` : `<p class="photo-album-empty">${isAdmin() ? "No shared album linked yet — create one in the Google Photos app (name it, turn on Collaborate), then paste the link here." : "The Administrator hasn’t linked a shared album for this trip yet."}</p>`}</section>`;
-    return `<section class="trip-photos-page"><div class="trip-photos-hero"><div><span class="kicker">COLOURFUL TRIP GALLERY</span><h2>Photos from the journey</h2><p>Keep selected trip photographs together. Images are stored in Google Drive and photo details are stored in Google Sheets.</p></div><div class="trip-photos-hero-actions">${isAdmin() ? `<button class="photo-access-toggle ${enabled ? "enabled" : "disabled"}" data-toggle-photo-uploads>${enabled ? "Disable traveller uploads" : "Enable traveller uploads"}</button>` : ""}${mayAdd ? `<button class="primary" data-add-trip-photo>＋ Add photo</button>` : ""}</div></div>${albumPanel}<div class="photo-access-strip ${enabled ? "enabled" : "disabled"}"><i>${enabled ? "●" : "○"}</i><div><b>${isAdmin() ? "Administrator photo control" : "Your photo allowance"}</b><p>${esc(accessText)}</p></div>${!isAdmin() && state.travellerId ? `<strong>${count}/${limit}</strong>` : `<strong>${photos.length} photos</strong>`}</div><div class="trip-photo-grid">${cards || `<div class="empty-photo-gallery"><i>▣</i><b>No trip photos yet</b><p>${mayAdd ? "Add the first colourful memory from this journey." : "An authorised traveller or the Administrator can add the first photo."}</p></div>`}</div></section>`;
+    return `<section class="trip-photos-page"><div class="trip-photos-hero"><div><span class="kicker">COLOURFUL TRIP GALLERY</span><h2>Photos from the journey</h2><p>Keep selected trip photographs together. Images are stored in Google Drive and photo details are stored in Google Sheets.</p></div><div class="trip-photos-hero-actions">${isAdmin() ? `<button type="button" data-trip-header-settings>▦ Header collage</button><button class="photo-access-toggle ${enabled ? "enabled" : "disabled"}" data-toggle-photo-uploads>${enabled ? "Disable traveller uploads" : "Enable traveller uploads"}</button>` : ""}${mayAdd ? `<button class="primary" data-add-trip-photo>＋ Add photo</button>` : ""}</div></div>${albumPanel}<div class="photo-access-strip ${enabled ? "enabled" : "disabled"}"><i>${enabled ? "●" : "○"}</i><div><b>${isAdmin() ? "Administrator photo control" : "Your photo allowance"}</b><p>${esc(accessText)}</p></div>${!isAdmin() && state.travellerId ? `<strong>${count}/${limit}</strong>` : `<strong>${photos.length} photos</strong>`}</div><div class="trip-photo-grid">${cards || `<div class="empty-photo-gallery"><i>▣</i><b>No trip photos yet</b><p>${mayAdd ? "Add the first colourful memory from this journey." : "An authorised traveller or the Administrator can add the first photo."}</p></div>`}</div></section>`;
   }
   function manageTripPhotoAlbum() {
     if (!isAdmin()) return toast("Global Administrator access required", true);
@@ -2408,6 +2586,122 @@
     event.preventDefault(); setSettleVisible(button.dataset.settleToggle === "show");
   });
 
+  function cashLedgerReady() { return state.demoMode || state.cashLedgerAvailable === true || Boolean(backendInfo && backendInfo.cashBorrowing === true); }
+  function cashLoanModel() {
+    const returns = uniqById(state.data.cashReturns || []);
+    const loans = uniqById(state.data.cashLoans || []).map((loan) => {
+      const payments = returns.filter((payment) => String(payment.loanId) === String(loan.id)).sort((a, b) => `${a.paidOn || ""}${a.createdAt || ""}`.localeCompare(`${b.paidOn || ""}${b.createdAt || ""}`));
+      const borrowedCents = Math.round(Number(loan.amount || 0) * 100), returnedCents = payments.reduce((sum, payment) => sum + Math.round(Number(payment.amount || 0) * 100), 0);
+      return { ...loan, borrowedCents, returnedCents, outstandingCents: borrowedCents - returnedCents, payments };
+    }).sort((a, b) => Number(b.outstandingCents > 0) - Number(a.outstandingCents > 0) || `${b.borrowedOn || ""}`.localeCompare(`${a.borrowedOn || ""}`));
+    return { loans, borrowedCents: loans.reduce((sum, loan) => sum + loan.borrowedCents, 0), returnedCents: loans.reduce((sum, loan) => sum + loan.returnedCents, 0), outstandingCents: loans.reduce((sum, loan) => sum + loan.outstandingCents, 0) };
+  }
+  function cashLedgerContents() {
+    if (!canViewExpenses()) return "";
+    if (!cashLedgerReady()) return `<p class="cash-help">Borrowing needs a one-time update before records can be saved across devices.</p>${isAdmin() ? `<button type="button" class="secondary" data-cash-setup>Enable cash records · setup</button>` : `<p>Ask the Administrator to enable cash records.</p>`}`;
+    const model = cashLoanModel();
+    const cards = model.loans.map((loan) => `<article class="cash-loan-card ${loan.outstandingCents > 0 ? "pending" : "closed"}"><header><div><b>${esc(loan.borrower)} <span>borrowed from</span> ${esc(loan.lender)}</b><small>${esc(displayDate(loan.borrowedOn))} · ${esc(loan.method || "Cash")}${loan.reference ? ` · Ref ${esc(loan.reference)}` : ""}</small></div><strong>${loan.outstandingCents > 0 ? `Still to return ${money.format(loan.outstandingCents / 100)}` : "✓ Returned fully"}</strong></header><div class="cash-loan-amounts"><span>Borrowed <b>${money.format(loan.borrowedCents / 100)}</b></span><span>Returned <b>${money.format(loan.returnedCents / 100)}</b></span></div>${loan.note ? `<p>${esc(loan.note)}</p>` : ""}<div class="cash-loan-actions">${canAdd("expense") && loan.outstandingCents > 0 ? `<button type="button" class="primary" data-cash-return="${esc(loan.id)}">Return cash</button>` : ""}${canEditRecords("CashLoans", loan) ? `<button type="button" data-cash-edit-loan="${esc(loan.id)}">Edit borrowing</button>` : ""}${isAdmin() && !loan.payments.length ? `<button type="button" data-cash-delete="${esc(loan.id)}" data-cash-sheet="CashLoans">Delete mistaken entry</button>` : ""}</div><details class="cash-return-history"><summary>Return history · ${loan.payments.length} ${loan.payments.length === 1 ? "payment" : "payments"}</summary>${loan.payments.map((payment) => `<div class="cash-return-row"><span><b>${money.format(payment.amount)}</b> · ${esc(displayDate(payment.paidOn))}<small>${esc(payment.method || "Cash")}${payment.reference ? ` · Ref ${esc(payment.reference)}` : ""}${payment.note ? ` · ${esc(payment.note)}` : ""}</small></span><span>${canEditRecords("CashReturns", payment) ? `<button type="button" data-cash-edit-return="${esc(payment.id)}">Edit return</button>` : ""}${isAdmin() ? `<button type="button" data-cash-delete="${esc(payment.id)}" data-cash-sheet="CashReturns">Undo return</button>` : ""}</span></div>`).join("") || `<p>No returns recorded yet.</p>`}</details></article>`).join("");
+    return `<p class="cash-help">Record temporary money received from another person and its return. Borrowing does not increase trip expenses or count as a shared-expense settlement. If you use it to pay a trip bill, record that bill once as an expense paid by you.</p><div class="cash-ledger-totals"><span>Borrowed<b>${money.format(model.borrowedCents / 100)}</b></span><span>Returned<b>${money.format(model.returnedCents / 100)}</b></span><span>Still to return<b>${money.format(model.outstandingCents / 100)}</b></span></div><div class="cash-ledger-actions">${canAdd("expense") ? `<button type="button" class="primary" data-cash-add>＋ Cash borrowed</button>` : ""}${canPrintReports() ? `<button type="button" class="secondary" data-cash-print>Print borrowed &amp; returned</button>` : ""}<button type="button" data-cash-refresh>↻ Refresh</button></div><div class="cash-loan-list">${cards || `<p class="cash-empty">No cash borrowing recorded. Use “Cash borrowed” when someone gives you temporary cash to return.</p>`}</div>`;
+  }
+  function renderCashLedger() {
+    if (!canViewExpenses()) return "";
+    const model = cashLoanModel();
+    return `<details class="cash-ledger" data-cash-disclosure${state.cashLedgerOpen ? " open" : ""}><summary><span><b>Borrowed &amp; returned</b><small>Temporary cash between people · separate from trip expenses</small></span><strong>${cashLedgerReady() ? `${money.format(model.outstandingCents / 100)} to return` : "One-time setup"}</strong></summary><div class="cash-ledger-body">${cashLedgerContents()}</div></details>`;
+  }
+  function showCashLedger() { if (!canViewExpenses()) return toast("Expense access is required", true); state.cashLedgerOpen = true; showModal("Borrowed & returned", `<div class="cash-ledger-modal">${cashLedgerContents()}</div>`); }
+  function showCashSetup() {
+    showModal("Enable Borrowed & returned", `<div class="modal-form"><p>This needs Google storage script v4.32.3. Your current expenses and settlements continue to work.</p><ol><li>Download the updated Code.gs below.</li><li>Open your existing MyTrip Apps Script project and replace the contents of Code.gs.</li><li>Save and run <b>runAll</b> once. This adds CashLoans and CashReturns to the same spreadsheet.</li><li>Deploy → Manage deployments → Edit → New version → Deploy. Keep the same web-app address.</li><li>Return to MyTrip, refresh and open Borrowed &amp; returned.</li></ol><a class="primary cash-download" href="backend/Code.gs" download="MyTrip-CodeGS-v4.32.3.txt">Download updated Code.gs</a></div>`);
+  }
+  function showCashForm(kind, id = "", loanId = "") {
+    if (!canViewExpenses()) return toast("Expense access is required", true);
+    if (!cashLedgerReady()) return showCashSetup();
+    const isReturn = kind === "return", sheet = isReturn ? "CashReturns" : "CashLoans", collection = isReturn ? "cashReturns" : "cashLoans";
+    const existing = id ? (state.data[collection] || []).find((row) => String(row.id) === String(id)) : null;
+    if (id && !existing) return toast("Cash record not found. Refresh the ledger.", true);
+    if (existing ? !canEditRecords(sheet, existing) : !canAdd("expense")) return toast("Your account cannot change this cash record", true);
+    const loan = isReturn ? cashLoanModel().loans.find((row) => String(row.id) === String(existing ? existing.loanId : loanId)) : null;
+    if (isReturn && !loan) return toast("Borrowing not found. Refresh the ledger.", true);
+    const row = existing || {}, names = [...new Set([...visibleTripMembers().map((person) => person.name), ...cashLoanModel().loans.flatMap((item) => [item.lender, item.borrower])])];
+    const maxReturn = loan ? (loan.outstandingCents + Math.round(Number(row.amount || 0) * 100)) / 100 : null;
+    showModal(existing ? (isReturn ? "Correct cash return" : "Correct cash borrowing") : (isReturn ? "Return borrowed cash" : "Cash borrowed"), `<form class="modal-form cash-entry-form" data-cash-form="${kind}"><p class="cash-help">${isReturn ? `<b>${esc(loan.borrower)}</b> returns money to <b>${esc(loan.lender)}</b>. You can record part or all of the balance.` : "Who gave the cash, and who received it? This creates a borrowing record, not a trip expense."}</p>${isReturn ? `<input type="hidden" name="loanId" value="${esc(loan.id)}">` : `<datalist id="cashPeople">${names.map((name) => `<option value="${esc(name)}"></option>`).join("")}</datalist><div class="form-row"><label>Cash received from · lender<input name="lender" list="cashPeople" maxlength="80" value="${esc(row.lender || "")}" placeholder="Person who gave the cash" required></label><label>Cash received by · borrower<input name="borrower" list="cashPeople" maxlength="80" value="${esc(row.borrower || (state.currentUser !== "Traveller" ? state.currentUser : ""))}" placeholder="Person who took the cash" required></label></div>`}<div class="form-row"><label>${isReturn ? "Amount returned" : "Amount borrowed"}<input name="amount" type="number" inputmode="decimal" min="0.01" step="0.01"${isReturn ? ` max="${maxReturn}"` : ""} value="${esc(row.amount || (isReturn ? maxReturn : ""))}" required>${isReturn ? `<small>Maximum ${money.format(maxReturn)} · part returns are allowed</small>` : ""}</label><label>${isReturn ? "Date returned" : "Date borrowed"}<input name="${isReturn ? "paidOn" : "borrowedOn"}" type="date" value="${esc(row.paidOn || row.borrowedOn || localDateKey())}" max="${esc(localDateKey())}"${isReturn ? ` min="${esc(loan.borrowedOn)}"` : ""} required></label></div><div class="form-row"><label>Payment method<select name="method">${SETTLE_METHODS.map((method) => `<option${method === (row.method || "Cash") ? " selected" : ""}>${esc(method)}</option>`).join("")}</select></label><label>Reference / UTR · optional<input name="reference" maxlength="60" value="${esc(row.reference || "")}"></label></div><label>Note · optional<textarea name="note" maxlength="300" rows="2">${esc(row.note || "")}</textarea></label><div class="form-actions"><button type="submit" class="primary">${existing ? "Save correction" : isReturn ? "Save return" : "Save borrowing"}</button><button type="button" data-cash-cancel>Cancel</button></div></form>`);
+    const form = $('form[data-cash-form]'); form.dataset.cashRecordId = existing ? existing.id : uid();
+    form.addEventListener("submit", (event) => saveCashForm(event, existing));
+    form.querySelector("[data-cash-cancel]").addEventListener("click", showCashLedger);
+  }
+  async function saveCashForm(event, existing) {
+    event.preventDefault(); const form = event.currentTarget; if (form.dataset.saving === "1") return;
+    const isReturn = form.dataset.cashForm === "return", sheet = isReturn ? "CashReturns" : "CashLoans", collection = isReturn ? "cashReturns" : "cashLoans";
+    if (!cashLedgerReady() || !canViewExpenses() || (existing ? !canEditRecords(sheet, existing) : !canAdd("expense"))) return toast("Cash changes are not allowed for this account", true);
+    form.dataset.saving = "1"; const button = form.querySelector('button[type="submit"]'); button.disabled = true;
+    const record = { ...(existing || {}), ...Object.fromEntries(new FormData(form).entries()), id: form.dataset.cashRecordId }; record.amount = Number(record.amount);
+    try {
+      if (!Number.isFinite(record.amount) || record.amount <= 0 || Math.abs(record.amount * 100 - Math.round(record.amount * 100)) > 0.000001) throw new Error("Enter a positive amount with at most two decimal places.");
+      const date = String(record.paidOn || record.borrowedOn || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date || date > localDateKey()) throw new Error("Enter a valid date, today or earlier.");
+      const model = cashLoanModel();
+      if (isReturn) {
+        const loan = model.loans.find((item) => String(item.id) === String(record.loanId));
+        if (!loan || date < loan.borrowedOn || Math.round(record.amount * 100) > loan.outstandingCents + Math.round(Number(existing && existing.amount || 0) * 100)) throw new Error("Return must fit the outstanding balance and cannot precede the borrowing date.");
+      } else {
+        record.lender = String(record.lender || "").trim(); record.borrower = String(record.borrower || "").trim();
+        if (!record.lender || !record.borrower || record.lender.toLowerCase() === record.borrower.toLowerCase()) throw new Error("Enter two different people as lender and borrower.");
+        const loan = model.loans.find((item) => String(item.id) === String(record.id));
+        if (loan && (Math.round(record.amount * 100) < loan.returnedCents || loan.payments.some((payment) => payment.paidOn < record.borrowedOn))) throw new Error("Correct the existing returns before reducing the borrowed amount or moving its date after a return.");
+      }
+      if (state.demoMode) {
+        record.createdBy = existing ? existing.createdBy : state.currentUser; record.createdByAccount = existing ? existing.createdByAccount : isAdmin() ? `administrator:${state.accountUsername}` : `traveller:${state.travellerId}`;
+        record.createdAt = existing ? existing.createdAt : new Date().toISOString(); record.updatedAt = new Date().toISOString();
+        state.data[collection] = [...(state.data[collection] || []).filter((item) => String(item.id) !== String(record.id)), record];
+      } else {
+        const access = authPayload(), principal = `${state.accessRole}:${state.accountUsername}:${state.travellerId}`;
+        record.createdBy = existing ? existing.createdBy : state.currentUser;
+        const saved = await api(existing ? "updateRecord" : isReturn ? "addCashReturn" : "addCashLoan", { ...access, ...(existing ? { sheet, id: record.id } : {}), record });
+        financialMutationRevision++;
+        if (saved && saved.id) record.id = form.dataset.cashRecordId = saved.id;
+        const latest = await api("getTripSection", { ...access, section: "expenses" });
+        const stored = (latest[collection] || []).find((item) => String(item.id) === String(record.id));
+        if (!stored || Math.round(Number(stored.amount) * 100) !== Math.round(record.amount * 100) || (isReturn ? String(stored.loanId) !== String(record.loanId) : stored.lender !== record.lender || stored.borrower !== record.borrower)) throw new Error("The cash entry was submitted but its saved details could not be verified. Refresh before entering it again; retrying this form uses the same reference.");
+        if (!state.data || String(state.data.trip.tripId) !== String(access.tripId) || principal !== `${state.accessRole}:${state.accountUsername}:${state.travellerId}`) throw new Error("Cash entry saved to its original trip. Open that trip to see it.");
+        mergeTripSection(latest);
+      }
+      financialMutationRevision++; state.cashLedgerOpen = true; closeModal(); render(); hydrateShell(); updatePrintArea();
+      if (!state.demoMode) cacheTripBundle(state.data, { name: state.currentUser, role: state.accessRole, travellerId: state.travellerId, loginMode: state.loginMode });
+      toast(existing ? "Cash record corrected · balance updated" : isReturn ? "Cash return recorded · balance updated" : "Cash borrowing recorded · trip expenses unchanged");
+    } catch (error) { toast(error.message, true); }
+    finally { if (form.isConnected) { form.dataset.saving = ""; button.disabled = false; } }
+  }
+  async function deleteCashEntry(sheet, id) {
+    if (!isAdmin() || !cashLedgerReady()) return toast("Administrator access is required", true);
+    if (!["CashLoans", "CashReturns"].includes(sheet)) return;
+    if (sheet === "CashLoans" && (state.data.cashReturns || []).some((row) => String(row.loanId) === String(id))) return toast("This borrowing has recorded returns. Correct those returns first.", true);
+    if (!confirm(sheet === "CashReturns" ? "Undo this recorded return? The amount will become outstanding again." : "Delete this mistaken borrowing entry?")) return;
+    try {
+      if (!state.demoMode) await api("deleteRecord", authPayload({ sheet, id }));
+      financialMutationRevision++; const collection = sheet === "CashLoans" ? "cashLoans" : "cashReturns"; state.data[collection] = (state.data[collection] || []).filter((row) => String(row.id) !== String(id));
+      state.cashLedgerOpen = true; closeModal(); render(); updatePrintArea(); toast("Cash record removed · balance updated");
+    } catch (error) { toast(error.message, true); }
+  }
+  function renderCashLoanPrint() {
+    if (!canPrintReports() || !canViewExpenses() || !cashLedgerReady()) return "";
+    const model = cashLoanModel(); if (!model.loans.length) return "";
+    const rows = model.loans.map((loan) => `<tr><td>${esc(displayDate(loan.borrowedOn))}</td><td>${esc(loan.lender)} → ${esc(loan.borrower)}${loan.note ? `<span class="print-tag">${esc(loan.note)}</span>` : ""}</td><td>${money.format(loan.borrowedCents / 100)}</td><td>${money.format(loan.returnedCents / 100)}</td><td>${loan.outstandingCents ? `${money.format(loan.outstandingCents / 100)} · ${esc(loan.borrower)} owes ${esc(loan.lender)}` : "RETURNED FULLY"}</td></tr>`).join("");
+    const history = model.loans.flatMap((loan) => loan.payments.map((payment) => `<tr><td>${esc(displayDate(payment.paidOn))}</td><td>${esc(loan.borrower)} → ${esc(loan.lender)}</td><td>${money.format(payment.amount)}</td><td>${esc(payment.method || "Cash")}${payment.reference ? `<br>Ref ${esc(payment.reference)}` : ""}${payment.note ? `<br>${esc(payment.note)}` : ""}</td></tr>`)).join("");
+    return `<section class="print-settlements print-cash-borrowing"><h2>Cash borrowed &amp; returned</h2><p>Separate personal borrowing ledger. These amounts are excluded from trip expenses and shared-expense settlement totals. Outstanding borrowing is payable by the named borrower directly to the named lender.</p><div class="print-totals"><span><small>Borrowed</small><b>${money.format(model.borrowedCents / 100)}</b></span><span><small>Returned</small><b>${money.format(model.returnedCents / 100)}</b></span><span><small>Still to return</small><b>${money.format(model.outstandingCents / 100)}</b></span></div><h3>Borrowing balances</h3><table class="print-expense-table"><thead><tr><th>Date borrowed</th><th>Lender → Borrower</th><th>Borrowed</th><th>Returned</th><th>Outstanding / status</th></tr></thead><tbody>${rows}</tbody></table><h3>Cash return history</h3><table class="print-expense-table"><thead><tr><th>Date returned</th><th>Borrower → Lender</th><th>Returned</th><th>Method / reference / note</th></tr></thead><tbody>${history || `<tr><td colspan="4">No returns recorded yet.</td></tr>`}</tbody></table></section>`;
+  }
+  document.addEventListener("toggle", (event) => { if (event.target.matches && event.target.matches("[data-cash-disclosure]")) state.cashLedgerOpen = event.target.open; }, true);
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-cash-add],[data-cash-return],[data-cash-edit-loan],[data-cash-edit-return],[data-cash-delete],[data-cash-setup],[data-cash-refresh],[data-cash-print]"); if (!button) return;
+    event.preventDefault();
+    if (button.hasAttribute("data-cash-add")) return showCashForm("loan");
+    if (button.hasAttribute("data-cash-return")) return showCashForm("return", "", button.dataset.cashReturn);
+    if (button.hasAttribute("data-cash-edit-loan")) return showCashForm("loan", button.dataset.cashEditLoan);
+    if (button.hasAttribute("data-cash-edit-return")) return showCashForm("return", button.dataset.cashEditReturn);
+    if (button.hasAttribute("data-cash-delete")) return deleteCashEntry(button.dataset.cashSheet, button.dataset.cashDelete);
+    if (button.hasAttribute("data-cash-setup")) return showCashSetup();
+    if (button.hasAttribute("data-cash-print")) { closeModal(); return printReport("cash"); }
+    if (button.hasAttribute("data-cash-refresh")) { closeModal(); state.cashLedgerOpen = true; return refreshTrip(); }
+  });
+
   function renderPostSettlementActions() {
     if (!canViewExpenses() || (!isAdmin() && !settleShown()) || !(state.data.settlements || []).length) return "";
     const actions = `${canAdd("expense") ? `<button type="button" class="primary" data-post-settlement-add>＋ Add missed expense</button>` : ""}${canEditRecords("Expenses") ? `<button type="button" class="secondary" data-post-settlement-edit>Find &amp; edit expense</button>` : ""}`;
@@ -2524,7 +2818,7 @@
     const travellerCards = expenseTotalsByTraveller().map((row) => `<article class="traveller-expense-card"><i>${avatarSlot(row)}</i><div><b>${esc(row.name)}</b><small>${row.count} ${row.count === 1 ? "payment" : "payments"}</small></div><strong>${money.format(row.total)}</strong></article>`).join("");
     const fold = (t, s, body, open) => `<details class="mt-fold"${t === "Who paid" ? " data-expense-paid-panel" : t === "Settle up" ? " data-expense-settle-panel" : ""}${open ? " open" : ""}><summary><span><b>${t}</b><small>${s}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>`;
     const left = budget - total;
-    return `<section class="mt-money">${expenseViewShortcuts()}<div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<div class="mt-money-actions"><button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button><button type="button" class="mt-today-add mt-paste-import" data-text-import="auto">▤ Paste &amp; import</button></div>` : ""}${renderPostSettlementActions()}${renderExpenseSharingSummary()}<div class="mt-xfilters">${chips}</div>${travellerChips}<p class="expense-filter-result" role="status">${shown.length} ${shown.length === 1 ? "expense" : "expenses"} shown · ${money.format(sum(shown))}</p><div class="mt-xlist">${list || `<p class="mt-today-empty">${travellerFilter ? `No expenses for ${esc(travellerFilter)}${f !== "all" ? " on this day" : ""}.` : f === "all" ? "No expenses match these filters. Try All expenses or another date." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", renderExpensePaidBreakdown(state.data.expenses))}${fold("Settle up", "Who owes whom", renderSettleUp(), state.mtSettleOpen)}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
+    return `<section class="mt-money">${expenseViewShortcuts()}<div class="mt-money-strip"><div><small>TODAY</small><b>${money.format(todaySum)}</b></div><div><small>TRIP TOTAL</small><b>${money.format(total)}</b></div><div><small>${left < 0 ? "OVER BUDGET" : "BUDGET LEFT"}</small><b class="${left < 0 ? "neg" : ""}">${budget ? money.format(Math.abs(left)) : "—"}</b></div></div>${canAdd("expense") ? `<div class="mt-money-actions"><button type="button" class="mt-today-add primary mt-money-add" data-mt-add="expense">＋ Add expense</button><button type="button" class="mt-today-add mt-paste-import" data-text-import="auto">▤ Paste &amp; import</button></div>` : ""}${renderCashLedger()}${renderPostSettlementActions()}${renderExpenseSharingSummary()}<div class="mt-xfilters">${chips}</div>${travellerChips}<p class="expense-filter-result" role="status">${shown.length} ${shown.length === 1 ? "expense" : "expenses"} shown · ${money.format(sum(shown))}</p><div class="mt-xlist">${list || `<p class="mt-today-empty">${travellerFilter ? `No expenses for ${esc(travellerFilter)}${f !== "all" ? " on this day" : ""}.` : f === "all" ? "No expenses match these filters. Try All expenses or another date." : "No expenses on this day."}</p>`}</div>${canDel ? `<p class="mt-xhint">Tip: swipe a row left to delete · tap to edit</p>` : canEdit ? `<p class="mt-xhint">Tap a row to edit</p>` : ""}${fold("Who paid", "Traveller-wise totals", renderExpensePaidBreakdown(state.data.expenses))}${fold("Settle up", "Who owes whom", renderSettleUp(), state.mtSettleOpen)}${fold("Spending chart", "Category & budget", renderSpendChart(total, budget))}${canPrintReports() ? `<button type="button" class="mt-today-add mt-money-print" data-print="expenses">▤ Print expenses</button>` : ""}</section>`;
   }
   document.addEventListener("click", event => {
     const button = event.target.closest("[data-expense-jump]"); if (!button) return;
@@ -2704,7 +2998,7 @@
       const deleteAction = isAdmin() ? `<button class="delete" data-delete-expense="${esc(expense.id)}">Delete</button>` : "";
       return `<div class="expense-row"><span class="expense-description"><i>₹</i><span><b>${esc(expense.label)}</b>${expenseShareBadge(expense)}</span></span><span>${displayDate(expense.date)}</span><span><em class="expense-category">${esc(expense.category || "Other")}</em></span><span><b class="expense-payer">${esc(expense.paidBy || "Not specified")}</b></span><span class="expense-amount"><strong>${money.format(expense.amount)}</strong></span><span class="expense-row-actions"><button data-view-expense="${esc(expense.id)}">View</button>${expense.receiptUrl || canEditRecords("Expenses") ? `<button class="receipt-btn${expense.receiptUrl ? " has" : ""}" data-receipt-open="${esc(expense.id)}" title="${expense.receiptUrl ? "View receipt" : "Add receipt photo"}">🧾</button>` : ""}${editActions}${deleteAction}</span></div>`;
     }).join("");
-    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}${expenseViewShortcuts()}${canAdd("expense") ? textImportStrip("auto") : ""}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderPostSettlementActions()}${renderExpenseSharingSummary()}${renderSpendChart(total, budget)}<section class="traveller-expense-panel" data-expense-paid-panel><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Expand a traveller to review their bills. Paid is money advanced; Family division shows each share.</p></div><strong>${money.format(total)} total</strong></div>${renderExpensePaidBreakdown(state.data.expenses)}</section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-expense-columns>⇔ Reset</button></label>`)}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${travellerFilterBar}<p class="expense-filter-result" role="status">${visibleExpenses.length} ${visibleExpenses.length === 1 ? "expense" : "expenses"} shown · ${money.format(filteredTotal)}</p><div class="expense-table expense-action-table" style="${expenseColumnStyle()}"><div class="expense-table-header">${expenseColumnLabels.map((label, index) => `<span>${label}${index < expenseColumnLabels.length - 1 ? `<i class="expense-col-grip" data-exp-col="${index}" title="Drag to resize this column">⋮⋮</i>` : ""}</span>`).join("")}</div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
+    return `${heading("EXPENSE TRACKER", "Expenses and payments", "View every payment in one row. Allowed accounts can use quick row editing or the full editor; deletion is controlled by the Administrator.", "expense")}${expenseViewShortcuts()}${canAdd("expense") ? textImportStrip("auto") : ""}<section class="expense-summary"><article class="summary-card budget-card"><small>TRIP BUDGET</small><strong>${money.format(budget)}</strong><span>Planned spending limit</span></article><article class="summary-card spent-card"><small>TOTAL EXPENSES</small><strong>${money.format(total)}</strong><span>${budget ? Math.round(total / budget * 100) : 0}% of the budget used</span></article><article class="summary-card balance-card"><small>${budget - total < 0 ? "OVER BUDGET" : "BALANCE AVAILABLE"}</small><strong>${money.format(Math.abs(budget - total))}</strong><span>${budget - total < 0 ? "Review trip spending" : "Remaining for this trip"}</span></article></section>${renderCashLedger()}${renderPostSettlementActions()}${renderExpenseSharingSummary()}${renderSpendChart(total, budget)}<section class="traveller-expense-panel" data-expense-paid-panel><div class="traveller-expense-heading"><div><span class="kicker">WHO PAID</span><h2>Traveller-wise expense totals</h2><p>Expand a traveller to review their bills. Paid is money advanced; Family division shows each share.</p></div><strong>${money.format(total)} total</strong></div>${renderExpensePaidBreakdown(state.data.expenses)}</section>${renderSettleUp()}<section class="table-panel expense-record-panel"><div class="table-headline"><div><span class="kicker">COMPLETE RECORD</span><h2>${travellerFilter ? `${esc(travellerFilter)}'s expenses` : "Detailed expense statement"}</h2><p>${travellerFilter ? `${rows ? visibleExpenses.length : 0} ${visibleExpenses.length === 1 ? "entry" : "entries"} · ${money.format(filteredTotal)} total. Use Row edit for a quick change or Edit for every field.` : "Use Row edit for a quick change or Edit for every field."}</p></div>${canPrintReports() ? `<span class="plan-table-tools">${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-expense-columns>⇔ Reset</button></label>`)}<button class="plan-tool primary-tool" data-print="expenses">▤ Print expenses</button></span>` : ""}</div>${travellerFilterBar}<p class="expense-filter-result" role="status">${visibleExpenses.length} ${visibleExpenses.length === 1 ? "expense" : "expenses"} shown · ${money.format(filteredTotal)}</p><div class="expense-table expense-action-table" style="${expenseColumnStyle()}"><div class="expense-table-header">${expenseColumnLabels.map((label, index) => `<span>${label}${index < expenseColumnLabels.length - 1 ? `<i class="expense-col-grip" data-exp-col="${index}" title="Drag to resize this column">⋮⋮</i>` : ""}</span>`).join("")}</div>${rows || `<div class="expense-empty-row"><b>${travellerFilter ? `No expenses recorded for ${esc(travellerFilter)}` : "No expenses recorded"}</b><p>${travellerFilter ? "Try another traveller or clear the filter." : "Add the first trip payment."}</p></div>`}</div></section>`;
   }
   document.addEventListener("click", (event) => { const t = event.target.closest("[data-expense-traveller-filter]"); if (!t) return; event.preventDefault(); state.expenseTravellerFilter = t.dataset.expenseTravellerFilter; render(); });
 
@@ -3547,6 +3841,7 @@
   }
   function renderInner() {
     if (!state.data) { try { hideTabbar(); } catch (error) {} return; }
+    updateTripHeaderCollage();
     const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, checklist: renderChecklist, print: renderPrint, help: renderHelp };
     $("#view").innerHTML = accessNotice() + tripAnnouncementTicker() + (state.tab === "overview" ? greetingStrip() + rateReminder() + weatherSlot() : "") + renderers[state.tab]();
     if (state.tab === "expenses" && isAdmin()) {
@@ -5571,7 +5866,7 @@
   function showTripPhotoSettings() {
     if (!isAdmin()) return toast("Administrator access required to change the trip photo", true);
     const current = String(state.data.trip.photoUrl || "");
-    showModal(current ? "Change trip photo" : "Add trip photo", `<form class="modal-form" id="tripPhotoForm"><div class="security-note traveller-note"><i>▣</i><p>Upload any JPEG, PNG or WebP original up to 20 MB. The original is stored in Google Drive; the dashboard loads a smaller thumbnail for speed. You can alternatively paste a public HTTPS image link.</p></div><label>Upload from this device<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp"></label>${originalToggle()}<div class="or"><span>or</span></div><label>Public photo link <small>(optional)</small><input name="photoUrl" type="url" value="${esc(current)}" placeholder="https://…"></label>${current ? `<div class="photo-preview"><img loading="lazy" decoding="async" src="${esc(tripPhotoUrl(current))}" alt="Current trip photo"></div>` : ""}<div class="form-actions">${current ? `<button type="button" id="removeTripPhoto" class="danger-link">Remove photo</button>` : `<button type="button" data-cancel>Cancel</button>`}<button type="submit">Save photo</button></div></form>`);
+    showModal(current ? "Change trip photo" : "Add trip photo", `<form class="modal-form" id="tripPhotoForm"><button type="button" data-trip-header-settings>▦ Choose trip header collage (4–5 photos)</button><div class="security-note traveller-note"><i>▣</i><p>Upload any JPEG, PNG or WebP original up to 20 MB. The original is stored in Google Drive; the dashboard loads a smaller thumbnail for speed. You can alternatively paste a public HTTPS image link.</p></div><label>Upload from this device<input name="photoFile" type="file" accept="image/jpeg,image/png,image/webp"></label>${originalToggle()}<div class="or"><span>or</span></div><label>Public photo link <small>(optional)</small><input name="photoUrl" type="url" value="${esc(current)}" placeholder="https://…"></label>${current ? `<div class="photo-preview"><img loading="lazy" decoding="async" src="${esc(tripPhotoUrl(current))}" alt="Current trip photo"></div>` : ""}<div class="form-actions">${current ? `<button type="button" id="removeTripPhoto" class="danger-link">Remove photo</button>` : `<button type="button" data-cancel>Cancel</button>`}<button type="submit">Save photo</button></div></form>`);
     const form = $("#tripPhotoForm");
     const savePhoto = async () => {
       try {
@@ -5902,13 +6197,16 @@
     const xpPeople = () => [...new Set([...visibleTripMembers().map((m) => m.name), ...xpSorted.map((e) => e.paidBy || "Not specified")])].filter((n) => xpSorted.some((e) => (e.paidBy || "Not specified") === n));
     const xpDetail = () => xpWho === "__each" ? xpPeople().map((n) => `<div class="print-person-block"><h3>${esc(n)} · paid ${money.format(xpSorted.filter((e) => (e.paidBy || "Not specified") === n).reduce((s, e) => s + Number(e.amount || 0), 0))}</h3>${xpTable(xpSorted.filter((e) => (e.paidBy || "Not specified") === n), false)}</div>`).join("") : xpWho ? `<h3>Expenses paid by ${esc(xpWho)}</h3>${xpTable(xpSorted.filter((e) => (e.paidBy || "Not specified") === xpWho), false)}` : `<h3>Detailed expense statement</h3>${xpTable(xpSorted)}`;
     const expenseSection = canViewExpenses() ? `<section class="print-expenses${xpWho ? " print-xp-person" : ""}"><h2>${xpWho && xpWho !== "__each" ? `Expense statement · ${esc(xpWho)}` : xpWho === "__each" ? "Expense statement · person-wise" : "Expense statement"}</h2><div class="print-totals"><span><small>Budget</small><b>${money.format(budget)}</b></span><span><small>Spent</small><b>${money.format(spent())}</b></span><span><small>Balance</small><b>${money.format(remaining())}</b></span></div>${renderExpenseSharingSummary(false)}<div class="print-traveller-totals"><h3>Traveller-wise expense totals</h3><table class="print-expense-table"><thead><tr><th>Traveller</th><th>Payments</th><th>Total paid</th></tr></thead><tbody>${printedTravellerTotals || `<tr><td colspan="3">No traveller expenses recorded.</td></tr>`}</tbody></table></div>${xpDetail()}</section>` : "";
-    $("#printArea").innerHTML = `${photo ? `<img loading="lazy" decoding="async" class="print-cover-photo" src="${esc(photo)}" alt="Trip cover photo">` : ""}<header><div><span class="kicker">MYTRIP · TRIP BOOK · FRONTEND v${frontendVersion}</span><h1>${esc(state.data.trip.name)}</h1><p>${displayDate(state.data.trip.startDate)}–${displayDate(state.data.trip.endDate)}${memberText}</p></div><b>${esc(state.data.trip.tripId)}</b></header>${planSection}${experienceSection}${expenseSection}${renderSettlementPrint()}`;
+    $("#printArea").innerHTML = `${document.body.dataset.print === "expenses" ? renderExpensePrintCollage() : document.body.dataset.print === "full" && tripSettingOn(state.data.trip.headerCollagePrintDefault) ? renderTripPhotoPrintCollage(tripHeaderCollagePhotos()) : ""}${photo ? `<img loading="lazy" decoding="async" class="print-cover-photo" src="${esc(photo)}" alt="Trip cover photo">` : ""}<header><div><span class="kicker">MYTRIP · TRIP BOOK · FRONTEND v${frontendVersion}</span><h1>${esc(state.data.trip.name)}</h1><p>${displayDate(state.data.trip.startDate)}–${displayDate(state.data.trip.endDate)}${memberText}</p></div><b>${esc(state.data.trip.tripId)}</b></header>${planSection}${experienceSection}${expenseSection}${renderSettlementPrint()}${renderCashLoanPrint()}`;
     printAreaDirty = false;
   }
 
   function updatePrintArea(force = false) { printAreaDirty = true; if (force) buildPrintArea(); }
 
-  function printReport(target, day = "") { if (!canPrintReports()) return toast("Print & Export is hidden for your Traveller ID", true); if ((target === "itinerary" || target === "plan") && !canViewItinerary()) return toast("Itinerary access is hidden for your Traveller ID", true); if ((target === "expenses" || target === "settlements") && !canViewExpenses()) return toast("Expense access is hidden for your Traveller ID", true); if (target === "settlements" && !isAdmin() && !settleShown()) return toast("Settle up is hidden until the trip ends or the Administrator shows it", true); if (["expenses", "settlements", "full"].includes(target) && canViewExpenses() && state.settlementDataFresh === false) return toast("Saved repayments are still being checked. Refresh repayments before printing current balances.", true); state.printDay = day; document.body.dataset.print = target; buildPrintArea(); const clear = () => { delete document.body.dataset.print; state.printDay = ""; printAreaDirty = true; removeEventListener("afterprint", clear); }; addEventListener("afterprint", clear); print(); setTimeout(clear, 1200); }
+  function printReport(target, day = "") { if (!canPrintReports()) return toast("Print & Export is hidden for your Traveller ID", true); if ((target === "itinerary" || target === "plan") && !canViewItinerary()) return toast("Itinerary access is hidden for your Traveller ID", true); if ((["expenses", "settlements", "cash"].includes(target)) && !canViewExpenses()) return toast("Expense access is hidden for your Traveller ID", true); if (target === "settlements" && !isAdmin() && !settleShown()) return toast("Settle up is hidden until the trip ends or the Administrator shows it", true); if (["expenses", "settlements", "cash", "full"].includes(target) && canViewExpenses() && state.settlementDataFresh === false) return toast("Saved repayments are still being checked. Refresh repayments before printing current balances.", true); state.printDay = day; document.body.dataset.print = target; buildPrintArea(); const clear = () => { delete document.body.dataset.print; state.printDay = ""; printAreaDirty = true; removeEventListener("afterprint", clear); }; const run = () => { if (document.body.dataset.print !== target) return; addEventListener("afterprint", clear); print(); setTimeout(clear, 1200); };
+    const images = ["expenses", "full"].includes(target) ? [...document.querySelectorAll("#printArea .print-photo-collage img")] : [];
+    if (images.length) { toast("Preparing photo thumbnails…"); return prepareExpensePrintPhotos(images, { header: target === "full", printing: true }).then(run); }
+    run(); }
 
   async function refreshTrip() {
     if (state.demoMode) return toast("Demo data is already up to date");
@@ -6114,6 +6412,7 @@
     if (!state.data) return;
     const actions = [
       ["expense", "₹", "Expense", "Amount, payer and receipt", canAdd("expense")],
+      ["cash", "⇄", "Borrowed & returned", "Cash borrowed or returned · separate ledger", canViewExpenses()],
       ["plan", "▦", "Plan", "Itinerary date and place", canAdd("plan")],
       ["place", "⌖", "Place", "Save to Places & Map", canAdd("place")],
       ["experience", "✍", "Experience", "Daily memory or reflection", canAdd("experience")],
@@ -6123,6 +6422,7 @@
     showModal("Quick Add", `<div class="quick-add-sheet"><p>Add to <b>${esc(state.data.trip.name)}</b> without hunting through menus.</p><div>${actions.map(([type, icon, label, help]) => `<button type="button" data-quick-add="${type}"><i>${icon}</i><span><b>${label}</b><small>${help}</small></span><em>›</em></button>`).join("")}</div></div>`);
     $$("[data-quick-add]", $("#modalBody")).forEach((button) => button.addEventListener("click", () => {
       const type = button.dataset.quickAdd; closeModal();
+      if (type === "cash") return showCashLedger();
       if (type === "photo") return showTripGalleryPhotoEditor();
       if (type === "import") return openTextImport("auto");
       showAddModal(type);
@@ -6676,7 +6976,7 @@ document.addEventListener("DOMContentLoaded",scan);window.addEventListener("load
 
 ;(()=>{const idOf=(u)=>{u=String(u||"");const m=u.match(/[?&]id=([A-Za-z0-9_-]{10,})/)||u.match(/\/file\/d\/([A-Za-z0-9_-]{10,})/)||u.match(/googleusercontent\.com\/d\/([A-Za-z0-9_-]{10,})/);return m?m[1]:"";};
 const chain=(id)=>["https://lh3.googleusercontent.com/d/"+id+"=w1600","https://drive.google.com/thumbnail?id="+id+"&sz=w1000","https://drive.usercontent.google.com/download?id="+id+"&export=view"];
-document.addEventListener("error",(e)=>{const img=e.target;if(!img||img.tagName!=="IMG")return;const id=idOf(img.dataset.mtOrig||img.src);const step=Number(img.dataset.mtTry||0);
+document.addEventListener("error",(e)=>{const img=e.target;if(!img||img.tagName!=="IMG"||(img.hasAttribute("data-print-thumbnail")||img.hasAttribute("data-trip-header-thumbnail")))return;const id=idOf(img.dataset.mtOrig||img.src);const step=Number(img.dataset.mtTry||0);
 if(id&&step<3){if(!img.dataset.mtOrig)img.dataset.mtOrig=img.src;img.dataset.mtTry=String(step+1);img.src=chain(id)[step];return;}
 const box=img.closest(".library-cover");if(box&&!box.querySelector(".library-cover-letter")){const s=document.createElement("span");s.className="library-cover-letter";s.textContent=img.dataset.letter||"";box.classList.remove("has-photo");box.prepend(s);}
 img.style.display="none";},true);})();

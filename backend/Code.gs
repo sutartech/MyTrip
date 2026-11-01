@@ -1,5 +1,5 @@
 /**
- * MyTrip Google Apps Script backend — Version 4.32.2
+ * MyTrip Google Apps Script backend — Version 4.32.5
  * ------------------------------------------------
  * One global Administrator username and password opens every trip.
  * Every trip may keep a separate shared-trip password for legacy access.
@@ -95,10 +95,10 @@ const MYTRIP = Object.freeze({
   idleMinuteChoices: [5, 30, 60, 120],
   temporaryAdminResetProperty: 'MYTRIP_NEW_ADMIN_SECRET',
   temporaryAdminUsernameResetProperty: 'MYTRIP_NEW_ADMIN_USERNAME',
-  version: '4.32.2',
+  version: '4.32.5',
   roles: { administrator: 'administrator', traveller: 'traveller' },
   sheets: {
-    Trips: ['tripId', 'name', 'destination', 'startDate', 'endDate', 'budget', 'currency', 'photoUrl', 'photoFileId', 'photoUploadsEnabled', 'enabled', 'listHidden', 'listOrder', 'splitMembers', 'settleVisible', 'stickyHidden', 'altCurrency', 'altRate', 'inviteCode', 'inviteExpires', 'inviteRole', 'accessHash', 'adminHash', 'travellerHash', 'createdBy', 'createdByTravellerId', 'createdAt', 'updatedAt', 'photoAlbumUrl', 'announcementEnabled', 'announcementText', 'announcementStyle', 'announcementStart', 'announcementEnd', 'announcementSpeed', 'ratingRequired', 'ratingGraceDays'],
+    Trips: ['tripId', 'name', 'destination', 'startDate', 'endDate', 'budget', 'currency', 'photoUrl', 'photoFileId', 'photoUploadsEnabled', 'enabled', 'listHidden', 'listOrder', 'splitMembers', 'settleVisible', 'stickyHidden', 'altCurrency', 'altRate', 'inviteCode', 'inviteExpires', 'inviteRole', 'accessHash', 'adminHash', 'travellerHash', 'createdBy', 'createdByTravellerId', 'createdAt', 'updatedAt', 'photoAlbumUrl', 'announcementEnabled', 'announcementText', 'announcementStyle', 'announcementStart', 'announcementEnd', 'announcementSpeed', 'ratingRequired', 'ratingGraceDays', 'headerCollageEnabled', 'headerPhotoIds', 'headerCollagePrintDefault'],
     Members: ['id', 'tripId', 'travellerId', 'name', 'role', 'createdAt'],
     Feedback: ['id', 'tripId', 'userKey', 'name', 'role', 'overall', 'itinerary', 'expenses', 'sticky', 'photos', 'suggestion', 'createdAt', 'updatedAt'],
     TravellerAccounts: ['travellerId', 'name', 'phone', 'email', 'otpEnabled', 'emailVerifiedAt', 'city', 'emergencyContact', 'notes', 'pinHash', 'active', 'canCreateTrips', 'tripCreationLimit', 'photoUrl', 'photoFileId', 'plan', 'planExpires', 'planSource', 'ratingDowngradedTripId', 'createdAt', 'updatedAt'],
@@ -111,6 +111,8 @@ const MYTRIP = Object.freeze({
     StickyNotes: ['id', 'tripId', 'type', 'title', 'details', 'dueDate', 'colour', 'pinned', 'x', 'y', 'width', 'height', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt'],
     Expenses: ['id', 'tripId', 'date', 'label', 'category', 'paidBy', 'amount', 'notes', 'createdBy', 'createdAt', 'receiptUrl', 'receiptFileId', 'sharedBy', 'currency', 'foreignAmount', 'fxRate', 'source', 'quickPassId','createdByAccount'],
     QuickExpensePasses: ['id', 'tripId', 'travellerId', 'tokenHash', 'enabled', 'activeFrom', 'expiresAt', 'dailyLimit', 'editMinutes', 'allowEdit', 'recentLimit', 'allowAnyPayer', 'usageDate', 'usageCount', 'createdAt', 'createdBy', 'updatedAt', 'lastUsedAt'],
+    CashLoans: ['id', 'tripId', 'lender', 'borrower', 'amount', 'borrowedOn', 'method', 'reference', 'note', 'createdBy', 'createdByAccount', 'createdAt', 'updatedAt'],
+    CashReturns: ['id', 'tripId', 'loanId', 'amount', 'paidOn', 'method', 'reference', 'note', 'createdBy', 'createdByAccount', 'createdAt', 'updatedAt'],
     Settlements: ['id', 'tripId', 'fromPerson', 'toPerson', 'amount', 'note', 'settledBy', 'createdAt', 'method', 'paidOn', 'reference'],
     JoinRequests: ['id', 'tripId', 'travellerId', 'name', 'phone', 'status', 'createdAt', 'decidedAt'],
     Checklist: ['id', 'tripId', 'text', 'assignee', 'day', 'done', 'doneBy', 'createdBy', 'createdAt', 'updatedAt'],
@@ -151,7 +153,7 @@ function setupMyTrip() {
   if (!properties.getProperty(MYTRIP.globalAdminUsernameProperty)) properties.setProperty(MYTRIP.globalAdminUsernameProperty, 'administrator');
   try { organiseMyTripDrive_(); } catch (driveError) { console.warn('Drive organisation skipped: ' + driveError.message); }
   console.log('MyTrip v' + MYTRIP.version + ' is ready. Spreadsheet: ' + spreadsheet.getUrl());
-  return { spreadsheetId: spreadsheetId, spreadsheetUrl: spreadsheet.getUrl(), version: MYTRIP.version, accountLogin: true, identifierLogin: true, otpLogin: true, otpEmail: true, otpSms: false, emailOnlyOtp: true, contactVerification: true, passwordResetOtp: true, batchedSheetIO: true, singleDriveRoot: true, originalPhotos20MB: true, quickExpenseNoExpiry: true, quickExpenseValiditySchedule: true, accessAudit: true, travellerCredentialEdit: true, travellerTripCreation: true, travellerTripCreationQuota: true, tripPhotoGallery: true, settlementRecords: true, tripAnnouncements: true, ratingProGrace: true, quickExpenseLinks: true, quickExpenseAnyPayer: true, quickExpenseTripWide: true, quickExpenseHistoryControls: true, granularPermissions: true, systemHealth: true, sectionLoading: true, offlineExpenseQueue: true, receiptReadForScan: true, globalAdministratorConfigured: Boolean(getGlobalAdminHash()), globalAdministratorUsernameConfigured: Boolean(getGlobalAdminUsername()) };
+  return { spreadsheetId: spreadsheetId, spreadsheetUrl: spreadsheet.getUrl(), version: MYTRIP.version, accountLogin: true, identifierLogin: true, otpLogin: true, otpEmail: true, otpSms: false, emailOnlyOtp: true, contactVerification: true, passwordResetOtp: true, batchedSheetIO: true, singleDriveRoot: true, originalPhotos20MB: true, quickExpenseNoExpiry: true, quickExpenseValiditySchedule: true, accessAudit: true, travellerCredentialEdit: true, travellerTripCreation: true, travellerTripCreationQuota: true, tripPhotoGallery: true, settlementRecords: true, cashBorrowing: true, printPhotoThumbnails: true, tripHeaderCollage: true, tripAnnouncements: true, ratingProGrace: true, quickExpenseLinks: true, quickExpenseAnyPayer: true, quickExpenseTripWide: true, quickExpenseHistoryControls: true, granularPermissions: true, systemHealth: true, sectionLoading: true, offlineExpenseQueue: true, receiptReadForScan: true, globalAdministratorConfigured: Boolean(getGlobalAdminHash()), globalAdministratorUsernameConfigured: Boolean(getGlobalAdminUsername()) };
 }
 
 /**
@@ -326,7 +328,7 @@ function resetMyTripAdministratorLogin() {
 }
 
 function doGet() {
-  return jsonResponse({ ok: true, data: { app: 'MyTrip', version: MYTRIP.version, status: 'ready', stickyNoteDiary: true, sharedStickyNotes: true, feedback: true, itineraryPlanner: true, sharedTripList: true, idleSignout: true, profilePhotos: true, accountLogin: true, identifierLogin: true, otpLogin: true, otpEmail: true, otpSms: false, emailOnlyOtp: true, contactVerification: true, passwordResetOtp: true, batchedSheetIO: true, singleDriveRoot: true, originalPhotos20MB: true, quickExpenseNoExpiry: true, quickExpenseValiditySchedule: true, accessAudit: true, travellerCredentialEdit: true, administratorLoginEdit: true, travellerTripCreation: true, travellerTripCreationQuota: true, tripPhotoGallery: true, tripAnnouncements: true, ratingProGrace: true, quickExpenseLinks: true, quickExpenseAnyPayer: true, quickExpenseTripWide: true, quickExpenseHistoryControls: true, granularPermissions: true, systemHealth: true, sectionLoading: true, offlineExpenseQueue: true, receiptReadForScan: true } });
+  return jsonResponse({ ok: true, data: { app: 'MyTrip', version: MYTRIP.version, status: 'ready', cashBorrowing: true, printPhotoThumbnails: true, tripHeaderCollage: true, stickyNoteDiary: true, sharedStickyNotes: true, feedback: true, itineraryPlanner: true, sharedTripList: true, idleSignout: true, profilePhotos: true, accountLogin: true, identifierLogin: true, otpLogin: true, otpEmail: true, otpSms: false, emailOnlyOtp: true, contactVerification: true, passwordResetOtp: true, batchedSheetIO: true, singleDriveRoot: true, originalPhotos20MB: true, quickExpenseNoExpiry: true, quickExpenseValiditySchedule: true, accessAudit: true, travellerCredentialEdit: true, administratorLoginEdit: true, travellerTripCreation: true, travellerTripCreationQuota: true, tripPhotoGallery: true, tripAnnouncements: true, ratingProGrace: true, quickExpenseLinks: true, quickExpenseAnyPayer: true, quickExpenseTripWide: true, quickExpenseHistoryControls: true, granularPermissions: true, systemHealth: true, sectionLoading: true, offlineExpenseQueue: true, receiptReadForScan: true } });
 }
 
 function doPost(e) {
@@ -334,7 +336,7 @@ function doPost(e) {
     const body = parseBody(e);
     const action = cleanText(body.action, 40);
     if (!action) throw new Error('No action was supplied.');
-    if (action === 'ping') return jsonResponse({ ok: true, data: { status: 'ready', version: MYTRIP.version, stickyNoteDiary: true, sharedStickyNotes: true, itineraryPlanner: true, sharedTripList: true, idleSignout: true, profilePhotos: true, accountLogin: true, identifierLogin: true, otpLogin: true, otpEmail: true, otpSms: false, emailOnlyOtp: true, contactVerification: true, passwordResetOtp: true, batchedSheetIO: true, singleDriveRoot: true, originalPhotos20MB: true, quickExpenseNoExpiry: true, quickExpenseValiditySchedule: true, accessAudit: true, travellerCredentialEdit: true, administratorLoginEdit: true, travellerTripCreation: true, travellerTripCreationQuota: true, tripPhotoGallery: true, settlementRecords: true, tripAnnouncements: true, ratingProGrace: true, quickExpenseLinks: true, quickExpenseAnyPayer: true, quickExpenseTripWide: true, quickExpenseHistoryControls: true, granularPermissions: true, systemHealth: true, sectionLoading: true, offlineExpenseQueue: true, receiptReadForScan: true, globalAdministratorConfigured: Boolean(getGlobalAdminHash()), globalAdministratorUsernameConfigured: Boolean(getGlobalAdminUsername()) } });
+    if (action === 'ping') return jsonResponse({ ok: true, data: { status: 'ready', version: MYTRIP.version, stickyNoteDiary: true, sharedStickyNotes: true, itineraryPlanner: true, sharedTripList: true, idleSignout: true, profilePhotos: true, accountLogin: true, identifierLogin: true, otpLogin: true, otpEmail: true, otpSms: false, emailOnlyOtp: true, contactVerification: true, passwordResetOtp: true, batchedSheetIO: true, singleDriveRoot: true, originalPhotos20MB: true, quickExpenseNoExpiry: true, quickExpenseValiditySchedule: true, accessAudit: true, travellerCredentialEdit: true, administratorLoginEdit: true, travellerTripCreation: true, travellerTripCreationQuota: true, tripPhotoGallery: true, settlementRecords: true, cashBorrowing: true, printPhotoThumbnails: true, tripHeaderCollage: true, tripAnnouncements: true, ratingProGrace: true, quickExpenseLinks: true, quickExpenseAnyPayer: true, quickExpenseTripWide: true, quickExpenseHistoryControls: true, granularPermissions: true, systemHealth: true, sectionLoading: true, offlineExpenseQueue: true, receiptReadForScan: true, globalAdministratorConfigured: Boolean(getGlobalAdminHash()), globalAdministratorUsernameConfigured: Boolean(getGlobalAdminUsername()) } });
     if (action === 'getQuickExpenseInfo') return jsonResponse({ ok: true, data: getQuickExpenseInfo(body.quickToken || body.token) });
     if (action === 'quickAddExpense') return jsonResponse({ ok: true, data: withLock(function() { return quickAddExpense(body.quickToken || body.token, body.record, body.client); }) });
     if (action === 'quickUpdateExpense') return jsonResponse({ ok: true, data: withLock(function() { return quickUpdateExpense(body.quickToken || body.token, body.id, body.record); }) });
@@ -497,6 +499,19 @@ function doPost(e) {
     if (action === 'getTripSection') {
       return jsonResponse({ ok: true, data: getTripSectionBundle_(tripId, accessRole, requestedTravellerId, body.section) });
     }
+    if (action === 'getTripHeaderThumbnails') {
+      const headerTrip = getTripRow(tripId);
+      if (!booleanSetting(headerTrip.headerCollageEnabled)) throw new Error('The trip header collage is not enabled.');
+      if (!Array.isArray(body.photoIds) || body.photoIds.length > 5) throw new Error('Choose at most five header photos.');
+      let selected; try { selected = JSON.parse(headerTrip.headerPhotoIds || '[]'); } catch (error) { selected = []; }
+      const allowed = selected.map(function(id) { return String(id).replace(/^gallery:/, ''); });
+      if (body.photoIds.some(function(id) { return allowed.indexOf(String(id)) < 0; })) throw new Error('Only selected trip header photos can be loaded.');
+      return jsonResponse({ ok: true, data: getPrintPhotoThumbnails_(tripId, body.photoIds) });
+    }
+    if (action === 'getPrintPhotoThumbnails') {
+      if (!featurePermissions.viewExpenses || !featurePermissions.printReports) throw new Error('Expense printing is not allowed for this account.');
+      return jsonResponse({ ok: true, data: getPrintPhotoThumbnails_(tripId, body.photoIds) });
+    }
     if (action === 'getExpenseReceipt') {
       if (!featurePermissions.viewExpenses) throw new Error('Expense viewing is not allowed for this account.');
       return jsonResponse({ ok: true, data: getExpenseReceiptForScan_(tripId, body.id) });
@@ -534,9 +549,9 @@ function doPost(e) {
     if (administratorOnly[action] && accessRole !== MYTRIP.roles.administrator) {
       throw new Error('Global Administrator access required for this action.');
     }
-    const actionPermission = { addPlan: 'addPlan', addExperience: 'addExperience', addPlace: 'managePlaces', addExpense: 'addExpense', uploadExpenseReceipt: 'addExpense', removeExpenseReceipt: 'addExpense', archiveStickyNote: 'writeStickyNotes', uploadTripMemoryPhoto: 'addPhotos' }[action];
+    const actionPermission = { addPlan: 'addPlan', addExperience: 'addExperience', addPlace: 'managePlaces', addExpense: 'addExpense', addCashLoan: 'addExpense', addCashReturn: 'addExpense', uploadExpenseReceipt: 'addExpense', removeExpenseReceipt: 'addExpense', archiveStickyNote: 'writeStickyNotes', uploadTripMemoryPhoto: 'addPhotos' }[action];
     if (actionPermission && featurePermissions[actionPermission] === false) throw new Error('Access to this feature is hidden for this Traveller ID by the Administrator.');
-    const sheetPermission = { Itinerary: 'viewItinerary', ExperienceNotes: 'viewExperiences', Places: 'viewPlaces', Expenses: 'viewExpenses' }[body.sheet];
+    const sheetPermission = { Itinerary: 'viewItinerary', ExperienceNotes: 'viewExperiences', Places: 'viewPlaces', Expenses: 'viewExpenses', CashLoans: 'viewExpenses', CashReturns: 'viewExpenses' }[body.sheet];
     if (action === 'updateRecord' && sheetPermission && featurePermissions[sheetPermission] === false) throw new Error('Access to this feature is hidden for this Traveller ID by the Administrator.');
     if (action === 'updateRecord' && accessRole !== MYTRIP.roles.administrator) assertTravellerMayEditRecord_(tripId, body.sheet, body.id, requestedTravellerId, featurePermissions);
     if (['uploadExpenseReceipt', 'removeExpenseReceipt'].indexOf(action) >= 0 && accessRole !== MYTRIP.roles.administrator) {
@@ -544,7 +559,7 @@ function doPost(e) {
       const freshOwnUpload = action === 'uploadExpenseReceipt' && featurePermissions.addExpense && receiptExpense && String(receiptExpense.createdByAccount).toLowerCase() === ('traveller:' + requestedTravellerId).toLowerCase() && Date.now() - new Date(receiptExpense.createdAt).getTime() <= 10 * 60 * 1000;
       if (!freshOwnUpload) assertTravellerMayEditRecord_(tripId, 'Expenses', body.id, requestedTravellerId, featurePermissions);
     }
-    if (['addPlan', 'addExpense', 'addPlace', 'addExperience'].indexOf(action) >= 0) {
+    if (['addPlan', 'addExpense', 'addPlace', 'addExperience', 'addCashLoan', 'addCashReturn'].indexOf(action) >= 0) {
       body.record = Object.assign({}, body.record || {}, { createdByAccount: accessRole === MYTRIP.roles.administrator ? 'administrator:' + String(username).toLowerCase() : requestedTravellerId ? 'traveller:' + requestedTravellerId : 'shared:' + tripId });
     }
 
@@ -557,6 +572,8 @@ function doPost(e) {
       setTravellerStickyAccess: function() { return setTravellerStickyAccess(tripId, body.travellerId, body.level); },
       addPlan: function() { return addPlan(tripId, body.record); },
       addExpense: function() { return addExpense(tripId, body.record); },
+      addCashLoan: function() { return addCashLoan(tripId, body.record); },
+      addCashReturn: function() { return addCashReturn(tripId, body.record); },
       addSettlement: function() { return addSettlement(tripId, body.record); },
       addPlace: function() { return addPlace(tripId, body.record); },
       addExperience: function() { return addExperience(tripId, body.record); },
@@ -784,6 +801,9 @@ function getTripBundle(tripId, accessRole, travellerId) {
     return safeAssignment;
   });
   return {
+    cashBorrowing: true, printPhotoThumbnails: true, tripHeaderCollage: true,
+    cashLoans: permissions.viewExpenses ? cashRows_('CashLoans', tripId) : [],
+    cashReturns: permissions.viewExpenses ? cashRows_('CashReturns', tripId) : [],
     trip: safeTrip,
     accessRole: accessRole,
     permissions: permissions,
@@ -813,7 +833,11 @@ function getTripBundle(tripId, accessRole, travellerId) {
 function getTripSectionBundle_(tripId, accessRole, travellerId, section) {
   section = String(section || 'overview').toLowerCase();
   const permissions = permissionsFor(accessRole, tripId, travellerId);
-  const data = { section: section, loadedAt: new Date().toISOString(), permissions: permissions };
+  const data = { section: section, loadedAt: new Date().toISOString(), permissions: permissions, cashBorrowing: true };
+  if (!permissions.viewExpenses || ['overview', 'expenses', 'print'].indexOf(section) >= 0) {
+    data.cashLoans = permissions.viewExpenses ? cashRows_('CashLoans', tripId) : [];
+    data.cashReturns = permissions.viewExpenses ? cashRows_('CashReturns', tripId) : [];
+  }
   const trip = getTripRow(tripId);
   data.trip = Object.assign({}, trip);
   ['accessHash', 'adminHash', 'travellerHash', 'photoFileId', 'createdByTravellerId'].forEach(function(key) { delete data.trip[key]; });
@@ -921,7 +945,9 @@ function assertTravellerMayEditRecord_(tripId, sheetName, id, travellerId, permi
     Itinerary: ['editPlanOwn', 'editPlanAll'],
     ExperienceNotes: ['editExperienceOwn', 'editExperienceAll'],
     Places: ['editPlaceOwn', 'editPlaceAll'],
-    Expenses: ['editExpenseOwn', 'editExpenseAll']
+    Expenses: ['editExpenseOwn', 'editExpenseAll'],
+    CashLoans: ['editExpenseOwn', 'editExpenseAll'],
+    CashReturns: ['editExpenseOwn', 'editExpenseAll']
   }[sheetName];
   if (!rule) throw new Error('Only the Administrator may edit this type of record.');
   if (permissions[rule[1]]) return true;
@@ -2498,9 +2524,11 @@ function updateTrip(tripId, input) {
   const trip = input || {};
   const currentTrip = getTripRow(tripId);
   const updates = {};
-  ['name', 'destination', 'startDate', 'endDate', 'budget', 'currency', 'photoUrl', 'splitMembers', 'settleVisible', 'stickyHidden', 'altCurrency', 'altRate', 'photoAlbumUrl', 'announcementEnabled', 'announcementText', 'announcementStyle', 'announcementStart', 'announcementEnd', 'announcementSpeed', 'ratingRequired', 'ratingGraceDays'].forEach(function(field) {
+  ['name', 'destination', 'startDate', 'endDate', 'budget', 'currency', 'photoUrl', 'splitMembers', 'settleVisible', 'stickyHidden', 'altCurrency', 'altRate', 'photoAlbumUrl', 'announcementEnabled', 'announcementText', 'announcementStyle', 'announcementStart', 'announcementEnd', 'announcementSpeed', 'ratingRequired', 'ratingGraceDays', 'headerCollageEnabled', 'headerPhotoIds', 'headerCollagePrintDefault'].forEach(function(field) {
     if (typeof trip[field] === 'undefined') return;
     let value = trip[field];
+    if (field === 'headerPhotoIds') { updates[field] = JSON.stringify(validateTripHeaderPhotoIds_(tripId, value, currentTrip)); return; }
+    if (field === 'headerCollageEnabled' || field === 'headerCollagePrintDefault') { if (!validBooleanSetting(value)) throw new Error('Header collage setting must be true or false.'); updates[field] = booleanSetting(value) ? 'TRUE' : 'FALSE'; return; }
     if (field === 'splitMembers') { updates[field] = cleanSplitMembers(value); return; }
     if (field === 'altCurrency') { updates[field] = cleanText(value, 8).toUpperCase(); return; }
     if (field === 'altRate') { const r = Number(value); updates[field] = r > 0 ? r : ''; return; }
@@ -2520,6 +2548,11 @@ function updateTrip(tripId, input) {
     updates[field] = value;
   });
 
+  const headerEnabled = Object.prototype.hasOwnProperty.call(updates, 'headerCollageEnabled') ? updates.headerCollageEnabled : currentTrip.headerCollageEnabled;
+  if ((Object.prototype.hasOwnProperty.call(updates, 'headerPhotoIds') || Object.prototype.hasOwnProperty.call(updates, 'headerCollageEnabled')) && booleanSetting(headerEnabled)) {
+    const selected = validateTripHeaderPhotoIds_(tripId, Object.prototype.hasOwnProperty.call(updates, 'headerPhotoIds') ? updates.headerPhotoIds : currentTrip.headerPhotoIds, currentTrip);
+    if (!selected.length) throw new Error('Choose at least one photo before enabling the trip header collage.');
+  }
   const startDate = updates.startDate || currentTrip.startDate;
   const endDate = updates.endDate || currentTrip.endDate;
   if (new Date(endDate) < new Date(startDate)) throw new Error('End date cannot be before the start date.');
@@ -2527,7 +2560,7 @@ function updateTrip(tripId, input) {
   const announcementEnd = Object.prototype.hasOwnProperty.call(updates, 'announcementEnd') ? updates.announcementEnd : currentTrip.announcementEnd;
   if (announcementStart && announcementEnd && announcementEnd < announcementStart) throw new Error('Announcement end date cannot be before its start date.');
 
-  ['splitMembers', 'settleVisible', 'stickyHidden', 'altCurrency', 'altRate', 'photoAlbumUrl', 'announcementEnabled', 'announcementText', 'announcementStyle', 'announcementStart', 'announcementEnd', 'announcementSpeed', 'ratingRequired', 'ratingGraceDays'].forEach(function(field) { if (Object.prototype.hasOwnProperty.call(updates, field)) ensureTripColumn(field); });
+  ['splitMembers', 'settleVisible', 'stickyHidden', 'altCurrency', 'altRate', 'photoAlbumUrl', 'announcementEnabled', 'announcementText', 'announcementStyle', 'announcementStart', 'announcementEnd', 'announcementSpeed', 'ratingRequired', 'ratingGraceDays', 'headerCollageEnabled', 'headerPhotoIds', 'headerCollagePrintDefault'].forEach(function(field) { if (Object.prototype.hasOwnProperty.call(updates, field)) ensureTripColumn(field); });
   Object.keys(updates).forEach(function(field) {
     updateCellById('Trips', tripId, field, updates[field], 'tripId');
   });
@@ -2832,7 +2865,7 @@ function deleteTrip(tripId, confirmTripId) {
     if (photo.fileId) try { DriveApp.getFileById(photo.fileId).setTrashed(true); } catch (error) { console.warn('Could not move a trip gallery photo to trash: ' + error.message); }
   });
   const deleted = {};
-  ['Members', 'Places', 'Itinerary', 'ExperienceNotes', 'TripPhotos', 'StickyNoteDiary', 'StickyNotes', 'Expenses', 'QuickExpensePasses', 'TripAssignments', 'Activity'].forEach(function(sheetName) {
+  ['Members', 'Places', 'Itinerary', 'ExperienceNotes', 'TripPhotos', 'StickyNoteDiary', 'StickyNotes', 'Expenses', 'Settlements', 'CashLoans', 'CashReturns', 'QuickExpensePasses', 'TripAssignments', 'Activity'].forEach(function(sheetName) {
     deleted[sheetName] = deleteRowsForTrip(sheetName, tripId);
   });
   deleted.Trips = deleteRowsForTrip('Trips', tripId);
@@ -2897,6 +2930,8 @@ function deleteRowsMatching(sheetName, criteria) {
 }
 
 function updateRecord(tripId, sheetName, id, input, accessRole) {
+  if (sheetName === 'CashLoans') return updateCashLoan_(tripId, id, input, accessRole);
+  if (sheetName === 'CashReturns') return updateCashReturn_(tripId, id, input, accessRole);
   const allowedFields = {
     Itinerary: ['date', 'time', 'title', 'place', 'notes', 'category', 'status', 'bookingRef', 'cost', 'sortOrder', 'photoUrl'],
     ExperienceNotes: ['date', 'place', 'note', 'writer', 'visibility', 'photoUrl', 'noteType'],
@@ -2928,7 +2963,8 @@ function updateRecord(tripId, sheetName, id, input, accessRole) {
 }
 
 function deleteRecord(tripId, sheetName, id) {
-  if (['Members', 'Places', 'Itinerary', 'ExperienceNotes', 'StickyNoteDiary', 'StickyNotes', 'Expenses', 'Settlements'].indexOf(sheetName) < 0) throw new Error('That record type cannot be deleted.');
+  if (sheetName === 'CashLoans' && cashRows_('CashReturns', tripId).some(function(row) { return String(row.loanId) === String(id); })) throw new Error('This borrowing has recorded returns. Correct or remove those returns before deleting the borrowing.');
+  if (['Members', 'Places', 'Itinerary', 'ExperienceNotes', 'StickyNoteDiary', 'StickyNotes', 'Expenses', 'Settlements', 'CashLoans', 'CashReturns'].indexOf(sheetName) < 0) throw new Error('That record type cannot be deleted.');
   const sheet = getSpreadsheet().getSheetByName(sheetName);
   const values = sheet.getDataRange().getValues();
   const headers = values[0];
@@ -3635,7 +3671,7 @@ function recordsForTrip(sheetName, tripId) {
 }
 
 /* v4.25.0: a retried request (slow network, Google 5xx, offline queue) must never write the same row twice. */
-const IDEMPOTENT_SHEETS_ = { Expenses: 1, QuickExpensePasses: 1, Itinerary: 1, ExperienceNotes: 1, Places: 1, Members: 1, Checklist: 1, StickyNotes: 1, TripPhotos: 1, Settlements: 1 };
+const IDEMPOTENT_SHEETS_ = { Expenses: 1, QuickExpensePasses: 1, Itinerary: 1, ExperienceNotes: 1, Places: 1, Members: 1, Checklist: 1, StickyNotes: 1, TripPhotos: 1, Settlements: 1, CashLoans: 1, CashReturns: 1 };
 function appendObject(sheetName, object) {
   const sheet = getSpreadsheet().getSheetByName(sheetName);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
@@ -4131,7 +4167,7 @@ function onOpen() {
 /** Every action name accepted by doPost(). */
 function listMyTripActions() {
   const actions = [
-    'ping', 'login', 'requestLoginOtp', 'loginWithOtp', 'requestPasswordResetOtp', 'resetPasswordWithOtp', 'getTrip', 'getTripSection', 'getExpenseReceipt', 'quickGetExpenseReceipt', 'getSystemHealth', 'repairSystemHealth', 'runSystemBackup', 'setSystemNightlyBackup', 'getQuickExpenseInfo', 'quickAddExpense', 'quickUpdateExpense', 'quickDeleteExpense', 'quickUploadExpenseReceipt', 'listAccessAudit', 'recordAccessEvent',
+    'ping', 'login', 'requestLoginOtp', 'loginWithOtp', 'requestPasswordResetOtp', 'resetPasswordWithOtp', 'getTrip', 'getTripSection', 'getTripHeaderThumbnails', 'getPrintPhotoThumbnails', 'getExpenseReceipt', 'quickGetExpenseReceipt', 'getSystemHealth', 'repairSystemHealth', 'runSystemBackup', 'setSystemNightlyBackup', 'getQuickExpenseInfo', 'quickAddExpense', 'quickUpdateExpense', 'quickDeleteExpense', 'quickUploadExpenseReceipt', 'listAccessAudit', 'recordAccessEvent',
     'listTrips', 'listMyTrips', 'createTrip', 'createTravellerTrip', 'updateTrip', 'deleteTrip', 'setTripEnabled',
     'setTripListHidden', 'setTripListOrder', 'setIdleTimeout', 'uploadProfilePhoto', 'getProfilePhotos',
     'listTravellerAccounts', 'createTravellerAccount', 'updateTravellerAccount', 'deleteTravellerAccount',
@@ -4140,7 +4176,7 @@ function listMyTripActions() {
     'assignTraveller', 'assignTravellers', 'assignTravellerToTrips', 'removeTravellerAssignment',
     'setTravellerExpenseAccess', 'setTravellerFeatureAccess', 'setTravellerPhotoLimit',
     'changeAdministratorLogin', 'changePins',
-    'addPlan', 'addExpense', 'addPlace', 'addExperience', 'addMember', 'archiveStickyNote',
+    'addPlan', 'addExpense', 'addCashLoan', 'addCashReturn', 'addPlace', 'addExperience', 'addMember', 'archiveStickyNote',
     'saveStickyNote', 'deleteStickyNote', 'setTravellerStickyAccess',
     'saveFeedback', 'getFeedback',
     'updateRecord', 'deleteRecord',
@@ -4491,4 +4527,125 @@ function tripThumbMap_() {
   const map = {};
   try { thumbSheet_().getDataRange().getValues().slice(1).forEach(function(row) { if (row[0] && row[1]) map[String(row[0]).toUpperCase()] = String(row[1]); }); } catch (e) {}
   return map;
+}
+
+
+/* Borrowing is a separate person-to-person ledger, never a trip expense or
+   a shared-expense settlement. All mutations run inside the dispatcher lock. */
+function cashAmount_(value) {
+  const amount = Number(String(value).replace(/,/g, ''));
+  if (!isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001) throw new Error('Enter a positive amount with at most two decimal places.');
+  return Math.round(amount * 100) / 100;
+}
+function cashDate_(value, label) {
+  const text = validDate(value, label);
+  if (new Date(text + 'T00:00:00Z').toISOString().slice(0, 10) !== text) throw new Error(label + ' is invalid.');
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (text > today) throw new Error(label + ' cannot be in the future.');
+  return text;
+}
+function cashRows_(sheetName, tripId) {
+  return recordsForTrip(sheetName, tripId).map(function(row) { return Object.assign({}, row, { amount: Number(String(row.amount || 0).replace(/,/g, '')) }); });
+}
+function cashRecord_(sheetName, tripId, id) {
+  const row = cashRows_(sheetName, tripId).filter(function(item) { return String(item.id) === String(id); })[0];
+  if (!row) throw new Error('This cash record was not found in the selected trip.');
+  return row;
+}
+function cashReturnedCents_(tripId, loanId, exceptId) {
+  return cashRows_('CashReturns', tripId).filter(function(row) { return String(row.loanId) === String(loanId) && (!exceptId || String(row.id) !== String(exceptId)); }).reduce(function(sum, row) { return sum + Math.round(row.amount * 100); }, 0);
+}
+function cashLoanInput_(tripId, input, existing) {
+  const record = input || {}, row = Object.assign({}, existing || {});
+  row.lender = requiredText(record.lender, 'Cash received from', 80);
+  row.borrower = requiredText(record.borrower, 'Cash received by', 80);
+  if (row.lender.toLowerCase() === row.borrower.toLowerCase()) throw new Error('The lender and borrower must be different people.');
+  row.amount = cashAmount_(record.amount);
+  row.borrowedOn = cashDate_(record.borrowedOn, 'Date borrowed');
+  if (existing) {
+    if (Math.round(row.amount * 100) < cashReturnedCents_(tripId, existing.id)) throw new Error('Borrowed amount cannot be less than the returns already recorded. Correct the returns first.');
+    const earlierReturn = cashRows_('CashReturns', tripId).some(function(item) { return String(item.loanId) === String(existing.id) && String(item.paidOn) < row.borrowedOn; });
+    if (earlierReturn) throw new Error('Date borrowed cannot be after an existing return.');
+  }
+  row.method = cleanText(record.method, 40) || 'Cash'; row.reference = cleanText(record.reference, 60); row.note = cleanText(record.note, 300);
+  return row;
+}
+function addCashLoan(tripId, input) {
+  const record = input || {}, id = cleanText(record.id, 80) || createId('CASH');
+  const duplicate = objectsFromSheet('CashLoans').filter(function(item) { return String(item.id) === id; })[0];
+  if (duplicate) { if (String(duplicate.tripId) !== String(tripId)) throw new Error('Cash reference already belongs to another trip.'); return cashRecord_('CashLoans', tripId, id); }
+  const now = new Date().toISOString(), row = cashLoanInput_(tripId, record);
+  Object.assign(row, { id: id, tripId: tripId, createdBy: cleanText(record.createdBy, 80), createdByAccount: cleanText(record.createdByAccount, 100), createdAt: now, updatedAt: now });
+  ensureSheet_('CashLoans'); appendObject('CashLoans', row); afterMutation(tripId, 'CASH_BORROWED', row.borrower + ' borrowed ' + row.amount + ' from ' + row.lender, row.createdBy);
+  return row;
+}
+function updateCashLoan_(tripId, id, input, who) {
+  const existing = cashRecord_('CashLoans', tripId, id), row = cashLoanInput_(tripId, input, existing);
+  row.updatedAt = new Date().toISOString(); writeRowById('CashLoans', id, row);
+  afterMutation(tripId, 'CASH_BORROWING_CORRECTED', id + ' · ' + row.borrower + ' owes ' + row.lender, who);
+  return row;
+}
+function cashReturnInput_(tripId, input, existing) {
+  const record = input || {}, row = Object.assign({}, existing || {});
+  row.loanId = existing ? existing.loanId : requiredText(record.loanId, 'Borrowing reference', 80);
+  const loan = cashRecord_('CashLoans', tripId, row.loanId);
+  row.amount = cashAmount_(record.amount); row.paidOn = cashDate_(record.paidOn, 'Date returned');
+  if (row.paidOn < String(loan.borrowedOn)) throw new Error('Return date cannot be before the cash was borrowed.');
+  const available = Math.round(loan.amount * 100) - cashReturnedCents_(tripId, loan.id, existing && existing.id);
+  if (Math.round(row.amount * 100) > available) throw new Error('Return exceeds the outstanding borrowing. Maximum return: ' + (available / 100).toFixed(2));
+  row.method = cleanText(record.method, 40) || 'Cash'; row.reference = cleanText(record.reference, 60); row.note = cleanText(record.note, 300);
+  return row;
+}
+function addCashReturn(tripId, input) {
+  const record = input || {}, id = cleanText(record.id, 80) || createId('CRET');
+  const duplicate = objectsFromSheet('CashReturns').filter(function(item) { return String(item.id) === id; })[0];
+  if (duplicate) { if (String(duplicate.tripId) !== String(tripId)) throw new Error('Cash reference already belongs to another trip.'); return cashRecord_('CashReturns', tripId, id); }
+  const now = new Date().toISOString(), row = cashReturnInput_(tripId, record);
+  Object.assign(row, { id: id, tripId: tripId, createdBy: cleanText(record.createdBy, 80), createdByAccount: cleanText(record.createdByAccount, 100), createdAt: now, updatedAt: now });
+  ensureSheet_('CashReturns'); appendObject('CashReturns', row); afterMutation(tripId, 'CASH_RETURNED', row.amount + ' returned against ' + row.loanId, row.createdBy);
+  return row;
+}
+function updateCashReturn_(tripId, id, input, who) {
+  const existing = cashRecord_('CashReturns', tripId, id), row = cashReturnInput_(tripId, input, existing);
+  row.updatedAt = new Date().toISOString(); writeRowById('CashReturns', id, row);
+  afterMutation(tripId, 'CASH_RETURN_CORRECTED', id + ' · ' + row.amount, who); return row;
+}
+
+/** Returns only small thumbnails for photos already belonging to this trip.
+ * Originals, file permissions and Drive contents are never modified here. */
+function getPrintPhotoThumbnails_(tripId, photoIds) {
+  if (!Array.isArray(photoIds) || photoIds.length > 5) throw new Error('Choose at most five trip photos.');
+  const ids = photoIds.map(function(value) { return cleanText(value, 100); }).filter(function(value, index, list) { return value && list.indexOf(value) === index; });
+  const trip = getTripRow(tripId);
+  const gallery = recordsForTrip('TripPhotos', tripId);
+  return { photos: ids.map(function(photoId) {
+    try {
+      const photo = photoId === 'trip-cover' ? { fileId: trip.photoFileId, photoUrl: trip.photoUrl } : gallery.filter(function(item) { return String(item.id) === photoId; })[0];
+      if (!photo) throw new Error('Photo not found in this trip.');
+      const id = photo.fileId;
+      if (!id) throw new Error('This photo is an external link, not a stored Drive photo.');
+      const file = DriveApp.getFileById(String(id));
+      if (file.isTrashed()) throw new Error('This photo is in Drive trash.');
+      if (['image/jpeg', 'image/png', 'image/webp'].indexOf(file.getMimeType()) < 0) throw new Error('This file is not a supported trip photo.');
+      const thumbnail = file.getThumbnail();
+      if (!thumbnail) throw new Error('Drive has not generated a thumbnail for this photo yet.');
+      const type = String(thumbnail.getContentType() || ''), bytes = thumbnail.getBytes();
+      if (['image/jpeg', 'image/png', 'image/webp'].indexOf(type) < 0 || bytes.length > 1000000) throw new Error('A small printable thumbnail is not available.');
+      return { photoId: photoId, type: type, data: Utilities.base64Encode(bytes) };
+    } catch (error) { return { photoId: photoId, error: error.message || 'Thumbnail unavailable.' }; }
+  }) };
+}
+
+/** Stores photo record IDs only; no originals or image data are copied. */
+function validateTripHeaderPhotoIds_(tripId, input, trip) {
+  let ids = input;
+  if (typeof ids === 'string') { try { ids = JSON.parse(ids); } catch (error) { throw new Error('Header photo selection is invalid.'); } }
+  if (!Array.isArray(ids) || ids.length > 5) throw new Error('Choose at most five trip header photos.');
+  const available = recordsForTrip('TripPhotos', tripId).map(function(photo) { return 'gallery:' + String(photo.id); });
+  if ((trip || getTripRow(tripId)).photoUrl) available.push('trip-cover');
+  const seen = {};
+  return ids.map(function(id) {
+    if (typeof id !== 'string' || available.indexOf(id) < 0) throw new Error('A selected photo no longer belongs to this trip. Refresh and choose again.');
+    if (seen[id]) throw new Error('Choose each header photo only once.'); seen[id] = true; return id;
+  });
 }
