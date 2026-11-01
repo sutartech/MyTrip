@@ -54,3 +54,22 @@ test("Printing can use the exact shared header or a separate photo choice, and c
   assert.ok(frontend.includes('document.body.dataset.print === "full" && tripSettingOn(state.data.trip.headerCollagePrintDefault)'));
   state.data.trip.headerCollageEnabled = "FALSE"; assert.equal(c.renderTripPhotoPrintCollage(c.tripHeaderCollagePhotos()), "");
 });
+
+test("A backend upgraded during the same session unlocks the header despite stale ping capabilities", () => {
+  const c = vm.createContext({ state: { demoMode: false }, backendInfo: { version: "4.32.2" }, backendVersion: "4.32.5" });
+  const versionStart = frontend.indexOf("  function backendVersionAtLeast("), versionEnd = frontend.indexOf("  function backendUpgradeError(", versionStart);
+  vm.runInContext(frontend.slice(versionStart, versionEnd), c);
+  const start = frontend.indexOf("  function tripPhotoFeatureReady("), end = frontend.indexOf("  function showTripHeaderPhotoSettings(", start); vm.runInContext(frontend.slice(start, end), c);
+  assert.equal(c.tripPhotoFeatureReady("tripHeaderCollage", "4.32.5"), true);
+  assert.equal(c.tripPhotoFeatureReady("printPhotoThumbnails", "4.32.4"), true);
+  c.backendVersion = "4.32.2"; assert.equal(c.tripPhotoFeatureReady("tripHeaderCollage", "4.32.5"), false);
+  c.state.tripHeaderCollageAvailable = true; assert.equal(c.tripPhotoFeatureReady("tripHeaderCollage", "4.32.5"), true);
+});
+test("Trip normalization retains photo capabilities and section refresh updates them", () => {
+  const c = vm.createContext({ state: { sectionLoadedAt: {} }, uniqById: rows => rows, setProfilePhotos() {} });
+  const start = frontend.indexOf("  function normalize("), end = frontend.indexOf("  let financialMutationRevision", start); vm.runInContext(frontend.slice(start, end), c);
+  c.state.data = c.normalize({ trip: { tripId: "T1" }, tripHeaderCollage: true, printPhotoThumbnails: true });
+  assert.equal(c.state.tripHeaderCollageAvailable, true); assert.equal(c.state.printPhotoThumbnailsAvailable, true);
+  c.mergeTripSection({ tripHeaderCollage: false, printPhotoThumbnails: false, section: "photos" }); assert.equal(c.state.tripHeaderCollageAvailable, false);
+  c.state.data = c.normalize({ trip: { tripId: "T2" } }); assert.equal(c.state.tripHeaderCollageAvailable, false);
+});

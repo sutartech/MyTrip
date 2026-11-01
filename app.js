@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.19";
+  const frontendVersion = "4.67.20";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -791,6 +791,8 @@
   function uniqById(list) { const seen = new Set(); return list.filter((x) => { const k = x && x.id != null && x.id !== "" ? String(x.id) : ""; if (!k) return true; if (seen.has(k)) return false; seen.add(k); return true; }); }
   function normalize(data) {
     if (data && typeof data.cashBorrowing === "boolean") state.cashLedgerAvailable = data.cashBorrowing;
+    state.tripHeaderCollageAvailable = data?.tripHeaderCollage === true;
+    state.printPhotoThumbnailsAvailable = data?.printPhotoThumbnails === true;
     if (data && data.profilePhotos) setProfilePhotos(data.profilePhotos);
     return { trip: data.trip || {}, members: data.members || [], assignments: data.assignments || [], places: data.places || [], itinerary: uniqById(data.itinerary || []), experiences: uniqById(data.experiences || []), photos: data.photos || [], stickyDiary: data.stickyDiary || [], stickyNotes: data.stickyNotes || [], checklist: uniqById(data.checklist || []), expenses: uniqById(data.expenses || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })), settlements: uniqById(data.settlements || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })), cashLoans: uniqById(data.cashLoans || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })), cashReturns: uniqById(data.cashReturns || []).map((item) => ({ ...item, amount: Number(item.amount || 0) })) };
   }
@@ -805,6 +807,8 @@
       state.data[key] = value;
     });
     if (typeof section.cashBorrowing === "boolean") state.cashLedgerAvailable = section.cashBorrowing;
+    if (typeof section.tripHeaderCollage === "boolean") state.tripHeaderCollageAvailable = section.tripHeaderCollage;
+    if (typeof section.printPhotoThumbnails === "boolean") state.printPhotoThumbnailsAvailable = section.printPhotoThumbnails;
     if (Array.isArray(section.settlements)) state.settlementDataFresh = true;
     if (section.profilePhotos) setProfilePhotos(section.profilePhotos);
     if (section.permissions) state.permissions = section.permissions;
@@ -1922,9 +1926,13 @@
     const images = [...host.querySelectorAll("[data-trip-header-thumbnail]")];
     if (images.length) prepareExpensePrintPhotos(images, { header: true }).catch(() => {});
   }
+  function tripPhotoFeatureReady(feature, version) {
+    if (state.demoMode) return true;
+    return backendInfo?.[feature] === true || state[`${feature}Available`] === true || backendVersionAtLeast(backendVersion, version);
+  }
   function showTripHeaderPhotoSettings() {
     if (!isAdmin()) return toast("Administrator access required to choose trip header photos", true);
-    if (!state.demoMode && !(backendInfo?.tripHeaderCollage || state.data.tripHeaderCollage)) return toast("Update the Google script to BE 4.32.5 to save shared trip header photos", true);
+    if (!tripPhotoFeatureReady("tripHeaderCollage", "4.32.5")) return toast("Update the Google script to BE 4.32.5 to save shared trip header photos", true);
     const choices = tripCollagePhotoChoices(), current = tripHeaderPhotoSettings();
     const selected = current.ids.length ? current.ids : choices.slice(0, 5).map((photo) => photo.id);
     showModal("Trip header collage", `<form class="modal-form" id="tripHeaderPhotoForm"><p>Choose four or five trip photos for the header. Everyone who opens this trip sees the same selection. You can change it during the trip.</p><label class="trip-header-enable"><input type="checkbox" name="enabled"${current.enabled ? " checked" : ""}><span>Show collage in this trip’s header</span></label><label class="trip-header-enable"><input type="checkbox" name="printDefault"${tripSettingOn(state.data.trip.headerCollagePrintDefault) ? " checked" : ""}><span>Include trip header collage in expense and Trip Book prints by default</span></label>${choices.length ? `<p class="form-help"><b id="tripHeaderSelectedCount">${selected.filter((id) => choices.some((photo) => photo.id === id)).length} selected</b> · maximum five. Fewer photos can be used while your gallery grows.</p><div class="xp-photo-choices trip-header-photo-choices">${choices.map((photo) => `<label class="xp-photo-choice"><input type="checkbox" data-trip-header-choice value="${esc(photo.id)}"${selected.includes(photo.id) ? " checked" : ""}><img src="${esc(photo.url)}" loading="lazy" decoding="async" alt=""><span>${esc(photo.caption)}</span></label>`).join("")}</div>` : `<p class="form-help">Add photos in Trip Photos first, then choose them here.</p>`}<p class="form-help">Originals stay in Drive; the header uses thumbnails. Expense-print photo selection is separate.</p><div class="form-actions"><button type="button" data-trip-header-add>Add trip photo</button><button type="button" data-cancel>Cancel</button><button type="submit">Save header</button></div></form>`);
@@ -2005,7 +2013,7 @@
     });
     const results = await Promise.all(images.map((img) => load(img)));
     const failedDrive = images.filter((img, index) => !results[index] && img.dataset && img.dataset.printDriveId);
-    if (failedDrive.length && !state.demoMode && state.data?.trip.tripId === tripId && backendInfo && (isHeader ? backendInfo.tripHeaderCollage === true : backendInfo.printPhotoThumbnails === true)) {
+    if (failedDrive.length && !state.demoMode && state.data?.trip.tripId === tripId && (isHeader ? tripPhotoFeatureReady("tripHeaderCollage", "4.32.5") : tripPhotoFeatureReady("printPhotoThumbnails", "4.32.4"))) {
       try {
         const cacheKey = (img) => `${tripId}:${img.dataset.printPhotoId}:${img.dataset.printDriveId}`;
         const missing = failedDrive.filter((img) => !expensePrintThumbnailCache.has(cacheKey(img)));

@@ -59,7 +59,7 @@ test("Photo readiness waits for load/error and removes failed tiles before print
 });
 test("Failed public links use authenticated small thumbnails and reuse the in-memory copy", async () => {
   let calls = 0;
-  const c = vm.createContext({ Promise, setTimeout, clearTimeout, state: { demoMode: false, data: { trip: { tripId: "T1" } } }, backendInfo: { printPhotoThumbnails: true }, authPayload: value => ({ ...value, tripId: "T1", pin: "test" }), api: async (action, payload) => { calls++; assert.equal(action, "getPrintPhotoThumbnails"); assert.equal(payload.tripId, "T1"); assert.deepEqual(Array.from(payload.photoIds), ["P1"]); return { photos: [{ photoId: "P1", type: "image/jpeg", data: "dGlueQ==" }] }; }, toast() { assert.fail("Valid fallback should load"); }, $: () => ({ querySelector: () => true }) });
+  const c = vm.createContext({ Promise, setTimeout, clearTimeout, state: { demoMode: false, data: { trip: { tripId: "T1" } } }, backendInfo: { printPhotoThumbnails: true }, tripPhotoFeatureReady: () => true, authPayload: value => ({ ...value, tripId: "T1", pin: "test" }), api: async (action, payload) => { calls++; assert.equal(action, "getPrintPhotoThumbnails"); assert.equal(payload.tripId, "T1"); assert.deepEqual(Array.from(payload.photoIds), ["P1"]); return { photos: [{ photoId: "P1", type: "image/jpeg", data: "dGlueQ==" }] }; }, toast() { assert.fail("Valid fallback should load"); }, $: () => ({ querySelector: () => true }) });
   const start = source.indexOf("  const expensePrintThumbnailCache"), end = source.indexOf('\n  document.addEventListener("change"', start); vm.runInContext(source.slice(start, end), c);
   const image = () => {
     const listeners = {}, tile = { remove() { assert.fail("Loaded thumbnail must remain"); } };
