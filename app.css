@@ -3979,3 +3979,106 @@ html body .topbar .header-date-time:before{display:none!important;content:none!i
     font-size:11px!important;border-radius:13px!important;
   }
 }
+
+
+/* v4.67.24 — Premium travel-inspired account dashboard finish */
+html body .account-hub-shell{gap:18px!important}
+html body .account-hub-hero.admin{
+  isolation:isolate!important;min-height:0!important;padding:clamp(24px,4vw,40px)!important;
+  border-radius:26px!important;
+  background:
+    radial-gradient(ellipse at 86% 12%,rgba(255,218,150,.32),transparent 22%),
+    radial-gradient(ellipse at 78% 95%,rgba(52,197,170,.24),transparent 34%),
+    linear-gradient(122deg,#0d3048 0%,#105f65 54%,#148878 100%)!important;
+  box-shadow:0 18px 40px rgba(16,66,76,.17)!important
+}
+html body .account-hub-hero.admin:before{
+  content:"";position:absolute;z-index:-1;right:4%;top:50%;width:190px;height:190px;
+  transform:translateY(-50%);border:1px solid rgba(255,255,255,.16);border-radius:50%;
+  box-shadow:0 0 0 18px rgba(255,255,255,.035),0 0 0 42px rgba(255,255,255,.025);
+  background:radial-gradient(circle,rgba(255,255,255,.10) 1px,transparent 1.5px);
+  background-size:12px 12px;pointer-events:none
+}
+html body .account-hub-hero.admin:after{
+  content:"✧";position:absolute;z-index:0;right:11%;top:15%;color:rgba(255,239,201,.8);
+  font-size:32px;line-height:1;text-shadow:0 0 22px rgba(255,232,180,.35);pointer-events:none
+}
+html body .account-hub-hero.admin>div{max-width:720px;position:relative;z-index:1}
+html body .account-hub-hero.admin h1{font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important;letter-spacing:-1.6px!important}
+html body .account-hub-hero.admin>strong{
+  position:relative;z-index:1;min-width:102px!important;min-height:0!important;
+  padding:12px 17px!important;border-radius:15px!important;
+  border:1px solid rgba(255,255,255,.32)!important;
+  background:rgba(255,255,255,.14)!important;color:#fff!important;
+  -webkit-text-fill-color:#fff!important;backdrop-filter:blur(8px)
+}
+html body .admin-command-center{
+  padding:clamp(18px,3vw,27px)!important;gap:16px!important;
+  border:1px solid #dceae5!important;border-radius:24px!important;
+  background:
+    radial-gradient(circle at 100% 0%,rgba(246,206,150,.20),transparent 27%),
+    linear-gradient(135deg,#f4fbf8 0%,#f7f7fd 68%,#fffaf3 100%)!important;
+  box-shadow:0 12px 30px rgba(24,62,71,.065)!important
+}
+html body .admin-command-center>header h2{font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important;letter-spacing:-1px!important}
+html body .admin-command-center>header>button{
+  border-radius:14px!important;background:linear-gradient(110deg,#128b7d,#11665f)!important;
+  box-shadow:0 8px 18px rgba(17,112,101,.18)!important
+}
+html body .admin-command-stats article{
+  border-color:#e1ece8!important;border-radius:17px!important;
+  box-shadow:0 5px 15px rgba(27,62,70,.045)!important;
+  transition:transform .18s ease,box-shadow .18s ease
+}
+html body .admin-command-stats article:nth-child(1){background:linear-gradient(140deg,#fff,#f0fbff)!important}
+html body .admin-command-stats article:nth-child(2){background:linear-gradient(140deg,#fff,#f7f3ff)!important}
+html body .admin-command-stats article:nth-child(3){background:linear-gradient(140deg,#fff,#fff8ef)!important}
+html body .admin-command-stats article:nth-child(4){background:linear-gradient(140deg,#fff,#effaf4)!important}
+html body .admin-command-actions>button{
+  min-height:68px!important;border-color:#e1ebe8!important;border-radius:15px!important;
+  box-shadow:0 4px 12px rgba(26,62,70,.035)!important;
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease!important
+}
+html body .admin-command-actions>button>i{border-radius:11px!important}
+html body .admin-command-actions>button:nth-child(2n)>i{background:#f1edff!important;color:#6c54b6!important}
+html body .admin-command-actions>button:nth-child(3n)>i{background:#fff2df!important;color:#a66a17!important}
+html body .account-hub .all-trips-modal{
+  border:1px solid #e3ece8!important;border-radius:22px!important;
+  box-shadow:0 10px 28px rgba(20,50,65,.055)!important
+}
+html body .all-trips-summary{
+  border-radius:15px!important;border-color:#dcebe5!important;
+  background:linear-gradient(115deg,#eff9f5,#fff9f2)!important
+}
+html body .trip-library.admin-library>.trip-library-card{
+  border:1px solid #e3ebe8!important;border-radius:19px!important;
+  box-shadow:0 7px 20px rgba(24,55,68,.05)!important
+}
+html body .trip-library-card .trip-card-actions [data-open-admin-trip]{
+  border-radius:11px!important;background:linear-gradient(110deg,#147f73,#12645f)!important
+}
+html body .account-hub-topbar{
+  background:rgba(255,255,255,.96)!important;
+  box-shadow:0 4px 18px rgba(22,48,63,.045)!important
+}
+html body .account-hub-topbar>.account-signout{
+  border-radius:12px!important;background:linear-gradient(135deg,#d94b4b,#bb373d)!important;
+  box-shadow:0 6px 14px rgba(189,54,61,.15)!important
+}
+@media(hover:hover){
+  html body .admin-command-stats article:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(27,62,70,.09)!important}
+  html body .admin-command-actions>button:hover{transform:translateY(-2px);border-color:#b9d9d1!important;box-shadow:0 9px 18px rgba(26,62,70,.075)!important}
+}
+@media(max-width:760px){
+  html body .account-hub-hero.admin{padding:23px 20px!important;border-radius:22px!important}
+  html body .account-hub-hero.admin:before{right:-60px;width:150px;height:150px}
+  html body .account-hub-hero.admin:after{right:14%;top:11%;font-size:24px}
+  html body .admin-command-center{padding:16px!important;border-radius:20px!important}
+  html body .admin-command-stats article{border-radius:14px!important}
+  html body .admin-command-actions>button{min-height:62px!important;border-radius:13px!important}
+  html body .account-hub .all-trips-modal{border-radius:19px!important}
+}
+@media(max-width:390px){
+  html body .account-hub-hero.admin:before{opacity:.55}
+  html body .admin-command-actions>button{padding:8px!important}
+}
