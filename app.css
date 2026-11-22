@@ -4359,3 +4359,118 @@ html body .trip-library.admin-library .trip-library-card{border-radius:18px!impo
   html body .account-hub-hero.admin>div{max-width:84%!important}
   html body .account-hub-hero.admin{min-height:245px!important}
 }
+
+
+/* v4.67.27 — Compact mobile account hub: remove dead space and obstructive chrome */
+html body .account-hub-shell{gap:11px!important;padding:12px clamp(12px,2vw,22px) 22px!important}
+html body .account-hub-topbar{min-height:0!important;padding:8px 13px!important;gap:6px 9px!important}
+html body .account-hub-topbar>.brand{font-size:18px!important;line-height:1!important}
+html body .account-hub-topbar>.brand>i{width:30px!important;height:30px!important;border-radius:9px!important}
+html body .account-hub-topbar>div{gap:4px!important}
+html body .account-hub-topbar>div>span{font-size:8px!important;letter-spacing:1px!important}
+html body .account-hub-topbar>div>b{padding:5px 9px!important;font-size:10px!important}
+html body .account-hub-topbar>.account-signout{padding:9px 12px!important;min-height:36px!important;font-size:12px!important}
+html body .account-hub-topbar>.header-date-time{min-height:34px!important;padding:7px 11px!important;font-size:10px!important}
+html body .account-hub-hero.admin{
+  min-height:0!important;height:auto!important;min-height:174px!important;
+  padding:18px!important;border-radius:18px!important;
+  background-position:center,68% 52%!important;
+  box-shadow:0 8px 19px rgba(12,60,69,.13)!important
+}
+html body .account-hub-hero.admin>div{max-width:78%!important}
+html body .account-hub-hero.admin>div>span{font-size:9px!important;letter-spacing:1.25px!important}
+html body .account-hub-hero.admin h1{margin:7px 0!important;font-size:clamp(24px,6.3vw,31px)!important;line-height:1.08!important;letter-spacing:-1px!important}
+html body .account-hub-hero.admin p{margin:5px 0!important;font-size:11px!important;line-height:1.42!important}
+html body .account-hub-hero.admin .contact-verification-row{margin-top:9px!important;gap:6px!important}
+html body .account-hub-hero.admin .contact-verification-row>*{padding:5px 9px!important;font-size:9px!important}
+html body .account-hub-hero.admin>strong{padding:8px 11px!important;border-radius:12px!important;font-size:10px!important}
+html body .admin-command-center{
+  padding:13px!important;gap:10px!important;border-radius:17px!important;
+  box-shadow:0 7px 18px rgba(22,61,69,.055)!important
+}
+html body .admin-command-center>header{grid-template-columns:minmax(0,1fr)!important;gap:9px!important}
+html body .admin-command-center>header>div{
+  padding:0 0 0 47px!important;min-height:39px!important;display:flex!important;
+  flex-direction:column!important;justify-content:center!important;gap:2px!important
+}
+html body .admin-command-center>header>div:before{
+  top:0!important;left:0!important;width:38px!important;height:38px!important;
+  border-radius:11px!important;font-size:20px!important
+}
+html body .admin-command-center>header>div>span{font-size:8px!important;letter-spacing:1.1px!important}
+html body .admin-command-center>header h2{margin:1px 0!important;font-size:23px!important;line-height:1.05!important;letter-spacing:-.8px!important}
+html body .admin-command-center>header p{margin:2px 0 0!important;font-size:10px!important;line-height:1.35!important}
+html body .admin-command-center>header>button{
+  min-height:40px!important;padding:9px 13px!important;border-radius:11px!important;font-size:13px!important
+}
+html body .admin-command-stats{gap:7px!important}
+html body .admin-command-stats article{
+  min-height:66px!important;padding:9px!important;gap:8px!important;border-radius:12px!important
+}
+html body .admin-command-stats article>i{
+  display:grid!important;flex:0 0 30px!important;width:30px!important;height:30px!important;
+  font-size:13px!important;border-radius:9px!important
+}
+html body .admin-command-stats article small{font-size:8px!important;letter-spacing:.5px!important}
+html body .admin-command-stats article b{font-size:19px!important;line-height:1.05!important}
+html body .admin-command-stats article:after{font-size:27px!important;right:5px!important;bottom:-7px!important}
+html body .admin-command-actions{gap:7px!important}
+html body .admin-command-actions>button{
+  min-height:49px!important;padding:7px!important;gap:6px!important;border-radius:11px!important
+}
+html body .admin-command-actions>button>i{width:25px!important;height:25px!important;font-size:12px!important}
+html body .admin-command-actions>button b{font-size:9px!important;line-height:1.2!important}
+html body .admin-command-actions>button small{font-size:7px!important;line-height:1.2!important}
+html body .account-hub .all-trips-modal{padding:12px!important;border-radius:16px!important}
+html body .account-hub .all-trips-summary{padding:9px 11px!important}
+html body .trip-library.admin-library{gap:9px!important}
+html body .trip-library.admin-library .trip-library-card{border-radius:14px!important}
+html body .sticky-edge-tab{display:none!important}
+html body .sticky-panel-backdrop,html body .sticky-panel{display:none!important}
+html body .mt-tabbar:not([hidden]){
+  padding:4px 7px calc(5px + env(safe-area-inset-bottom))!important;
+  min-height:0!important
+}
+html body .mt-tabbar button{min-height:43px!important;gap:1px!important;font-size:9px!important}
+html body .mt-tabbar button i{width:37px!important;height:23px!important}
+html body .mt-tabbar .mt-plus b{width:46px!important;height:46px!important;margin-top:-16px!important;font-size:25px!important}
+@media(min-width:761px){
+  html body .account-hub-shell{gap:14px!important}
+  html body .account-hub-hero.admin{min-height:205px!important}
+  html body .admin-command-center{padding:20px!important;gap:13px!important}
+  html body .admin-command-center>header{grid-template-columns:minmax(0,1fr) auto!important;align-items:center!important}
+  html body .admin-command-center>header>div{padding-left:55px!important}
+}
+@media(max-width:760px){
+  html body .account-hub-shell{gap:9px!important;padding:9px 11px 16px!important}
+  html body .account-hub-topbar{grid-template-columns:minmax(0,1fr) auto!important;gap:5px 8px!important;padding:7px 11px!important}
+  html body .account-hub-topbar>.brand{grid-column:1!important;grid-row:1!important}
+  html body .account-hub-topbar>div{grid-column:1!important;grid-row:2!important;align-items:flex-start!important}
+  html body .account-hub-topbar>.account-signout{grid-column:2!important;grid-row:1!important}
+  html body .account-hub-topbar>.header-date-time{grid-column:1/-1!important;grid-row:3!important;min-height:32px!important}
+  html body .account-hub-topbar>.connection-status{grid-column:2!important;grid-row:2!important}
+  html body .account-hub-hero.admin{min-height:164px!important;padding:15px!important;border-radius:16px!important}
+  html body .account-hub-hero.admin>div{max-width:82%!important}
+  html body .account-hub-hero.admin h1{font-size:clamp(23px,6.2vw,29px)!important}
+  html body .account-hub-hero.admin p{font-size:10px!important;max-width:260px!important}
+  html body .account-hub-hero.admin .contact-verification-row{margin-top:7px!important}
+  html body .admin-command-center{padding:12px!important;gap:9px!important}
+  html body .admin-command-center>header>div{padding:0 0 0 45px!important}
+  html body .admin-command-center>header>div:before{top:0!important}
+  html body .admin-command-center>header h2{font-size:22px!important}
+  html body .admin-command-stats article{min-height:62px!important;padding:8px!important}
+  html body .admin-command-stats article>i{display:grid!important}
+  html body .admin-command-actions{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  html body .admin-command-actions>button{grid-template-columns:1fr!important;justify-items:center!important;text-align:center!important;min-height:57px!important}
+  html body .admin-command-actions>button>span{min-width:0!important}
+  html body .admin-command-actions>button small{display:none!important}
+  html body .sticky-edge-tab{display:none!important}
+  html body .mt-tabbar:not([hidden]){padding-bottom:calc(3px + env(safe-area-inset-bottom))!important}
+}
+@media(max-width:390px){
+  html body .account-hub-hero.admin{min-height:155px!important}
+  html body .account-hub-hero.admin>div{max-width:85%!important}
+  html body .account-hub-hero.admin h1{font-size:23px!important}
+  html body .admin-command-stats article>i{display:none!important}
+  html body .admin-command-actions>button{min-height:51px!important}
+}
