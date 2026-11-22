@@ -4572,3 +4572,41 @@ html body .permission-banner .dashboard-inline-version{
   html body .journey-stage.completed .journey-prep-grid>article>span{display:none!important}
   html body .journey-stage.completed .journey-prep-grid>article{min-height:62px!important}
 }
+
+
+/* v4.67.29 — richer, more visible pastel card backgrounds */
+html body .permission-banner-actions .permission-search{
+  background:linear-gradient(135deg,#d9efeb,#cce7e2)!important;
+  border-color:#b6d9d2!important;color:#125f5a!important
+}
+html body .permission-banner-actions>button:nth-child(2){
+  background:linear-gradient(135deg,#e4daf5,#d8c9ef)!important;
+  border-color:#cbb9e8!important;color:#59428d!important
+}
+html body .permission-banner-actions>button:nth-child(3){
+  background:linear-gradient(135deg,#fbe5d1,#f5d9bd)!important;
+  border-color:#eac9a8!important;color:#87521f!important
+}
+html body .permission-banner-actions>button:nth-child(4){
+  background:linear-gradient(135deg,#dbe9f8,#cbdff2)!important;
+  border-color:#b9d0e8!important;color:#315b83!important
+}
+html body .journey-stage.completed .journey-prep-grid>article:nth-child(4n+1){
+  background:linear-gradient(145deg,#d8eee8,#cce6df)!important;border-color:#b8d9d0!important
+}
+html body .journey-stage.completed .journey-prep-grid>article:nth-child(4n+2){
+  background:linear-gradient(145deg,#e6def5,#d9cdef)!important;border-color:#cfc0e8!important
+}
+html body .journey-stage.completed .journey-prep-grid>article:nth-child(4n+3){
+  background:linear-gradient(145deg,#fae8d7,#f4dcc5)!important;border-color:#ebcfb4!important
+}
+html body .journey-stage.completed .journey-prep-grid>article:nth-child(4n){
+  background:linear-gradient(145deg,#dceafa,#cddff2)!important;border-color:#bdd2e9!important
+}
+html body .journey-stage.completed .journey-prep-grid>article>i{
+  background:rgba(255,255,255,.82)!important;box-shadow:0 2px 5px rgba(40,65,80,.06)!important
+}
+html body .permission-banner-actions>button,
+html body .journey-stage.completed .journey-prep-grid>article{
+  transition:background .18s ease,border-color .18s ease,box-shadow .18s ease!important
+}
