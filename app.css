@@ -4474,3 +4474,101 @@ html body .mt-tabbar .mt-plus b{width:46px!important;height:46px!important;margi
   html body .admin-command-stats article>i{display:none!important}
   html body .admin-command-actions>button{min-height:51px!important}
 }
+
+
+/* v4.67.28 — Compact pastel card grids for completed-trip summary and admin access */
+html body .journey-stage.completed{gap:10px!important;padding:12px!important}
+html body .journey-stage.completed .journey-stage-hero{min-height:118px!important;padding:15px!important;border-radius:15px!important}
+html body .journey-stage.completed .journey-stage-hero h2{font-size:clamp(21px,3vw,29px)!important}
+html body .journey-stage.completed .journey-prep-grid{
+  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:8px!important;margin-top:0!important
+}
+html body .journey-stage.completed .journey-prep-grid>article{
+  display:grid!important;grid-template-columns:34px minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto!important;align-items:center!important;
+  column-gap:9px!important;row-gap:2px!important;min-width:0!important;
+  min-height:76px!important;padding:10px!important;border:1px solid #e1ebe8!important;
+  border-radius:13px!important;box-shadow:0 3px 10px rgba(35,70,76,.035)!important
+}
+html body .journey-stage.completed .journey-prep-grid>article:nth-child(4n+1){background:#edf7f5!important}
+html body .journey-stage.completed .journey-prep-grid>article:nth-child(4n+2){background:#f3effb!important}
+html body .journey-stage.completed .journey-prep-grid>article:nth-child(4n+3){background:#fff4e9!important}
+html body .journey-stage.completed .journey-prep-grid>article:nth-child(4n){background:#edf3fc!important}
+html body .journey-stage.completed .journey-prep-grid>article>i{
+  grid-column:1!important;grid-row:1/4!important;width:32px!important;height:32px!important;
+  border-radius:10px!important;font-size:16px!important;background:rgba(255,255,255,.78)!important
+}
+html body .journey-stage.completed .journey-prep-grid>article>small{
+  grid-column:2!important;grid-row:1!important;font-size:8px!important;letter-spacing:.65px!important;
+  line-height:1.15!important;color:#73868a!important
+}
+html body .journey-stage.completed .journey-prep-grid>article>strong{
+  grid-column:2!important;grid-row:2!important;font-size:clamp(17px,3vw,22px)!important;
+  line-height:1.05!important;overflow-wrap:anywhere!important;color:#193c49!important
+}
+html body .journey-stage.completed .journey-prep-grid>article>span{
+  grid-column:2!important;grid-row:3!important;font-size:8px!important;line-height:1.2!important;
+  white-space:normal!important;color:#728187!important
+}
+html body .permission-banner{
+  display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;gap:8px 10px!important;margin:0 0 10px!important;
+  padding:11px!important;border-radius:15px!important
+}
+html body .permission-banner>i{display:none!important}
+html body .permission-banner .permission-copy{grid-column:1/-1!important;min-width:0!important}
+html body .permission-banner .permission-copy>b{font-size:14px!important;line-height:1.2!important}
+html body .permission-banner .permission-copy>p{display:none!important}
+html body .permission-banner-actions{
+  grid-column:1/-1!important;display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;width:100%!important
+}
+html body .permission-banner-actions .permission-search{
+  grid-column:1/-1!important;min-height:39px!important;border-radius:11px!important;
+  background:#eaf5f3!important;border:1px solid #d4e7e2!important;color:#176d68!important;
+  box-shadow:none!important
+}
+html body .permission-banner-actions>button:not(.quick-find-trigger){
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  width:100%!important;min-height:40px!important;padding:8px!important;border-radius:11px!important;
+  background:#f1f6fc!important;border:1px solid #dfe8f2!important;color:#315d83!important;
+  box-shadow:none!important;font-size:11px!important
+}
+html body .permission-banner-actions>button:nth-child(2){background:#f2effb!important;border-color:#e4dcf4!important;color:#6c55a5!important}
+html body .permission-banner-actions>button:nth-child(3){background:#fff4e9!important;border-color:#f1e3d2!important;color:#a36b2d!important}
+html body .permission-banner .dashboard-inline-version{
+  display:block!important;grid-column:1/-1!important;text-align:right!important;
+  font-size:8px!important;color:#8a999b!important;padding:0!important;background:none!important
+}
+@media(min-width:761px){
+  html body .journey-stage.completed .journey-prep-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+  html body .journey-stage.completed .journey-prep-grid>article{min-height:84px!important;padding:11px!important}
+  html body .permission-banner{grid-template-columns:minmax(0,1fr) auto!important}
+  html body .permission-banner .permission-copy{grid-column:1!important}
+  html body .permission-banner-actions{grid-column:2!important;grid-template-columns:repeat(3,auto)!important;width:auto!important}
+  html body .permission-banner-actions .permission-search{grid-column:auto!important}
+  html body .permission-banner .dashboard-inline-version{grid-column:1/-1!important}
+}
+@media(max-width:760px){
+  html body .journey-stage.completed{padding:10px!important;gap:8px!important}
+  html body .journey-stage.completed .journey-stage-hero{min-height:100px!important;padding:13px!important}
+  html body .journey-stage.completed .journey-stage-hero h2{font-size:22px!important}
+  html body .journey-stage.completed .journey-stage-hero p{font-size:10px!important}
+  html body .journey-stage.completed .journey-stage-badge{padding:5px 9px!important;font-size:8px!important}
+  html body .journey-stage.completed .journey-prep-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+  html body .journey-stage.completed .journey-prep-grid>article{min-height:70px!important;padding:8px!important;grid-template-columns:29px minmax(0,1fr)!important;column-gap:7px!important}
+  html body .journey-stage.completed .journey-prep-grid>article>i{width:28px!important;height:28px!important;font-size:14px!important}
+  html body .journey-stage.completed .journey-prep-grid>article>small{font-size:7px!important}
+  html body .journey-stage.completed .journey-prep-grid>article>strong{font-size:18px!important}
+  html body .journey-stage.completed .journey-prep-grid>article>span{font-size:7px!important}
+  html body .permission-banner{padding:10px!important;margin-bottom:8px!important;gap:7px!important}
+  html body .permission-banner .permission-copy>b{font-size:13px!important}
+  html body .permission-banner-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important}
+  html body .permission-banner-actions .permission-search{min-height:36px!important}
+  html body .permission-banner-actions>button:not(.quick-find-trigger){min-height:37px!important;font-size:10px!important}
+}
+@media(max-width:360px){
+  html body .journey-stage.completed .journey-prep-grid>article>span{display:none!important}
+  html body .journey-stage.completed .journey-prep-grid>article{min-height:62px!important}
+}
