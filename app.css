@@ -4198,3 +4198,164 @@ html body .empty-photo-gallery,html body .empty-experiences{
     html body .journey-prep-grid>article:hover,html body .trip-photo-card:hover,html body .experience-list>article:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(26,60,67,.08)!important}
   }
 }
+
+
+/* v4.67.26 — Bring the real account hub closer to the approved visual concept */
+html body .account-hub-topbar{
+  display:grid!important;grid-template-columns:minmax(145px,1fr) auto auto auto auto!important;
+  align-items:center!important;gap:12px!important;padding:12px clamp(14px,3vw,28px)!important;
+  background:linear-gradient(180deg,#fff 0%,#f8fcfa 100%)!important;
+  border-bottom:1px solid #e2eee9!important;box-shadow:0 5px 20px rgba(22,58,67,.055)!important
+}
+html body .account-hub-topbar>.brand{
+  display:inline-flex!important;align-items:center!important;gap:9px!important;
+  color:#126d68!important;font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important;
+  font-size:23px!important;font-weight:950!important;letter-spacing:-1px!important;text-decoration:none!important
+}
+html body .account-hub-topbar>.brand>i{
+  display:grid!important;place-items:center!important;width:39px!important;height:39px!important;
+  border-radius:13px!important;background:linear-gradient(145deg,#18a58f,#126b73)!important;
+  color:#fff!important;font-size:23px!important;font-style:normal!important;
+  box-shadow:0 6px 14px rgba(18,126,111,.18)!important
+}
+html body .account-hub-topbar>.brand:after{
+  content:"Plan · Travel · Share · Remember";display:block;margin-left:1px;
+  color:#71858a;font-family:Inter,ui-sans-serif,system-ui,sans-serif;
+  font-size:9px;font-weight:700;letter-spacing:.45px
+}
+html body .account-hub-topbar>div{display:flex!important;flex-direction:column!important;align-items:flex-end!important;gap:5px!important}
+html body .account-hub-topbar>div>span{font-size:10px!important;letter-spacing:1.35px!important;color:#71858a!important;font-weight:850!important}
+html body .account-hub-topbar>div>b{
+  display:inline-flex!important;padding:8px 13px!important;border:1px solid #d7ebe4!important;
+  border-radius:999px!important;background:#eff8f4!important;color:#247368!important;
+  font-size:11px!important;font-weight:850!important
+}
+html body .account-hub-topbar>.header-date-time{
+  min-height:42px!important;padding:10px 16px!important;border:1px solid #d5e9e1!important;
+  border-radius:999px!important;background:linear-gradient(180deg,#fbfefc,#edf7f2)!important;
+  color:#315f59!important;-webkit-text-fill-color:#315f59!important;
+  font-size:12px!important;font-weight:800!important;box-shadow:0 3px 9px rgba(45,100,87,.06)!important
+}
+html body .account-hub-topbar>.connection-status{font-size:10px!important}
+html body .account-hub-hero.admin{
+  position:relative!important;isolation:isolate!important;overflow:hidden!important;
+  display:flex!important;align-items:center!important;justify-content:space-between!important;
+  min-height:286px!important;padding:clamp(25px,4vw,40px)!important;border-radius:25px!important;
+  border:1px solid rgba(255,255,255,.16)!important;
+  background-image:linear-gradient(90deg,rgba(5,39,57,.94) 0%,rgba(7,68,76,.83) 43%,rgba(8,72,75,.18) 100%),url("https://images.unsplash.com/photo-1576599483499-4b146e73545d?auto=format&fit=crop&w=1800&q=85")!important;
+  background-position:center,68% 48%!important;background-size:cover!important;background-repeat:no-repeat!important;
+  box-shadow:0 17px 36px rgba(12,60,69,.18)!important
+}
+html body .account-hub-hero.admin:before{content:none!important;display:none!important}
+html body .account-hub-hero.admin:after{content:none!important;display:none!important}
+html body .account-hub-hero.admin>div{position:relative!important;z-index:1!important;max-width:62%!important}
+html body .account-hub-hero.admin>div>span{color:#baf2df!important;letter-spacing:1.8px!important;font-size:10px!important;font-weight:900!important}
+html body .account-hub-hero.admin h1{
+  margin:10px 0!important;color:#fff!important;-webkit-text-fill-color:#fff!important;
+  font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important;
+  font-size:clamp(30px,4.2vw,46px)!important;line-height:1.06!important;letter-spacing:-1.8px!important;
+  text-shadow:0 2px 16px rgba(0,0,0,.18)!important
+}
+html body .account-hub-hero.admin p{color:rgba(255,255,255,.91)!important;font-size:14px!important;line-height:1.6!important;max-width:570px!important}
+html body .account-hub-hero.admin p b{color:#fff!important}
+html body .account-hub-hero.admin .contact-verification-row{gap:8px!important;margin-top:15px!important}
+html body .account-hub-hero.admin .contact-verification-row>*{opacity:1!important;filter:none!important}
+html body .account-hub-hero.admin>strong{
+  position:relative!important;z-index:2!important;align-self:flex-end!important;
+  display:inline-flex!important;align-items:center!important;gap:8px!important;
+  padding:12px 17px!important;border:1px solid rgba(255,255,255,.42)!important;
+  border-radius:15px!important;background:rgba(255,255,255,.94)!important;
+  color:#176d69!important;-webkit-text-fill-color:#176d69!important;
+  font-size:13px!important;font-weight:950!important;box-shadow:0 8px 22px rgba(0,0,0,.12)!important
+}
+html body .admin-command-center{
+  padding:clamp(19px,3vw,28px)!important;border:1px solid #d8e9e4!important;
+  border-radius:23px!important;background:
+  radial-gradient(circle at 100% 0%,rgba(250,205,151,.25),transparent 28%),
+  linear-gradient(125deg,#f1faf7 0%,#f7f8fc 65%,#fff7f0 100%)!important;
+  box-shadow:0 12px 28px rgba(22,61,69,.075)!important
+}
+html body .admin-command-center>header>div{position:relative!important;padding-left:66px!important}
+html body .admin-command-center>header>div:before{
+  content:"⚙";position:absolute;left:0;top:5px;display:grid;place-items:center;
+  width:51px;height:51px;border-radius:15px;background:linear-gradient(145deg,#1ba995,#11736e);
+  color:white;font-size:28px;box-shadow:0 8px 17px rgba(19,132,118,.18)
+}
+html body .admin-command-center>header>div>span{color:#168174!important;font-size:10px!important;letter-spacing:1.5px!important;font-weight:900!important}
+html body .admin-command-center>header h2{font-size:clamp(25px,3vw,34px)!important;letter-spacing:-1.2px!important;color:#173747!important}
+html body .admin-command-center>header p{color:#61777e!important;font-size:13px!important}
+html body .admin-command-center>header>button{
+  min-height:48px!important;padding:12px 19px!important;border-radius:14px!important;
+  background:linear-gradient(105deg,#0e9887,#08665f)!important;
+  box-shadow:0 9px 20px rgba(14,120,108,.2)!important;font-weight:900!important
+}
+html body .admin-command-stats{gap:11px!important}
+html body .admin-command-stats article{
+  position:relative!important;overflow:hidden!important;min-height:98px!important;
+  padding:15px!important;border-radius:17px!important;border:1px solid #dceae7!important;
+  box-shadow:0 6px 16px rgba(24,57,68,.05)!important
+}
+html body .admin-command-stats article:after{
+  position:absolute;right:10px;bottom:-12px;font-size:47px;line-height:1;
+  opacity:.16;pointer-events:none
+}
+html body .admin-command-stats article:nth-child(1){background:linear-gradient(140deg,#fff,#eaf8ff)!important}
+html body .admin-command-stats article:nth-child(1):after{content:"✈";color:#1597c7}
+html body .admin-command-stats article:nth-child(2){background:linear-gradient(140deg,#fff,#f3efff)!important}
+html body .admin-command-stats article:nth-child(2):after{content:"▦";color:#7452ca}
+html body .admin-command-stats article:nth-child(3){background:linear-gradient(140deg,#fff,#fff4e8)!important}
+html body .admin-command-stats article:nth-child(3):after{content:"♙";color:#df8b36}
+html body .admin-command-stats article:nth-child(4){background:linear-gradient(140deg,#fff,#eaf8f0)!important}
+html body .admin-command-stats article:nth-child(4):after{content:"↗";color:#299d73}
+html body .admin-command-stats article>i{
+  display:grid!important;place-items:center!important;flex:0 0 42px!important;
+  width:42px!important;height:42px!important;border-radius:13px!important;
+  background:rgba(255,255,255,.78)!important;color:#13796f!important;
+  font-size:19px!important;box-shadow:0 3px 10px rgba(30,80,80,.06)!important
+}
+html body .admin-command-stats article>span{position:relative;z-index:1}
+html body .admin-command-stats article small{font-size:9px!important;letter-spacing:.9px!important;color:#70848a!important}
+html body .admin-command-stats article b{font-size:clamp(21px,2.3vw,27px)!important;color:#173747!important}
+html body .admin-command-actions>button{
+  min-height:66px!important;border-radius:14px!important;border:1px solid #e0ebe7!important;
+  background:rgba(255,255,255,.94)!important;box-shadow:0 5px 14px rgba(26,62,70,.045)!important
+}
+html body .all-trips-modal{border:1px solid #e0ebe7!important;border-radius:21px!important;box-shadow:0 9px 25px rgba(20,50,65,.05)!important}
+html body .trip-library.admin-library .trip-library-card{border-radius:18px!important;box-shadow:0 7px 18px rgba(24,55,68,.055)!important}
+@media(max-width:760px){
+  html body .account-hub-topbar{
+    grid-template-columns:minmax(0,1fr) auto!important;gap:7px 9px!important;padding:10px 12px!important
+  }
+  html body .account-hub-topbar>.brand{grid-column:1!important;grid-row:1!important;font-size:19px!important}
+  html body .account-hub-topbar>.brand>i{width:34px!important;height:34px!important}
+  html body .account-hub-topbar>.brand:after{font-size:8px!important}
+  html body .account-hub-topbar>div{grid-column:1!important;grid-row:2!important;align-items:flex-start!important}
+  html body .account-hub-topbar>.account-signout{grid-column:2!important;grid-row:1!important}
+  html body .account-hub-topbar>.header-date-time{grid-column:1/-1!important;grid-row:3!important;width:100%!important;min-height:39px!important;font-size:11px!important}
+  html body .account-hub-topbar>.connection-status{grid-column:2!important;grid-row:2!important;justify-self:end!important}
+  html body .account-hub-hero.admin{
+    min-height:260px!important;padding:21px 18px!important;border-radius:20px!important;
+    background-image:linear-gradient(90deg,rgba(5,39,57,.96) 0%,rgba(7,68,76,.83) 52%,rgba(8,72,75,.25) 100%),url("https://images.unsplash.com/photo-1576599483499-4b146e73545d?auto=format&fit=crop&w=1200&q=82")!important;
+    background-position:center,66% center!important
+  }
+  html body .account-hub-hero.admin>div{max-width:78%!important}
+  html body .account-hub-hero.admin h1{font-size:clamp(27px,7vw,35px)!important;letter-spacing:-1.25px!important}
+  html body .account-hub-hero.admin p{font-size:12px!important;line-height:1.55!important}
+  html body .account-hub-hero.admin>strong{align-self:flex-end!important;padding:9px 13px!important;font-size:11px!important}
+  html body .admin-command-center{padding:16px!important;border-radius:19px!important}
+  html body .admin-command-center>header>div{padding-left:0!important;padding-top:52px!important}
+  html body .admin-command-center>header>div:before{top:0;width:40px;height:40px;border-radius:12px;font-size:22px}
+  html body .admin-command-center>header h2{font-size:26px!important}
+  html body .admin-command-center>header p{font-size:12px!important}
+  html body .admin-command-stats{gap:8px!important}
+  html body .admin-command-stats article{min-height:83px!important;padding:11px!important}
+  html body .admin-command-stats article>i{flex-basis:34px!important;width:34px!important;height:34px!important;font-size:15px!important}
+  html body .admin-command-stats article:after{font-size:35px!important;right:7px!important}
+  html body .admin-command-stats article b{font-size:21px!important}
+  html body .admin-command-actions>button{min-height:62px!important}
+}
+@media(max-width:390px){
+  html body .account-hub-topbar>.brand:after{display:none!important}
+  html body .account-hub-hero.admin>div{max-width:84%!important}
+  html body .account-hub-hero.admin{min-height:245px!important}
+}
