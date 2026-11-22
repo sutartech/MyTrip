@@ -4082,3 +4082,119 @@ html body .account-hub-topbar>.account-signout{
   html body .account-hub-hero.admin:before{opacity:.55}
   html body .admin-command-actions>button{padding:8px!important}
 }
+
+
+/* v4.67.25 — Trip workspace visual system: journey, expenses, memories and gallery */
+html body .journey-stage{gap:16px!important}
+html body .journey-stage-hero{
+  position:relative!important;isolation:isolate!important;overflow:hidden!important;
+  min-height:190px!important;padding:25px!important;border:1px solid #d6e9e4!important;
+  border-radius:22px!important;
+  background:
+    radial-gradient(circle at 90% 12%,rgba(255,220,157,.34),transparent 24%),
+    radial-gradient(circle at 8% 100%,rgba(81,192,168,.18),transparent 34%),
+    linear-gradient(120deg,#eaf7f3 0%,#f4f8fb 56%,#fff8ec 100%)!important;
+  box-shadow:0 10px 26px rgba(27,68,75,.07)!important
+}
+html body .journey-stage-hero:not(.has-cover)>div{position:relative;z-index:1;max-width:760px}
+html body .journey-stage-hero:not(.has-cover) h2{font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important;font-size:clamp(25px,4vw,34px)!important;letter-spacing:-1px!important;color:#173747!important}
+html body .journey-stage-hero:not(.has-cover) p{color:#587078!important;line-height:1.55!important}
+html body .journey-stage-hero:not(.has-cover) .journey-stage-kicker{color:#168174!important;font-weight:850!important;letter-spacing:1.2px!important}
+html body .journey-stage-badge{border-radius:999px!important;padding:8px 12px!important;background:#e2f4ed!important;color:#176f60!important;border:1px solid #c9e8dc!important;font-size:10px!important;font-weight:850!important;letter-spacing:.7px!important}
+html body .journey-prep-grid{gap:10px!important}
+html body .journey-prep-grid>article{
+  min-width:0!important;padding:15px!important;border:1px solid #e2ece8!important;
+  border-radius:16px!important;background:linear-gradient(145deg,#fff,#f7fbf9)!important;
+  box-shadow:0 5px 15px rgba(26,60,67,.045)!important
+}
+html body .journey-prep-grid>article:nth-child(2n){background:linear-gradient(145deg,#fff,#f7f6ff)!important}
+html body .journey-prep-grid>article strong{font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important;font-size:23px!important;color:#183c4a!important}
+html body .journey-prep-grid>article small{font-size:9px!important;letter-spacing:.8px!important;color:#71858a!important}
+html body .journey-live-grid{gap:14px!important}
+html body .journey-main,html body .journey-side,html body .journey-reminder{
+  border:1px solid #e1ebe7!important;border-radius:18px!important;
+  background:#fff!important;box-shadow:0 7px 20px rgba(26,60,67,.045)!important
+}
+html body .journey-main{padding:17px!important}
+html body .journey-main>header{gap:10px!important}
+html body .journey-main>header h3{font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important;letter-spacing:-.35px!important;color:#173747!important}
+html body .journey-plan-list{gap:9px!important}
+html body .journey-plan-item{border:1px solid #e5ece9!important;border-radius:13px!important;background:#fbfdfc!important}
+html body .journey-plan-item.next{border-color:#b8ded4!important;background:linear-gradient(110deg,#effaf6,#fff)!important}
+html body .journey-reminder{padding:15px!important}
+html body .journey-reminder.clear{background:linear-gradient(140deg,#f0faf5,#fff)!important}
+html body .expense-summary{gap:11px!important}
+html body .expense-summary>*{
+  min-width:0!important;padding:17px!important;border:1px solid #e1ebe7!important;
+  border-radius:17px!important;box-shadow:0 6px 18px rgba(26,60,67,.045)!important
+}
+html body .expense-summary .budget-card{background:linear-gradient(140deg,#f1f8ff,#fff)!important;border-color:#d7e8f3!important}
+html body .expense-summary .spent-card{background:linear-gradient(140deg,#fff7ed,#fff)!important;border-color:#f1e2ce!important}
+html body .expense-summary .balance-card{background:linear-gradient(140deg,#effaf4,#fff)!important;border-color:#d4eadd!important}
+html body .expense-summary>* small{font-size:9px!important;letter-spacing:.8px!important;font-weight:850!important;color:#74858a!important}
+html body .expense-summary>* strong{font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important;font-size:clamp(19px,2.5vw,25px)!important;letter-spacing:-.5px!important;color:#183747!important;overflow-wrap:anywhere}
+html body .traveller-expense-panel,html body .spending-panel,html body .recent-expenses-panel{
+  padding:17px!important;border:1px solid #e2ebe7!important;border-radius:18px!important;
+  background:linear-gradient(145deg,#fff,#f9fcfb)!important;box-shadow:0 7px 20px rgba(26,60,67,.04)!important
+}
+html body .traveller-expense-heading h2{font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important;letter-spacing:-.45px!important}
+html body .experience-hero,html body .trip-photos-hero{
+  position:relative!important;overflow:hidden!important;gap:16px!important;
+  padding:22px!important;border:1px solid #dceae5!important;border-radius:21px!important;
+  background:
+    radial-gradient(circle at 95% 5%,rgba(244,205,147,.25),transparent 26%),
+    linear-gradient(120deg,#eff9f5,#f5f7fc 68%,#fff9f1)!important;
+  box-shadow:0 9px 24px rgba(25,61,68,.055)!important
+}
+html body .experience-hero h2,html body .trip-photos-hero h2{
+  font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif!important;
+  font-size:clamp(23px,3.5vw,31px)!important;letter-spacing:-.8px!important;color:#173747!important
+}
+html body .experience-hero p,html body .trip-photos-hero p{color:#62767b!important;line-height:1.55!important}
+html body .experience-summary{gap:9px!important}
+html body .experience-summary>article{
+  padding:13px!important;border:1px solid #e2ece8!important;border-radius:15px!important;
+  background:#fff!important;box-shadow:0 4px 13px rgba(26,60,67,.04)!important
+}
+html body .experience-summary>article i{border-radius:11px!important}
+html body .experience-list{gap:12px!important}
+html body .experience-list>article,html body .experience-card{
+  border:1px solid #e3ece8!important;border-radius:16px!important;
+  background:#fff!important;box-shadow:0 6px 17px rgba(26,60,67,.045)!important;overflow:hidden
+}
+html body .trip-photos-page{gap:15px!important}
+html body .photo-access-strip{
+  padding:13px 15px!important;border:1px solid #dceae5!important;border-radius:15px!important;
+  background:linear-gradient(110deg,#eff9f5,#f8f8fc)!important
+}
+html body .trip-photo-grid{gap:12px!important}
+html body .trip-photo-card{
+  overflow:hidden!important;border:1px solid #e2ebe7!important;border-radius:16px!important;
+  background:#fff!important;box-shadow:0 6px 17px rgba(26,60,67,.05)!important
+}
+html body .empty-photo-gallery,html body .empty-experiences{
+  padding:26px!important;border:1px dashed #cbded7!important;border-radius:17px!important;
+  background:linear-gradient(135deg,#f3faf7,#fbfaff)!important
+}
+@media(max-width:760px){
+  html body .journey-stage{gap:12px!important}
+  html body .journey-stage-hero{min-height:160px!important;padding:19px!important;border-radius:18px!important}
+  html body .journey-prep-grid{gap:8px!important}
+  html body .journey-prep-grid>article{padding:12px!important;border-radius:13px!important}
+  html body .journey-main{padding:13px!important}
+  html body .expense-summary{gap:8px!important}
+  html body .expense-summary>*{padding:13px!important;border-radius:14px!important}
+  html body .traveller-expense-panel,html body .spending-panel,html body .recent-expenses-panel{padding:13px!important;border-radius:15px!important}
+  html body .experience-hero,html body .trip-photos-hero{padding:17px!important;border-radius:17px!important}
+  html body .experience-summary{gap:7px!important}
+  html body .experience-summary>article{padding:10px!important;border-radius:12px!important}
+  html body .trip-photo-grid{gap:8px!important}
+  html body .trip-photo-card{border-radius:13px!important}
+  html body .photo-access-strip{padding:11px!important;border-radius:13px!important}
+}
+@media(prefers-reduced-motion:no-preference){
+  html body .journey-prep-grid>article,html body .trip-photo-card,html body .experience-list>article{transition:transform .18s ease,box-shadow .18s ease}
+  @media(hover:hover){
+    html body .journey-prep-grid>article:hover,html body .trip-photo-card:hover,html body .experience-list>article:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(26,60,67,.08)!important}
+  }
+}
