@@ -4666,3 +4666,101 @@ html body .permission-banner-actions>button:nth-child(4){
     font-size:11px!important
   }
 }
+
+
+/* v4.67.31 — Richer dashboard cards and stronger typography */
+html body .admin-command-stats article{
+  border-width:1px!important;border-radius:16px!important;
+  box-shadow:0 7px 18px rgba(24,57,68,.085),inset 0 1px 0 rgba(255,255,255,.75)!important;
+  min-height:88px!important;padding:13px!important
+}
+html body .admin-command-stats article:nth-child(1){
+  background:linear-gradient(135deg,#d9f0f8 0%,#edf8fc 100%)!important;border-color:#b9dce9!important
+}
+html body .admin-command-stats article:nth-child(2){
+  background:linear-gradient(135deg,#e8e0fa 0%,#f3effc 100%)!important;border-color:#d0c3ed!important
+}
+html body .admin-command-stats article:nth-child(3){
+  background:linear-gradient(135deg,#fbe8d3 0%,#fff4e8 100%)!important;border-color:#edcfad!important
+}
+html body .admin-command-stats article:nth-child(4){
+  background:linear-gradient(135deg,#d9f0e4 0%,#eff9f3 100%)!important;border-color:#b9dfca!important
+}
+html body .admin-command-stats article>i{
+  width:38px!important;height:38px!important;flex-basis:38px!important;
+  border-radius:12px!important;background:rgba(255,255,255,.88)!important;
+  box-shadow:0 3px 9px rgba(30,65,75,.08)!important;font-size:17px!important
+}
+html body .admin-command-stats article small{
+  color:#49636b!important;font-size:10px!important;font-weight:850!important;
+  letter-spacing:.75px!important;line-height:1.25!important
+}
+html body .admin-command-stats article b{
+  color:#153b49!important;font-size:clamp(22px,2vw,28px)!important;
+  font-weight:950!important;letter-spacing:-.55px!important;line-height:1.1!important
+}
+html body .admin-command-stats article:after{opacity:.22!important;font-size:42px!important}
+html body .admin-command-actions>button{
+  min-height:66px!important;padding:11px 13px!important;border-radius:15px!important;
+  border:1px solid #d6e5e1!important;background:linear-gradient(145deg,#fff 0%,#f1f8f5 100%)!important;
+  box-shadow:0 5px 14px rgba(22,61,69,.065),inset 0 1px 0 #fff!important
+}
+html body .admin-command-actions>button:nth-child(3n+2){
+  background:linear-gradient(145deg,#fff,#f1edfb)!important;border-color:#ded4ef!important
+}
+html body .admin-command-actions>button:nth-child(3n){
+  background:linear-gradient(145deg,#fff,#fff2e5)!important;border-color:#f0ddc7!important
+}
+html body .admin-command-actions>button>i{
+  width:34px!important;height:34px!important;border-radius:11px!important;
+  background:#d9eee8!important;color:#126d64!important;font-size:16px!important
+}
+html body .admin-command-actions>button:nth-child(3n+2)>i{background:#e6def6!important;color:#624b9d!important}
+html body .admin-command-actions>button:nth-child(3n)>i{background:#fbe8d4!important;color:#9b6126!important}
+html body .admin-command-actions>button b,
+html body .admin-command-actions>button strong,
+html body .admin-command-actions>button span{
+  color:#203d49!important;font-weight:850!important
+}
+html body .admin-command-actions>button small{
+  color:#617780!important;font-weight:650!important
+}
+html body .admin-command-center{
+  border-color:#cfe2dc!important;
+  box-shadow:0 12px 28px rgba(20,62,67,.09)!important
+}
+html body .admin-command-center>header h2{
+  color:#123746!important;font-weight:950!important
+}
+html body .admin-command-center>header p{color:#506a72!important;font-weight:600!important}
+html body .trip-library.admin-library>.trip-library-card,
+html body .trip-library.admin-library .trip-library-card{
+  border:1px solid #d3e4de!important;border-radius:18px!important;
+  background:linear-gradient(145deg,#fff 0%,#f4faf7 100%)!important;
+  box-shadow:0 8px 22px rgba(22,58,67,.085)!important
+}
+html body .trip-library.admin-library .trip-library-card h2,
+html body .trip-library.admin-library .trip-library-card h3,
+html body .trip-library.admin-library .trip-library-card strong{
+  color:#173b48!important;font-weight:900!important
+}
+html body .trip-library.admin-library .trip-library-card p,
+html body .trip-library.admin-library .trip-library-card small{
+  color:#5e747b!important;font-weight:600!important
+}
+html body .trip-library.admin-library .trip-card-actions [data-open-admin-trip]{
+  font-weight:850!important;box-shadow:0 5px 12px rgba(17,112,101,.18)!important
+}
+html body .permission-banner-actions .permission-search,
+html body .permission-banner-actions>button{
+  font-weight:850!important;letter-spacing:.1px!important;
+  box-shadow:0 3px 9px rgba(30,65,75,.06)!important
+}
+@media(max-width:760px){
+  html body .admin-command-stats article{min-height:72px!important;padding:10px!important;border-radius:13px!important}
+  html body .admin-command-stats article>i{width:31px!important;height:31px!important;flex-basis:31px!important}
+  html body .admin-command-stats article small{font-size:8px!important}
+  html body .admin-command-stats article b{font-size:20px!important}
+  html body .admin-command-actions>button{min-height:58px!important;border-radius:13px!important}
+  html body .admin-command-actions>button>i{width:29px!important;height:29px!important}
+}
