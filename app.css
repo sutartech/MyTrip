@@ -3889,3 +3889,66 @@ html body .account-hub-topbar>.account-signout{min-height:42px!important;border-
   html body .admin-command-stats article{min-height:72px!important}
   html body .admin-command-actions>button{grid-template-columns:1fr!important}
 }
+
+
+/* v4.67.22 — Application-wide visual consistency and accessibility pass */
+:root{
+  --mt-radius-sm:10px;--mt-radius-md:15px;--mt-radius-lg:20px;
+  --mt-border:#e4ebe8;--mt-shadow:0 8px 24px rgba(24,55,68,.055);
+}
+html{scroll-padding-top:86px}
+body{font-family:"Plus Jakarta Sans",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+:where(button,a,input,select,textarea,[tabindex]):focus-visible{
+  outline:3px solid rgba(20,125,114,.38)!important;outline-offset:3px!important
+}
+:where(button,a,input,select,textarea){-webkit-tap-highlight-color:transparent}
+:where(.panel,.main-grid>.panel,.trip-library-card,.trip-card,.stat,.summary-card,.experience-section,.self-profile-card,.traveller-expense-panel,.spending-panel,.recent-expenses-panel){
+  border-radius:var(--mt-radius-md)
+}
+:where(.panel,.main-grid>.panel,.trip-library-card,.trip-card,.summary-card,.self-profile-card,.traveller-expense-panel){
+  border-color:var(--mt-border)
+}
+:where(.primary,.secondary,.invite,.trip-open-primary,.form-actions button,.modal button){
+  transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,filter .16s ease
+}
+@media(hover:hover){
+  :where(.primary,.invite,.trip-open-primary,.form-actions button):hover{filter:brightness(1.035);transform:translateY(-1px)}
+  :where(.secondary,.trip-card,.trip-library-card):hover{border-color:#c8ddd7}
+}
+:where(input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea){
+  border-radius:11px;transition:border-color .15s ease,box-shadow .15s ease
+}
+:where(input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea):focus{
+  border-color:#3b9b8c!important;box-shadow:0 0 0 3px rgba(59,155,140,.12)!important
+}
+:where(.view-head,.trip-heading,.table-headline,.traveller-expense-heading){
+  gap:12px;margin-bottom:16px
+}
+:where(.view-head h1,.trip-heading h1){line-height:1.12;letter-spacing:-.8px}
+:where(.trip-library-card,.trip-card){
+  transition:box-shadow .18s ease,border-color .18s ease,transform .18s ease
+}
+:where(.trip-library-card,.trip-card) :where(img){border-radius:12px}
+:where(.status-pill,.trip-id-chip,.access-badge,.version-badge){letter-spacing:.25px}
+:where(.empty-trips,.empty-state,.empty-photo-gallery){
+  border-radius:16px
+}
+:where(.modal-card,.modal>section){
+  border:1px solid rgba(224,233,230,.9)
+}
+:where(.modal-card h2,.modal-card h3){letter-spacing:-.35px}
+:where(table){border-collapse:separate;border-spacing:0}
+:where(th){font-weight:800;letter-spacing:.2px}
+:where(td,th){vertical-align:middle}
+:where(.toast,#toast){z-index:1000}
+@media(max-width:760px){
+  html{scroll-padding-top:72px}
+  :where(.view-head,.trip-heading){align-items:flex-start}
+  :where(.view-head h1,.trip-heading h1){font-size:clamp(23px,6vw,31px)}
+  :where(.panel,.main-grid>.panel,.summary-card,.self-profile-card,.traveller-expense-panel){border-radius:14px}
+  :where(.modal-card,.modal>section){max-width:100%;max-height:calc(100dvh - env(safe-area-inset-top) - 10px);overflow:auto}
+  :where(button,.primary,.secondary,.invite){touch-action:manipulation}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
