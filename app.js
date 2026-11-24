@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.73.0";
+  const frontendVersion = "4.74.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -1327,7 +1327,7 @@
     const balance = budget - total;
     const members = visibleTripMembers();
     const photo = tripPhotoUrl(state.data.trip.photoUrl);
-    const cover = tripHeaderCollagePhotos().length ? "" : photo ? `<section class="trip-cover"><img loading="lazy" decoding="async" src="${esc(photo)}" alt="Cover photo for ${esc(state.data.trip.name)}" fetchpriority="high" decoding="async" width="1600" height="900" referrerpolicy="no-referrer" decoding="async" fetchpriority="high"><div><span>TRIP PHOTO</span><h2>${esc(state.data.trip.name)}</h2><p>${esc(state.data.trip.destination)}</p>${isAdmin() ? `<button data-trip-photo>Change photo</button>` : ""}</div></section>` : (isAdmin() ? `<section class="trip-cover trip-cover-empty"><div><span>TRIP PHOTO</span><h2>Add a memorable cover photo</h2><p>Use a public HTTPS image or Google Drive sharing link.</p><button data-trip-photo>Add photo</button></div></section>` : "");
+    const cover = tripHeaderCollagePhotos().length ? "" : photo ? `<section class="trip-cover"><img loading="eager" fetchpriority="high" decoding="async" src="${esc(photo)}" alt="Cover photo for ${esc(state.data.trip.name)}" width="1600" height="900" referrerpolicy="no-referrer"><div><span>TRIP PHOTO</span><h2>${esc(state.data.trip.name)}</h2><p>${esc(state.data.trip.destination)}</p>${isAdmin() ? `<button data-trip-photo>Change photo</button>` : ""}</div></section>` : (isAdmin() ? `<section class="trip-cover trip-cover-empty"><div><span>TRIP PHOTO</span><h2>Add a memorable cover photo</h2><p>Use a public HTTPS image or Google Drive sharing link.</p><button data-trip-photo>Add photo</button></div></section>` : "");
     const planQuickAction = canViewItinerary() ? `<button data-add="plan"><i>＋</i><span><b>Add plan</b><small>Itinerary</small></span></button>` : "";
     const expenseQuickAction = canViewExpenses() ? `<button data-add="expense"><i>₹</i><span><b>Add expense</b><small>Spending</small></span></button>` : "";
     const placeQuickAction = canViewPlaces() ? `<button data-add="place"><i>⌖</i><span><b>Add place</b><small>Map</small></span></button>` : "";
