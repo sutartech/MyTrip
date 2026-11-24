@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.91.0";
+  const frontendVersion = "4.92.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -4984,7 +4984,7 @@
   function hiddenTripsBar(trips) {
     const count = (trips || []).filter((trip) => isTripHidden(trip.tripId)).length;
     if (!count && !state.showHiddenTrips) return "";
-    return `<button id="toggleHiddenTrips" class="secondary-action${state.showHiddenTrips ? " on" : ""}" type="button">${state.showHiddenTrips ? `◉ Hiding ${count} again` : `◎ Show ${count} hidden`}</button>`;
+    return `<button id="toggleHiddenTrips" class="secondary-action${state.showHiddenTrips ? " on" : ""}" type="button"><i aria-hidden="true">${state.showHiddenTrips ? "◉" : "◎"}</i><span>${state.showHiddenTrips ? `Hide ${count} trips again` : `Show ${count} hidden trips`}</span></button>`;
   }
   function tripVisibilityButton(trip) {
     return `<button type="button" class="trip-hide-button${isTripHidden(trip.tripId) ? " hidden-on" : ""}" data-hide-trip="${esc(trip.tripId)}" title="${isTripHidden(trip.tripId) ? "Show this trip in your list" : "Hide this trip from your list"}">${isTripHidden(trip.tripId) ? "◎" : "◉"}</button>`;
