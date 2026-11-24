@@ -5875,3 +5875,51 @@ html body .admin-command-actions>#toggleHiddenTrips>span{
   html body .admin-command-actions>#toggleHiddenTrips{justify-content:center!important}
   html body .admin-command-actions>#toggleHiddenTrips>span{font-size:9px!important}
 }
+
+
+/* MyTrip v4.93.0 — Trip Library card refinement.
+   Visual-only: keep existing trip markup, controls, ordering and permission handlers. */
+html body .all-trips-modal{padding:15px!important;border:1px solid #e0eae7!important;border-radius:19px!important;background:linear-gradient(145deg,#fff 0%,#f8fbfa 55%,#fffaf4 100%)!important;box-shadow:0 8px 24px rgba(25,55,65,.055)!important}
+html body .all-trips-summary.compact{display:flex!important;align-items:center!important;gap:11px!important;margin:0 0 12px!important;padding:2px 2px 11px!important;border-bottom:1px solid #e5eeeb!important}
+html body .all-trips-summary.compact .admin-avatar{width:42px!important;height:42px!important;flex:0 0 42px!important;border:2px solid #fff!important;box-shadow:0 3px 12px rgba(22,70,73,.12)!important}
+html body .all-trips-summary.compact>span{display:grid!important;gap:3px!important}
+html body .all-trips-summary.compact>span>small{font-size:8px!important;letter-spacing:1.1px!important;color:#148579!important;font-weight:950!important}
+html body .all-trips-summary.compact>span>b{font-size:16px!important;line-height:1.2!important;color:#183b49!important;font-weight:950!important}
+html body .trip-library.admin-library{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))!important;align-items:stretch!important;gap:13px!important}
+html body .trip-library.admin-library .trip-library-card{display:flex!important;flex-direction:column!important;min-width:0!important;border:1px solid #dce9e5!important;border-radius:17px!important;background:#fff!important;box-shadow:0 5px 16px rgba(25,61,68,.055)!important;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease!important}
+html body .trip-library.admin-library .trip-library-card:hover{transform:translateY(-2px)!important;border-color:#b9d9d1!important;box-shadow:0 12px 25px rgba(25,61,68,.10)!important}
+html body .trip-library.admin-library .trip-library-card .library-cover{height:148px!important;flex-basis:148px!important;background:linear-gradient(135deg,#d9eee8,#e7e4f6)!important}
+html body .trip-library.admin-library .trip-library-card .library-cover:after{content:"";position:absolute;inset:45% 0 0;background:linear-gradient(transparent,rgba(8,35,48,.28));pointer-events:none}
+html body .trip-library.admin-library .trip-library-card .library-chip{z-index:1;left:11px!important;bottom:10px!important;padding:5px 10px!important;font-size:9px!important;font-weight:900!important;letter-spacing:.25px!important}
+html body .trip-library.admin-library .trip-library-card .trip-card-tools{top:9px!important;right:9px!important;padding:3px 5px!important;gap:3px!important;border:1px solid rgba(255,255,255,.72)!important;background:rgba(255,255,255,.94)!important;backdrop-filter:blur(8px)!important}
+html body .trip-library.admin-library .trip-library-card .trip-card-copy{width:100%!important;box-sizing:border-box!important;padding:13px 15px 5px!important;gap:5px!important}
+html body .trip-library.admin-library .trip-library-card .trip-code{font-size:8px!important;letter-spacing:1px!important;color:#168579!important}
+html body .trip-library.admin-library .trip-library-card .trip-card-copy h3{font-size:19px!important;line-height:1.2!important;font-weight:950!important;letter-spacing:-.35px!important;color:#173746!important}
+html body .trip-library.admin-library .trip-library-card .trip-card-copy p{font-size:11px!important;line-height:1.4!important;color:#536c76!important;font-weight:700!important}
+html body .trip-library.admin-library .trip-library-card .trip-card-copy>small{font-size:9px!important;line-height:1.45!important;color:#71828a!important;font-weight:650!important}
+html body .trip-library.admin-library .trip-library-card .trip-budget-meter{margin:8px 0 2px!important;gap:9px!important}
+html body .trip-library.admin-library .trip-library-card .trip-budget-meter>span{height:7px!important;background:#edf2f1!important}
+html body .trip-library.admin-library .trip-library-card .trip-budget-meter>small{font-size:8px!important;font-weight:900!important;color:#557078!important}
+html body .trip-library.admin-library .trip-library-card .trip-budget-remaining{font-size:9px!important;font-weight:850!important;color:#16816e!important}
+html body .trip-library.admin-library .trip-library-card .trip-budget-remaining.over{color:#b64d40!important}
+html body .trip-library.admin-library .trip-library-card .status-pill{padding:5px 9px!important;border-radius:99px!important;font-size:8px!important;letter-spacing:.55px!important}
+html body .trip-library.admin-library .trip-library-card .trip-card-actions{width:auto!important;box-sizing:border-box!important;display:flex!important;align-items:center!important;gap:7px!important;padding:10px 15px 14px!important;margin-top:auto!important}
+html body .trip-library.admin-library .trip-library-card .trip-card-actions>.trip-open-primary{flex:1 1 auto!important;width:auto!important;min-height:40px!important;border:0!important;border-radius:11px!important;background:linear-gradient(110deg,#087e73,#287e9b)!important;color:#fff!important;font-size:11px!important;font-weight:950!important;box-shadow:0 5px 13px rgba(15,111,108,.16)!important}
+html body .trip-library.admin-library .trip-library-card .library-trip-menu{flex:0 0 94px!important;width:94px!important}
+html body .trip-library.admin-library .trip-library-card .library-trip-menu>summary{min-height:40px!important;border-radius:11px!important;font-size:9px!important}
+html body .global-access-note{margin-top:11px!important;padding:9px 11px!important;border:1px solid #e5eeeb!important;border-radius:11px!important;background:#f6faf8!important;color:#61767b!important;font-size:9px!important}
+@media(max-width:760px){
+ html body .all-trips-modal{padding:11px!important;border-radius:15px!important}
+ html body .all-trips-summary.compact{margin-bottom:9px!important;padding-bottom:9px!important}
+ html body .all-trips-summary.compact .admin-avatar{width:37px!important;height:37px!important;flex-basis:37px!important}
+ html body .all-trips-summary.compact>span>b{font-size:14px!important}
+ html body .trip-library.admin-library{grid-template-columns:minmax(0,1fr)!important;gap:10px!important}
+ html body .trip-library.admin-library .trip-library-card{border-radius:15px!important}
+ html body .trip-library.admin-library .trip-library-card .library-cover{height:132px!important;flex-basis:132px!important}
+ html body .trip-library.admin-library .trip-library-card .trip-card-copy{padding:11px 12px 4px!important}
+ html body .trip-library.admin-library .trip-library-card .trip-card-copy h3{font-size:17px!important}
+ html body .trip-library.admin-library .trip-library-card .trip-card-actions{padding:9px 12px 12px!important}
+ html body .trip-library.admin-library .trip-library-card .trip-card-actions>.trip-open-primary{min-height:39px!important}
+ html body .trip-library.admin-library .trip-library-card .library-trip-menu{flex-basis:88px!important;width:88px!important}
+}
+@media(prefers-reduced-motion:reduce){html body .trip-library.admin-library .trip-library-card{transition:none!important}}
