@@ -5718,3 +5718,15 @@ html body #view section.permission-banner.admin > div.permission-banner-actions 
 .plan-route-mode.active{background:var(--accent-soft,#d9efeb);color:var(--accent,#0f6e6a);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent,#0f6e6a) 20%,transparent)}
 .plan-route-mode:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(max-width:680px){.plan-route-tools{width:100%;justify-content:space-between}.plan-route-modes{flex:1;justify-content:space-between}.plan-route-mode{flex:1;padding:5px 3px}.plan-route-mode span{font-size:9px}.plan-directions-link{white-space:nowrap}}
+
+
+/* MyTrip 4.87.0 — expanded trip preparation starter packs */
+.ck-template-picker{display:grid;gap:9px}
+.ck-template-picker>p{margin:0 0 5px;color:var(--muted);font-size:12px;line-height:1.5}
+.ck-template-option{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--panel);text-align:left;cursor:pointer;transition:border-color .15s,transform .15s,box-shadow .15s}
+.ck-template-option:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 5px 16px rgba(24,50,65,.08)}
+.ck-template-option>span{display:grid;gap:4px;min-width:0}
+.ck-template-option b{color:var(--ink);font-size:12px;font-weight:850}
+.ck-template-option small{color:var(--muted);font-size:10px}
+.ck-template-option>em{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-style:normal;font-size:18px;font-weight:800}
+@media(max-width:560px){.ck-template-option{padding:11px 12px}.ck-template-option b{font-size:11px}}
