@@ -5297,9 +5297,11 @@ body{background:#f2f5f9;color:var(--ink);font-family:"Plus Jakarta Sans",Inter,u
     padding:3px 6px!important;font-size:8px!important;white-space:nowrap!important;
   }
   html body #view>.trip-announcement>button{
-    grid-column:1/-1!important;grid-row:2!important;
-    width:100%!important;min-height:36px!important;
-    margin-top:1px!important;padding:7px 10px!important;
+    grid-column:3!important;grid-row:1!important;
+    justify-self:end!important;align-self:center!important;
+    width:auto!important;min-width:0!important;min-height:30px!important;height:30px!important;
+    margin:0!important;padding:5px 9px!important;border-radius:9px!important;
+    font-size:10px!important;line-height:1!important;white-space:nowrap!important;
   }
 }
 @media(max-width:380px){
