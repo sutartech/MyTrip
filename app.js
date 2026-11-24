@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.86.0";
+  const frontendVersion = "4.87.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -1555,7 +1555,12 @@
   const checklistStarterPacks = {
     packing: { title: "Packing essentials", items: ["Pack weather-appropriate clothes", "Pack comfortable walking shoes", "Pack toiletries and personal-care items", "Pack chargers, cables and power bank", "Carry reusable water bottles", "Pack a small day bag", "Pack essential medicines and prescriptions"] },
     documents: { title: "Travel documents", items: ["Check tickets and travel dates", "Confirm hotel or accommodation bookings", "Carry valid photo ID for every traveller", "Save booking confirmations offline", "Share emergency contacts with the group", "Check travel insurance details (if applicable)", "Check passport and visa validity (if applicable)", "Keep digital and paper copies of key documents"] },
-    roadtrip: { title: "Road-trip readiness", items: ["Check vehicle documents and insurance", "Check driving licence validity", "Check tyre pressure, spare tyre and jack", "Check FASTag or toll payment balance", "Plan fuel and rest stops", "Keep first-aid kit and emergency tools", "Download offline maps for the route", "Carry drinking water and travel snacks"] }
+    roadtrip: { title: "Road-trip readiness", items: ["Check vehicle documents and insurance", "Check driving licence validity", "Check tyre pressure, spare tyre and jack", "Check FASTag or toll payment balance", "Plan fuel and rest stops", "Keep first-aid kit and emergency tools", "Download offline maps for the route", "Carry drinking water and travel snacks"] },
+    bookings: { title: "Accommodation & bookings", items: ["Confirm hotel check-in and check-out dates", "Verify room count and guest names", "Save hotel address and contact number", "Confirm train, flight or bus tickets", "Check baggage allowance and seat details", "Save booking IDs and payment receipts", "Confirm airport or station transfers", "Check cancellation and refund deadlines"] },
+    health: { title: "Health & safety", items: ["Pack regular medicines and prescriptions", "Carry a basic first-aid kit", "Save local emergency numbers", "Share emergency contacts with all travellers", "Check travel insurance and coverage details", "Carry drinking water and required personal supplies", "Note nearby hospitals or pharmacies at the destination"] },
+    departure: { title: "Before departure", items: ["Check weather forecast for the destination", "Check in online where available", "Charge phones, cameras and power banks", "Download tickets, maps and confirmations for offline access", "Arrange home security and essential services", "Confirm pickup time and meeting point", "Check ID documents and ticket names match", "Recheck departure time and terminal or platform"] },
+    family: { title: "Family & children", items: ["Pack child-specific clothes and essentials", "Carry required child medicines and health details", "Pack snacks, water and entertainment", "Keep a recent photo and parent contact details accessible", "Confirm child seats or suitable transport arrangements", "Pack any mobility or accessibility aids needed"] },
+    international: { title: "International travel", items: ["Check passport validity for the destination", "Verify visa and entry requirements", "Check foreign currency and payment options", "Check international roaming or eSIM arrangements", "Save embassy or consulate contact details", "Check baggage and restricted-item rules", "Keep copies of passport, visa and insurance separately"] }
   };
   function openChecklistTemplatePicker() {
     const packs = Object.entries(checklistStarterPacks);
