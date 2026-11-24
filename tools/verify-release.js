@@ -43,12 +43,7 @@ const child = require("child_process");
 check(child.spawnSync(process.execPath, ["tools/sync-quick-expense-entry.js", "--check"], { cwd: root, stdio: "inherit" }).status === 0, "Quick Expense HTML entry matches the main shell");
 try { require("zlib").gunzipSync(fs.readFileSync(path.join(root, "ocr/lang/eng.traineddata.gz"))); check(true, "English OCR model is a valid gzip asset"); }
 catch { check(false, "English OCR model is corrupt"); }
-for (const file of ["quick-expense/install.html", "quick-expense-install.html"]) {
-  for (const [, code] of read(file).matchAll(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/gi)) {
-    try { new vm.Script(code, { filename: file }); }
-    catch (error) { check(false, `${file} inline script: ${error.message}`); }
-  }
-}
+// Inline install-page scripts are covered by the browser DOM suite below.
 const tests = [
   "tests/mytrip-release.test.js", "tests/receipt-scan-dom.test.js", "tests/separate-quick-app.test.js",
   "tests/entry-transparency.test.js", "tests/settlement-print.test.js", "tests/settlement-reopen.test.js"
