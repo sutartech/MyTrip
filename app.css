@@ -6042,3 +6042,49 @@ html body .trip-intel-export-actions{display:flex!important;justify-content:flex
 html body .trip-intel-export-actions>button{min-height:35px!important;padding:7px 11px!important;border:1px solid #cfe2dc!important;border-radius:9px!important;background:#edf7f3!important;color:#176c62!important;font-size:9px!important;font-weight:900!important}
 html body .trip-intel-export-actions>button:last-child{border-color:#d9d5ed!important;background:#f3f0fb!important;color:#594a8a!important}
 @media(max-width:760px){html body .trip-intel-export-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}html body .trip-intel-export-actions>button{padding:7px 5px!important;font-size:8px!important;white-space:normal!important}}
+
+
+/* Itinerary table polish: sticky headings, restrained zebra rows and
+   tighter controls. Scoped to the wide table so card and print layouts stay intact. */
+.plan-table.plan-table-wide>.plan-table-header{
+  position:sticky;
+  top:0;
+  z-index:4;
+  background:#edf4f4;
+  box-shadow:0 2px 5px rgba(22,48,65,.07);
+}
+.plan-table.plan-table-wide>.plan-row:not(.plan-row-editing):nth-child(odd of .plan-row:not(.plan-row-editing)){
+  background:#f7faf9;
+}
+.plan-table.plan-table-wide>.plan-row:not(.plan-row-editing):hover{
+  background:#edf6f4;
+}
+.plan-table.plan-table-wide>.plan-row>.plan-cell-day{
+  box-shadow:1px 0 0 #e5eceb;
+}
+.plan-table.plan-table-wide .plan-row-actions{
+  gap:4px;
+}
+.plan-table.plan-table-wide .plan-row-actions button{
+  padding:6px 8px;
+  white-space:nowrap;
+}
+.plan-table.plan-table-wide :focus-visible{
+  outline:2px solid #2f7d72;
+  outline-offset:2px;
+}
+@media(max-width:760px){
+  .plan-table.plan-table-wide>.plan-table-header,
+  .plan-table.plan-table-wide>.plan-row:not(.plan-row-editing){
+    grid-template-columns:60px 58px 160px 130px 170px 150px!important;
+  }
+  .plan-table.plan-table-wide>.plan-table-header{
+    font-size:9px;
+    padding:10px 9px;
+  }
+  .plan-table.plan-table-wide>.plan-row:not(.plan-row-editing){
+    gap:8px;
+    padding:10px 9px;
+    font-size:11px;
+  }
+}
