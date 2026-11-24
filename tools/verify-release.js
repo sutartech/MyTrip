@@ -27,15 +27,17 @@ for (const file of ["manifest.webmanifest", "quick-expense.webmanifest", "quick-
   try { JSON.parse(read(file)); check(true, `${file} JSON`); }
   catch (error) { check(false, `${file} JSON: ${error.message}`); }
 }
-const app = read("app.js"), html = read("index.html"), sw = read("sw.js"), config = read("config.js");
+const app = read("app.js"), html = read("index.html"), quickHtml = read("quick-expense/index.html"), sw = read("sw.js"), config = read("config.js");
 const fe = app.split('const frontendVersion = "')[1]?.split('"')[0];
 const be = app.split('const requiredBackendVersion = "')[1]?.split('"')[0];
 check(Boolean(fe), `frontend version is declared (${fe || "missing"})`);
 check(Boolean(be), `minimum backend compatibility version is declared (${be || "missing"})`);
 check(html.includes(`app.js?v=${fe}`) && html.includes(`app.css?v=${fe}`), "HTML cache-bust versions match frontend");
 check(html.includes(`config.js?v=${fe}`), "config.js cache-bust version matches frontend");
-const visibleVersions = [...html.matchAll(/v\\d+\\.\\d+\\.\\d+/g)].map(match => match[0]);
+const visibleVersions = [...html.matchAll(/v\d+\.\d+\.\d+/g)].map(match => match[0]);
 check(visibleVersions.every(version => version === `v${fe}`), "all visible HTML frontend version labels match the running bundle");
+const quickVisibleVersions = [...quickHtml.matchAll(/v\d+\.\d+\.\d+/g)].map(match => match[0]);
+check(quickHtml.includes(`config.js?v=${fe}`) && quickVisibleVersions.every(version => version === `v${fe}`), "Quick Expense version labels and config cache tag match the running bundle");
 check(sw.includes(`mytrip-static-v${fe}`) && sw.includes(`app.js?v=${fe}`) && sw.includes(`app.css?v=${fe}`), "service-worker cache and asset versions match frontend");
 check(config.includes("https://script.google.com/macros/s/") && config.includes("/exec"), "Google Apps Script endpoint is configured");
 const quick = JSON.parse(read("quick-expense/manifest.webmanifest")), normal = JSON.parse(read("manifest.webmanifest"));
