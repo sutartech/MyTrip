@@ -27,7 +27,7 @@ for (const file of ["manifest.webmanifest", "quick-expense.webmanifest", "quick-
   try { JSON.parse(read(file)); check(true, `${file} JSON`); }
   catch (error) { check(false, `${file} JSON: ${error.message}`); }
 }
-const app = read("app.js"), html = read("index.html"), quickHtml = read("quick-expense/index.html"), sw = read("sw.js"), config = read("config.js");
+const app = read("app.js"), html = read("index.html"), quickHtml = read("quick-expense/index.html"), quickInstall = read("quick-expense/install.html"), quickSw = read("quick-expense/sw.js"), sw = read("sw.js"), config = read("config.js");
 const fe = app.split('const frontendVersion = "')[1]?.split('"')[0];
 const be = app.split('const requiredBackendVersion = "')[1]?.split('"')[0];
 check(Boolean(fe), `frontend version is declared (${fe || "missing"})`);
@@ -38,6 +38,8 @@ const visibleVersions = [...html.matchAll(/v\d+\.\d+\.\d+/g)].map(match => match
 check(visibleVersions.every(version => version === `v${fe}`), "all visible HTML frontend version labels match the running bundle");
 const quickVisibleVersions = [...quickHtml.matchAll(/v\d+\.\d+\.\d+/g)].map(match => match[0]);
 check(quickHtml.includes(`config.js?v=${fe}`) && quickVisibleVersions.every(version => version === `v${fe}`), "Quick Expense version labels and config cache tag match the running bundle");
+check(quickInstall.includes('href="quick-expense/manifest.webmanifest"'), "Quick Expense installer links to the case-correct in-repository manifest");
+check(quickSw.includes(`mytrip-quick-separate-v${fe}`) && quickSw.includes(`app.js?v=${fe}`) && quickSw.includes(`app.css?v=${fe}`), "separate Quick Expense worker references the current shared frontend assets");
 check(sw.includes(`mytrip-static-v${fe}`) && sw.includes(`app.js?v=${fe}`) && sw.includes(`app.css?v=${fe}`), "service-worker cache and asset versions match frontend");
 check(config.includes("https://script.google.com/macros/s/") && config.includes("/exec"), "Google Apps Script endpoint is configured");
 const quick = JSON.parse(read("quick-expense/manifest.webmanifest")), normal = JSON.parse(read("manifest.webmanifest"));
