@@ -5661,3 +5661,14 @@ html body #view section.permission-banner.admin > div.permission-banner-actions 
 /* MyTrip 4.82.0 — compact trip budget balance and admin action row support */
 .trip-budget-remaining{display:block!important;margin:4px 0 8px!important;color:#607487!important;font-size:10px!important;font-weight:800!important;line-height:1.35!important}
 .trip-budget-remaining.over{color:#b54736!important}
+
+
+/* MyTrip 4.83.0 — compact category-level spending insight on trip overview */
+.overview-category-panel{min-width:0}
+.overview-category-list{display:grid;gap:11px;padding-top:3px}
+.overview-category-row{display:grid;gap:6px;min-width:0}
+.overview-category-row>span{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+.overview-category-row>span>b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:11px;font-weight:800}
+.overview-category-row>span>small{flex:none;color:var(--muted);font-size:10px;font-weight:800;font-variant-numeric:tabular-nums}
+.overview-category-row>i{display:block;height:7px;overflow:hidden;border-radius:99px;background:#edf1f3}
+.overview-category-row>i>em{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#3ba89c,#76c9b7)}
