@@ -4944,3 +4944,9 @@ body{background:#f2f5f9;color:var(--ink);font-family:"Plus Jakarta Sans",Inter,u
  .ck-starter-bar>button{padding:8px 9px;font-size:9px}
  .ck-template-option{padding:12px}
 }
+
+
+/* MyTrip 4.70.0 — selected-day route action */
+.plan-directions-link{display:inline-flex;align-items:center;justify-content:center;text-decoration:none!important;background:#eaf4ff!important;border-color:#c9ddf5!important;color:#245ca9!important;font-weight:850!important}
+.plan-directions-link:hover{background:#dcecff!important;border-color:#a8c7ed!important}
+@media(max-width:760px){.plan-directions-link{white-space:nowrap}}
