@@ -4946,7 +4946,25 @@ body{background:#f2f5f9;color:var(--ink);font-family:"Plus Jakarta Sans",Inter,u
 }
 
 
-/* MyTrip 4.70.0 — selected-day route action */
+/* MyTrip 4.71.0 — selected-day route action */
 .plan-directions-link{display:inline-flex;align-items:center;justify-content:center;text-decoration:none!important;background:#eaf4ff!important;border-color:#c9ddf5!important;color:#245ca9!important;font-weight:850!important}
 .plan-directions-link:hover{background:#dcecff!important;border-color:#a8c7ed!important}
 @media(max-width:760px){.plan-directions-link{white-space:nowrap}}
+
+
+/* MyTrip 4.71.0 — clearer account-role banner and administrator actions */
+.permission-banner.admin{display:grid;grid-template-columns:38px minmax(220px,1fr) auto auto;align-items:center;column-gap:14px;row-gap:10px;padding:16px 18px;background:linear-gradient(112deg,#edf8f5 0%,#f4f7ff 58%,#fff7ee 100%);border:1px solid #d8e8e5;border-radius:16px;box-shadow:0 8px 24px rgba(16,42,67,.07)}
+.permission-banner.admin>i{width:38px;height:38px;flex-basis:38px;border-radius:12px;background:linear-gradient(145deg,#168d80,#2367a6);color:#fff;font-size:15px;box-shadow:0 6px 14px rgba(28,116,139,.2)}
+.permission-banner .permission-copy{display:grid;gap:3px;min-width:0}
+.permission-banner .permission-eyebrow{font-size:8px;line-height:1.2;letter-spacing:1.15px;font-weight:900;color:#168b80}
+.permission-banner .permission-copy>b{font-size:14px;line-height:1.25;font-weight:900;color:#163653}
+.permission-banner .permission-copy>p{margin:1px 0 0;font-size:10px;line-height:1.45;color:#60778b}
+.permission-role-pill{display:inline-flex;align-items:center;justify-content:center;padding:7px 10px;border:1px solid #b9dfd5;border-radius:30px;background:#e1f5ee;color:#087967;font-size:8px;font-weight:950;letter-spacing:.7px;white-space:nowrap}
+.permission-banner.admin .permission-banner-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.permission-banner.admin .permission-banner-actions>button{min-height:38px;padding:9px 13px;border:1px solid #d5e3ed;border-radius:10px;background:#fff;color:#244b68;font-size:10px;font-weight:850;box-shadow:0 3px 9px rgba(16,42,67,.05)}
+.permission-banner.admin .permission-banner-actions>button[data-all-trips]{background:#eee9ff;border-color:#d9cef9;color:#5c49a2}
+.permission-banner.admin .permission-banner-actions>button[data-announcement]{background:#fff0df;border-color:#f4d5b4;color:#965719}
+.permission-banner.admin .permission-banner-actions>button[data-security]{background:#e8f2ff;border-color:#c9ddf4;color:#2c5f91}
+.permission-banner.admin .dashboard-inline-version{grid-column:1/-1;justify-self:end;font-size:8px;color:#8395a3;font-weight:800}
+@media(max-width:1050px){.permission-banner.admin{grid-template-columns:38px minmax(0,1fr) auto}.permission-banner.admin .permission-banner-actions{grid-column:1/-1;justify-content:flex-start}.permission-banner.admin .dashboard-inline-version{grid-column:1/-1}}
+@media(max-width:600px){.permission-banner.admin{grid-template-columns:34px minmax(0,1fr);padding:13px;gap:9px}.permission-banner.admin>i{width:34px;height:34px;flex-basis:34px}.permission-banner.admin .permission-role-pill{grid-column:2;justify-self:start}.permission-banner.admin .permission-banner-actions{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.permission-banner.admin .permission-banner-actions>button{width:100%;min-height:40px}.permission-banner.admin .permission-banner-actions .permission-search{grid-column:1/-1}.permission-banner.admin .dashboard-inline-version{grid-column:1/-1}}

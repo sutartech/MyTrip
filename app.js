@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.70.0";
+  const frontendVersion = "4.71.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -1069,7 +1069,7 @@
     const personal = Boolean(state.travellerId);
     const travellerMessage = personal ? "Only the trip features enabled for this Traveller ID appear in the menu. Hidden data is not downloaded." : "Shared trip access uses the common feature set for this trip.";
     const accountActions = isAdmin() ? `<button data-all-trips>All trips</button><button data-announcement>Announcement</button><button data-security>Security</button>` : (personal ? `<button data-my-trips>My trips</button>` : `<span class="shared-trip-label">SHARED TRIP</span>`);
-    return `<section class="permission-banner ${isAdmin() ? "admin" : "traveller"}"><i>${isAdmin() ? "◆" : "♙"}</i><div class="permission-copy"><b>${isAdmin() ? "Global Administrator access" : (personal ? "Personal traveller access" : "Shared trip access")}</b><p>${isAdmin() ? "Open every trip, assign travellers, control all feature access, edit details or delete a trip." : travellerMessage}</p></div>${!isAdmin() && personal ? `<span class="personal-traveller-id"><small>MY TRAVELLER ID</small><b>${esc(state.travellerId)}</b></span>` : ""}<div class="permission-banner-actions"><button class="quick-find-trigger permission-search" data-open-quick-find type="button" aria-haspopup="dialog" aria-controls="quickFindLayer" title="Search this trip (Ctrl or Command + K)"><span>⌕</span><b>Quick Find</b><kbd>⌘K</kbd></button>${accountActions}</div><span class="dashboard-inline-version">FE v${frontendVersion} · BE ${backendVersion ? `v${esc(backendVersion)}` : "—"}</span></section>`;
+    return `<section class="permission-banner ${isAdmin() ? "admin" : "traveller"}"><i aria-hidden="true">${isAdmin() ? "◆" : "♙"}</i><div class="permission-copy"><span class="permission-eyebrow">${isAdmin() ? "ACCOUNT-LEVEL ROLE" : "TRIP ACCESS"}</span><b>${isAdmin() ? "Administrator control centre" : (personal ? "Personal traveller access" : "Shared trip access")}</b><p>${isAdmin() ? "Full control across your MyTrip workspace — manage trips, traveller access, announcements and security." : travellerMessage}</p></div>${isAdmin() ? `<span class="permission-role-pill">FULL ACCESS</span>` : ""}${!isAdmin() && personal ? `<span class="personal-traveller-id"><small>MY TRAVELLER ID</small><b>${esc(state.travellerId)}</b></span>` : ""}<div class="permission-banner-actions"><button class="quick-find-trigger permission-search" data-open-quick-find type="button" aria-haspopup="dialog" aria-controls="quickFindLayer" title="Search this trip (Ctrl or Command + K)"><span>⌕</span><b>Quick Find</b><kbd>⌘K</kbd></button>${accountActions}</div><span class="dashboard-inline-version">FE v${frontendVersion} · BE ${backendVersion ? `v${esc(backendVersion)}` : "—"}</span></section>`;
   }
 
   function tripSettingOn(value) { return value === true || String(value || "").toUpperCase() === "TRUE"; }
