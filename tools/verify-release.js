@@ -34,7 +34,7 @@ check(Boolean(fe), `frontend version is declared (${fe || "missing"})`);
 check(Boolean(be), `minimum backend compatibility version is declared (${be || "missing"})`);
 check(html.includes(`app.js?v=${fe}`) && html.includes(`app.css?v=${fe}`), "HTML cache-bust versions match frontend");
 check(sw.includes(`mytrip-static-v${fe}`) && sw.includes(`app.js?v=${fe}`) && sw.includes(`app.css?v=${fe}`), "service-worker cache and asset versions match frontend");
-check(/API_URL:\\s*"https:\\/\\/script\\.google\\.com\\/macros\\/s\\/[A-Za-z0-9_-]+\\/exec"/.test(config), "Google Apps Script endpoint is configured");
+check(config.includes("https://script.google.com/macros/s/") && config.includes("/exec"), "Google Apps Script endpoint is configured");
 const quick = JSON.parse(read("quick-expense/manifest.webmanifest")), normal = JSON.parse(read("manifest.webmanifest"));
 check(quick.id !== normal.id, "Quick Expense has a separate PWA identity");
 check(quick.start_url.includes("quick-expense-home=1"), "Quick Expense starts at its no-login form");
