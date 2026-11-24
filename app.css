@@ -5672,3 +5672,19 @@ html body #view section.permission-banner.admin > div.permission-banner-actions 
 .overview-category-row>span>small{flex:none;color:var(--muted);font-size:10px;font-weight:800;font-variant-numeric:tabular-nums}
 .overview-category-row>i{display:block;height:7px;overflow:hidden;border-radius:99px;background:#edf1f3}
 .overview-category-row>i>em{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#3ba89c,#76c9b7)}
+
+
+/* MyTrip 4.84.0 — traveller contribution and balance summary */
+.overview-contribution-panel{min-width:0}
+.overview-contribution-list{display:grid;gap:0}
+.overview-contribution-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.overview-contribution-row:last-child{border-bottom:0}
+.overview-contribution-row>span{display:grid;gap:3px;min-width:0}
+.overview-contribution-row>span>b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:11px;font-weight:850}
+.overview-contribution-row>span>small{color:var(--muted);font-size:9px}
+.overview-contribution-row>strong{flex:none;font-size:10px;font-weight:900;text-align:right;font-variant-numeric:tabular-nums}
+.overview-contribution-row>strong.receives{color:#16846f}
+.overview-contribution-row>strong.owes{color:#b54736}
+.overview-contribution-row>strong.settled{color:#64748b}
+.overview-contribution-more{display:block;margin:8px 0;color:var(--muted);font-size:9px}
+.overview-contribution-panel>.ghost-button{margin-top:10px}
