@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.84.0";
+  const frontendVersion = "4.85.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -2341,7 +2341,7 @@
     const tripKey = String(state.data.trip.tripId || "");
     if (state.mapTripId !== tripKey || !state.mapQuery) { state.mapTripId = tripKey; state.mapQuery = String(state.data.trip.destination || state.data.trip.name || "India").trim(); }
     if (!canViewPlaces()) return `<section class="feature-locked"><i>⌖</i><h2>Places & Map hidden</h2><p>The Administrator has not enabled this feature for your Traveller ID.</p></section>`;
-    return `${heading("DISCOVER & SAVE", "Places and map", "Travellers can save and edit places; the administrator can also remove them.", "place")}<div class="map-search"><input id="mapQuery" value="${esc(state.mapQuery)}" aria-label="Search Google Maps"><button id="mapSearchButton">⌖ Search Google Maps</button></div><div class="places-layout"><div class="map-frame"><iframe title="Trip map" src="https://www.google.com/maps?q=${encodeURIComponent(state.mapQuery)}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div><div class="places-list">${state.data.places.map((place) => `<article class="place"><i class="place-icon">⌖</i><div><h3>${esc(place.name)}</h3><p>${esc(place.area)} · ${esc(place.category)}</p><small>${esc(place.plannedDay || "Unplanned")}</small></div><span class="row-actions"><button data-map="${esc(`${place.name}, ${place.area}`)}">Map ↗</button>${canEditRecords("Places", place) ? `<button class="edit-control mini" data-edit data-sheet="Places" data-id="${esc(place.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control mini" data-delete data-sheet="Places" data-id="${esc(place.id)}">×</button>` : ""}</span></article>`).join("")}</div></div>`;
+    return `${heading("DISCOVER & SAVE", "Places and map", "Explore saved places and itinerary stops together. Select a marker for details and directions.", "place")}<div class="map-search"><input id="mapQuery" value="${esc(state.mapQuery)}" aria-label="Search Google Maps"><button id="mapSearchButton">⌖ Search Google Maps</button></div><section class="places-map-panel"><div class="places-map-head"><div><b>Trip destination map</b><small>Saved places and itinerary stops</small></div><span id="placesMapStatus">Preparing map…</span></div><div id="placesMap" class="places-map"></div><div class="places-map-legend"><span><i class="saved"></i> Saved places</span><span><i class="plan"></i> Itinerary stops</span><a href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer">OpenStreetMap ↗</a></div></section><div class="places-layout"><div class="places-list">${state.data.places.map((place) => `<article class="place"><i class="place-icon">⌖</i><div><h3>${esc(place.name)}</h3><p>${esc(place.area)} · ${esc(place.category)}</p><small>${esc(place.plannedDay || "Unplanned")}</small></div><span class="row-actions"><button data-map="${esc(`${place.name}, ${place.area}`)}">Map ↗</button>${canEditRecords("Places", place) ? `<button class="edit-control mini" data-edit data-sheet="Places" data-id="${esc(place.id)}">Edit</button>` : ""}${isAdmin() ? `<button class="delete-control mini" data-delete data-sheet="Places" data-id="${esc(place.id)}">×</button>` : ""}</span></article>`).join("")}</div></div>`;
   }
 
   function splitMemberNames() {
@@ -3512,6 +3512,56 @@
     render();
   });
 
+
+  let placesMapInstance = null; let placesMapRun = 0;
+  async function initPlacesMap() {
+    const el = $("#placesMap"); if (!el) return;
+    const run = ++placesMapRun, status = $("#placesMapStatus");
+    const destination = String(state.data.trip.destination || state.data.trip.name || "").trim();
+    const points = [];
+    const seen = new Set();
+    (state.data.places || []).forEach((place) => {
+      const name = String(place.name || "").trim(), area = String(place.area || "").trim();
+      const query = [name, area, destination].filter(Boolean).join(", ");
+      const key = query.toLowerCase();
+      if (name && !seen.has(key)) { seen.add(key); points.push({ kind: "saved", title: name, detail: [area, place.category, place.plannedDay].filter(Boolean).join(" · "), query }); }
+    });
+    (sortedPlans() || []).forEach((item) => {
+      const name = String(item.place || "").trim();
+      const query = [name, destination].filter(Boolean).join(", ");
+      const key = query.toLowerCase();
+      if (name && !seen.has(key)) { seen.add(key); points.push({ kind: "plan", title: String(item.title || name), detail: [displayDate(item.date, { day: "numeric", month: "short" }), item.time, name].filter(Boolean).join(" · "), query }); }
+    });
+    let L;
+    try { L = await loadLeaflet(); } catch (error) { if (status) status.textContent = error.message; return; }
+    if (run !== placesMapRun || !document.body.contains(el)) return;
+    if (placesMapInstance) { try { placesMapInstance.remove(); } catch {} }
+    const map = L.map(el, { zoomControl: true, attributionControl: false, scrollWheelZoom: false });
+    placesMapInstance = map;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, subdomains: "abc" }).addTo(map);
+    const home = destination ? await geocode(destination) : null;
+    if (run !== placesMapRun) return;
+    map.setView(home || [20.59, 78.96], home ? 10 : 4);
+    const layer = L.layerGroup().addTo(map), bounds = [];
+    let found = 0;
+    for (let n = 0; n < points.length; n++) {
+      const point = points[n];
+      if (status) status.textContent = `Locating stops… ${n + 1}/${points.length}`;
+      let coordinates = await geocode(point.query);
+      if (!coordinates && point.query !== point.title) coordinates = await geocode([point.title, destination].filter(Boolean).join(", "));
+      if (run !== placesMapRun) return;
+      if (!coordinates) continue;
+      found++; bounds.push(coordinates);
+      const icon = L.divIcon({ className: "places-pin-wrap", html: `<span class="places-pin ${point.kind}">${n + 1}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
+      const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(point.query)}`;
+      L.marker(coordinates, { icon }).addTo(layer).bindPopup(`<b>${esc(point.title)}</b><br><small>${esc(point.detail || point.query)}</small><br><a href="${directions}" target="_blank" rel="noopener noreferrer">Directions ↗</a>`);
+    }
+    if (bounds.length > 1) L.polyline(bounds, { color: "#0F6E6A", weight: 3, opacity: .55, dashArray: "6 7" }).addTo(layer);
+    if (bounds.length) map.fitBounds(L.latLngBounds(bounds).pad(.22), { maxZoom: 14 });
+    if (status) status.textContent = points.length ? `${found} of ${points.length} stops mapped${found < points.length ? " · refine any unclear place names" : ""}` : "Add saved places or itinerary stops to populate this map";
+    setTimeout(() => { try { map.invalidateSize(); } catch {} }, 120);
+  }
+
   /* Spending by category (v4.37.0) */
   const SPEND_COLORS = ["#0F6E6A", "#E0A526", "#4B3F99", "#C4553F", "#2F7FB8", "#7A8C84", "#B0548A", "#9AA1AB"];
   function renderSpendChart(total, budget) {
@@ -3907,7 +3957,7 @@
       if (anchor) anchor.insertAdjacentHTML("afterend", quickExpenseAdminCard());
     }
     maybeWelcome(); if (state.tab === "overview") loadWeather();
-    if (state.tab === "itinerary" && planMapOpen()) { try { initPlanMap(); } catch (error) {} }
+    if (state.tab === "itinerary" && planMapOpen()) { try { initPlanMap(); } catch (error) {} }\n    if (state.tab === "places") { try { initPlacesMap(); } catch (error) {} }
     try { applyLineIcons(); } catch {} try { updateTabbar(); } catch {}
     if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
     if (state.tab === "expenses") bindExpenseColumnResizers();
