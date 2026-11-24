@@ -4,16 +4,20 @@ const fs = require("fs"), path = require("path");
 const root = path.resolve(__dirname, "..");
 const output = process.argv[2];
 if (!output || !path.isAbsolute(output)) throw new Error("Pass an absolute destination directory outside the MyTrip runtime folder.");
-const main = process.env.MYTRIP_PREVIEW_MAIN_BASE || "https://sutartech.github.io/MyTrip/", version = "4.67.20";
+const main = process.env.MYTRIP_PREVIEW_MAIN_BASE || "https://sutartech.github.io/MyTrip/";
+const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
+const versionMatch = appSource.match(/const frontendVersion = "([^"]+)"/);
+if (!versionMatch) throw new Error("Could not determine the MyTrip frontend version.");
+const version = versionMatch[1];
 const source = fs.readFileSync(path.join(root, "index.html"), "utf8");
 let html = source
   .replace("<title>MyTrip · Plan, share &amp; split trips together</title>", "<title>Quick Expense · MyTrip · No login</title>")
   .replace('href="favicon.svg"', 'href="quick-expense-icon.svg"')
   .replace('href="apple-touch-icon.png"', 'href="quick-expense-icon-192.png"')
   .replace('name="apple-mobile-web-app-title" content="MyTrip"', 'name="apple-mobile-web-app-title" content="Quick Expense"')
-  .replace(`href="app.css?v=${version}"`, `href="${main}app.css?v=${version}"`)
+  .replace(/href="app\\.css\\?v=[^"]+"/, `href="${main}app.css?v=${version}"`)
   .replace("</head>", `  <link rel="stylesheet" href="standalone.css?v=${version}">\n  <meta name="referrer" content="no-referrer">\n</head>`)
-  .replace(`<script defer src="config.js?v=${version}"></script>`, `<script defer src="${main}config.js?v=${version}"></script>`)
+  .replace(/<script defer src="config\\.js\\?v=[^"]+"><\\/script>/, `<script defer src="${main}config.js?v=${version}"></script>`)
   .replace(`<script defer src="app.js?v=${version}"></script>`, `<script defer src="standalone.js?v=${version}" data-main-base="${main}" data-version="${version}"></script>`)
   .replace('<a class="brand" href="./"><i>↗</i> mytrip</a>', '<a class="brand" href="./index.html?quick-expense-home=1"><img src="quick-expense-icon.svg" alt=""><span>Quick Expense</span></a>')
   .replace('<a class="quick-expense-login-link" href="./?account=1">Account sign in</a>', `<a class="quick-expense-login-link" href="${main}" target="_blank" rel="noopener">Open MyTrip ↗</a>`)
