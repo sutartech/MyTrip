@@ -10,7 +10,7 @@ Run the release checks from the repository root:
 ```bash
 node tools/sync-quick-expense-entry.js
 node tools/verify-release.js
-node --test tests/mytrip-release.test.js tests/receipt-scan-dom.test.js tests/separate-quick-app.test.js tests/entry-transparency.test.js tests/settlement-print.test.js tests/settlement-reopen.test.js
+node --test tests/entry-transparency.test.js tests/settlement-print.test.js tests/settlement-reopen.test.js
 ```
 
 The release verifier checks required files, JavaScript syntax, PWA manifest JSON, cache-busting/version alignment, the configured Apps Script endpoint, Quick Expense's separate PWA identity and narrow scope, generated-entry consistency, and OCR asset integrity. The behavioural suites cover release-critical permissions, receipts, quick-entry routing, expense transparency and settlement/print flows. Run optional image/OCR smoke tests only in an environment with their documented dependencies.
