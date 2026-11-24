@@ -4968,3 +4968,41 @@ body{background:#f2f5f9;color:var(--ink);font-family:"Plus Jakarta Sans",Inter,u
 .permission-banner.admin .dashboard-inline-version{grid-column:1/-1;justify-self:end;font-size:8px;color:#8395a3;font-weight:800}
 @media(max-width:1050px){.permission-banner.admin{grid-template-columns:38px minmax(0,1fr) auto}.permission-banner.admin .permission-banner-actions{grid-column:1/-1;justify-content:flex-start}.permission-banner.admin .dashboard-inline-version{grid-column:1/-1}}
 @media(max-width:600px){.permission-banner.admin{grid-template-columns:34px minmax(0,1fr);padding:13px;gap:9px}.permission-banner.admin>i{width:34px;height:34px;flex-basis:34px}.permission-banner.admin .permission-role-pill{grid-column:2;justify-self:start}.permission-banner.admin .permission-banner-actions{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.permission-banner.admin .permission-banner-actions>button{width:100%;min-height:40px}.permission-banner.admin .permission-banner-actions .permission-search{grid-column:1/-1}.permission-banner.admin .dashboard-inline-version{grid-column:1/-1}}
+
+
+/* MyTrip 4.72.0 — compact administrator banner: remove unused vertical space */
+@media(min-width:761px){
+  html body .permission-banner.admin{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) 292px!important;
+    grid-template-rows:auto auto!important;
+    align-items:center!important;
+    column-gap:20px!important;
+    row-gap:5px!important;
+    min-height:0!important;
+    height:auto!important;
+    padding:13px 18px!important;
+    margin-bottom:10px!important;
+  }
+  html body .permission-banner.admin>i,
+  html body .permission-banner.admin>.permission-role-pill{display:none!important}
+  html body .permission-banner.admin .permission-copy{grid-column:1!important;grid-row:1!important;align-self:center!important}
+  html body .permission-banner.admin .permission-copy>p{display:block!important;max-width:620px!important;font-size:11px!important;line-height:1.45!important}
+  html body .permission-banner.admin .permission-banner-actions{
+    grid-column:2!important;grid-row:1!important;
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:7px!important;width:100%!important;align-self:center!important;
+  }
+  html body .permission-banner.admin .permission-banner-actions>button{
+    min-height:36px!important;padding:8px 10px!important;
+  }
+  html body .permission-banner.admin .permission-banner-actions .permission-search{grid-column:auto!important}
+  html body .permission-banner.admin .dashboard-inline-version{
+    grid-column:2!important;grid-row:2!important;justify-self:end!important;
+    font-size:8px!important;line-height:1.2!important;
+  }
+}
+@media(max-width:760px){
+  html body .permission-banner.admin{min-height:0!important;height:auto!important}
+  html body .permission-banner.admin .permission-copy>p{display:block!important}
+}
