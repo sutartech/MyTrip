@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.97.0";
+  const frontendVersion = "4.98.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -5169,7 +5169,46 @@
         const years = new Map();
         months.forEach((item) => { const year = item.key.slice(0, 4); years.set(year, (years.get(year) || 0) + item.spend); });
         const annualRows = [...years.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([year, amount]) => `<div class="trip-intel-destination"><b>${year}</b><span>Recorded expenses</span><strong>${money.format(amount)}</strong></div>`).join("");
+        const reportData = { generatedAt: new Date().toISOString(), totalSpend: allExpenseSpend, datedSpend: actualSpend, averageTripSpend, averageDailySpend, budgetVariance: totalBudgetVariance, monthly: months, destinations: [...destinations.values()].sort((a,b)=>b.spend-a.spend), annual: [...years.entries()].sort((a,b)=>a[0].localeCompare(b[0])), trips: varianceRows, loadedTripCount, totalTrips: trips.length, datedRows, totalExpenseRows };
+        const csvCell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+        const reportRows = [
+          ["MyTrip Travel Analytics"],["Generated",reportData.generatedAt],["Trips analysed",loadedTripCount],["Total trips",trips.length],
+          ["Total expenditure",allExpenseSpend],["Dated expenditure",actualSpend],["Average expenditure per trip",averageTripSpend],
+          ["Average expenditure per travel day",averageDailySpend],["Budget variance",totalBudgetVariance],[],
+          ["Monthly expenditure"],["Month","Amount","Dated entries"],...months.map((item)=>[item.key,item.spend,item.count]),[],
+          ["Annual expenditure"],["Year","Amount"],...reportData.annual,[],
+          ["Destination expenditure"],["Destination","Amount","Expense entries"],...reportData.destinations.map((item)=>[item.name,item.spend,item.count]),[],
+          ["Trip budget variance"],["Trip","Budget","Actual spend","Variance"],...varianceRows.map((item)=>[item.name,item.budget,item.spend,item.variance])
+        ];
+        const downloadCsv = () => {
+          const csv = "\\ufeff" + reportRows.map((row)=>row.map(csvCell).join(",")).join("\\r\\n");
+          const url = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+          const link=document.createElement("a"); link.href=url; link.download="MyTrip-Travel-Analytics.csv"; document.body.appendChild(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
+        };
+        const printReport = () => {
+          const popup=window.open("","_blank");
+          if(!popup){ toast("Allow pop-ups to print or save the PDF report.",true); return; }
+          const escHtml=(value)=>String(value??"").replace(/[&<>"']/g,(ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+          const table=(headers,rows)=>`<table><thead><tr>${headers.map((v)=>`<th>${escHtml(v)}</th>`).join("")}</tr></thead><tbody>${rows.map((row)=>`<tr>${row.map((v)=>`<td>${escHtml(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+          popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>MyTrip Travel Analytics</title><style>
+            body{font:12px Arial,sans-serif;color:#183b49;margin:28px}h1{font-size:24px;margin:0 0 5px}h2{font-size:15px;margin:22px 0 8px;color:#13796e}.muted{color:#667b80;font-size:10px}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0}.metric{border:1px solid #dce8e4;border-radius:8px;padding:10px}.metric b{display:block;font-size:16px;margin-top:5px}table{width:100%;border-collapse:collapse;margin:8px 0 16px}th,td{text-align:left;padding:7px;border-bottom:1px solid #e5ece9;font-size:10px}th{background:#eef6f3}@media print{body{margin:12mm}.no-print{display:none}}
+            </style></head><body><h1>MyTrip · Travel Analytics</h1><p class="muted">Generated ${escHtml(new Date(reportData.generatedAt).toLocaleString())} · ${loadedTripCount} of ${trips.length} trips loaded</p>
+            <div class="metrics">${[["Total expenditure",money.format(allExpenseSpend)],["Dated expenditure",money.format(actualSpend)],["Average per trip",money.format(averageTripSpend)],["Average per travel day",money.format(averageDailySpend)],["Budget variance",money.format(totalBudgetVariance)],["Dated entries",datedRows]].map(([label,value])=>`<div class="metric"><span>${escHtml(label)}</span><b>${escHtml(value)}</b></div>`).join("")}</div>
+            <h2>Monthly expenditure</h2>${table(["Month","Amount","Entries"],months.map((x)=>[x.key,money.format(x.spend),x.count]))}
+            <h2>Annual expenditure</h2>${table(["Year","Amount"],reportData.annual.map(([y,v])=>[y,money.format(v)]))}
+            <h2>Destination expenditure</h2>${table(["Destination","Amount","Entries"],reportData.destinations.map((x)=>[x.name,money.format(x.spend),x.count]))}
+            <h2>Trip budget variance</h2>${table(["Trip","Budget","Actual spend","Variance"],varianceRows.map((x)=>[x.name,money.format(x.budget),money.format(x.spend),money.format(x.variance)]))}
+            <p class="muted">Monthly and annual summaries include only expenses with valid dates. Total expenditure includes all expense entries.</p>
+            <button class="no-print" onclick="window.print()">Print / Save as PDF</button></body></html>`);
+          popup.document.close(); popup.focus();
+        };
         output.innerHTML = `<div class="trip-intel-detail-metrics"><article><small>TOTAL EXPENDITURE</small><b>${money.format(allExpenseSpend)}</b></article><article><small>DATED EXPENDITURE</small><b>${money.format(actualSpend)}</b></article><article><small>AVERAGE / TRIP</small><b>${money.format(averageTripSpend)}</b></article><article><small>AVERAGE / TRAVEL DAY</small><b>${money.format(averageDailySpend)}</b></article><article><small>BUDGET VARIANCE</small><b class="${totalBudgetVariance < 0 ? "negative" : "positive"}">${money.format(totalBudgetVariance)}</b></article></div><div class="trip-intel-detail-grid"><article><header><b>Monthly expenditure</b><small>Last 12 months with dated expenses</small></header>${monthBars || '<p class="trip-intel-empty">No dated expenses found.</p>'}</article><article><header><b>Destination-wise spending</b><small>Top five destinations</small></header>${destRows || '<p class="trip-intel-empty">No expense data found.</p>'}</article><article><header><b>Annual expenditure</b><small>Calendar year totals</small></header>${annualRows || '<p class="trip-intel-empty">No dated expenses found.</p>'}</article></div><p class="trip-intel-footnote">Analysed ${datedRows} dated expense entries from ${loadedTripCount} of ${trips.length} trips. ${totalExpenseRows - datedRows} entries without a valid date were excluded from monthly and annual totals. Average per trip uses all listed trips; average per travel day uses recorded trip date ranges.</p>`;
+        const exportActions = document.createElement("div");
+        exportActions.className = "trip-intel-export-actions";
+        exportActions.innerHTML = '<button type="button" data-analytics-csv>↓ Download Excel-compatible CSV</button><button type="button" data-analytics-pdf>▤ Print / Save PDF</button>';
+        output.prepend(exportActions);
+        exportActions.querySelector("[data-analytics-csv]").addEventListener("click", downloadCsv);
+        exportActions.querySelector("[data-analytics-pdf]").addEventListener("click", printReport);
         datedAnalyticsButton.textContent = "Refresh detailed analytics";
       } catch (error) {
         output.innerHTML = `<p class="trip-intel-loading">Analytics could not be loaded: ${esc(error.message || "Please try again.")}</p>`;
