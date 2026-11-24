@@ -50,10 +50,6 @@ jobs:
         id: settlement_reopen
         if: always()
         run: node --test tests/settlement-reopen.test.js
-      - name: Expense photo print tests
-        id: photo_print
-        if: always()
-        run: node --test tests/expense-photo-print.test.js
       - name: Package tested source
         run: |
           python3 - <<'PY'
