@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.93.0";
+  const frontendVersion = "4.94.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -5103,10 +5103,68 @@
     const assignedProfiles = trips.reduce((sum, trip) => sum + Number(trip.assignedTravellerCount || 0), 0);
     const totalSpent = trips.reduce((sum, trip) => sum + Number(trip.spent || 0), 0);
     const upcomingTrips = trips.filter((trip) => tripEnabled(trip) && String(trip.endDate || "") >= localDateKey()).length;
-    const cards = items.map((trip, position) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}">${libraryCover(trip)}${tripCardTools(trip, position, items.length)}<div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><div class="trip-budget-meter ${Number(trip.spent || 0) > Number(trip.budget || 0) ? "over" : ""}"><span><i style="width:${Number(trip.budget || 0) > 0 ? Math.min(100, Math.max(0, Number(trip.spent || 0) / Number(trip.budget || 0) * 100)) : 0}%"></i></span><small>${Number(trip.budget || 0) > 0 ? `${Math.round(Number(trip.spent || 0) / Number(trip.budget || 0) * 100)}% used` : "No budget set"}</small></div><small class="trip-budget-remaining ${Number(trip.spent || 0) > Number(trip.budget || 0) ? "over" : ""}">${Number(trip.budget || 0) > 0 ? (Number(trip.spent || 0) > Number(trip.budget || 0) ? `${money.format(Number(trip.spent || 0) - Number(trip.budget || 0))} over budget` : `${money.format(Number(trip.budget || 0) - Number(trip.spent || 0))} remaining`) : "Set a budget to track remaining funds"}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button class="trip-open-primary" data-open-admin-trip="${esc(trip.tripId)}" type="button">Open trip →</button><details class="library-trip-menu"><summary>••• Manage</summary><div><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">✎ Edit details</button><button data-assign-trip="${esc(trip.tripId)}" type="button">♙ Travellers & access</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "○ Disable trip" : "● Enable trip"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete permanently</button></div></details></div></article>`).join("");
+    const cards = items.map((trip, position) => `<article class="trip-library-card ${tripEnabled(trip) ? "" : "disabled-trip"}" data-trip-enabled="${tripEnabled(trip) ? "true" : "false"}" data-trip-start="${esc(trip.startDate || "")}" data-trip-end="${esc(trip.endDate || trip.startDate || "")}" data-trip-spent="${Number(trip.spent || 0)}" data-trip-budget="${Number(trip.budget || 0)}" data-trip-order="${position}">${libraryCover(trip)}${tripCardTools(trip, position, items.length)}<div class="trip-card-copy"><span class="trip-code">TRIP ID · ${esc(trip.tripId)}</span><h3>${esc(trip.name)}</h3><p>${esc(trip.destination)} · ${displayDate(trip.startDate, { day: "numeric", month: "short", year: "numeric" })}–${displayDate(trip.endDate, { day: "numeric", month: "short", year: "numeric" })}</p><small>Budget ${money.format(Number(trip.budget || 0))} · Spent ${money.format(Number(trip.spent || 0))} · Organiser ${esc(trip.createdBy || "—")}</small><small>${Number(trip.travellerCount || 0)} members · ${Number(trip.assignedTravellerCount || 0)} assigned profiles${trip.updatedAt ? ` · Updated ${displayDate(String(trip.updatedAt).slice(0, 10))}` : ""}</small><div class="trip-budget-meter ${Number(trip.spent || 0) > Number(trip.budget || 0) ? "over" : ""}"><span><i style="width:${Number(trip.budget || 0) > 0 ? Math.min(100, Math.max(0, Number(trip.spent || 0) / Number(trip.budget || 0) * 100)) : 0}%"></i></span><small>${Number(trip.budget || 0) > 0 ? `${Math.round(Number(trip.spent || 0) / Number(trip.budget || 0) * 100)}% used` : "No budget set"}</small></div><small class="trip-budget-remaining ${Number(trip.spent || 0) > Number(trip.budget || 0) ? "over" : ""}">${Number(trip.budget || 0) > 0 ? (Number(trip.spent || 0) > Number(trip.budget || 0) ? `${money.format(Number(trip.spent || 0) - Number(trip.budget || 0))} over budget` : `${money.format(Number(trip.budget || 0) - Number(trip.spent || 0))} remaining`) : "Set a budget to track remaining funds"}</small><b class="status-pill ${tripEnabled(trip) ? "active" : "disabled"}">${tripEnabled(trip) ? "ACTIVE" : "DISABLED"}</b></div><div class="trip-card-actions"><button class="trip-open-primary" data-open-admin-trip="${esc(trip.tripId)}" type="button">Open trip →</button><details class="library-trip-menu"><summary>••• Manage</summary><div><button data-edit-listed-trip="${esc(trip.tripId)}" type="button">✎ Edit details</button><button data-assign-trip="${esc(trip.tripId)}" type="button">♙ Travellers & access</button><button data-toggle-trip="${esc(trip.tripId)}" data-enabled="${tripEnabled(trip)}" type="button">${tripEnabled(trip) ? "○ Disable trip" : "● Enable trip"}</button><button class="danger-link" data-delete-trip="${esc(trip.tripId)}" type="button">Delete permanently</button></div></details></div></article>`).join("");
     const commandCentre = `<section class="admin-command-center" aria-label="Administrator control centre"><header><div><span>GLOBAL ADMINISTRATOR</span><h2>Control centre</h2><p>Trips, people, security and activity—managed from one place.</p></div><button id="createFromTrips" type="button">＋ Create trip</button></header><div class="admin-command-stats"><article><i>◆</i><span><small>ACTIVE TRIPS</small><b>${activeTrips}</b></span></article><article><i>⌁</i><span><small>UPCOMING</small><b>${upcomingTrips}</b></span></article><article><i>♙</i><span><small>ASSIGNMENTS</small><b>${assignedProfiles}</b></span></article><article><i>₹</i><span><small>TOTAL SPENT</small><b>${money.format(totalSpent)}</b></span></article></div><div class="admin-command-actions"><button id="manageTravellerAccounts" type="button"><i>♙</i><span><b>Traveller profiles</b><small>Accounts, access and limits</small></span></button><button id="globalAccessAudit" type="button"><i>◆</i><span><b>Access &amp; audit</b><small>Sign-ins, links and changes</small></span></button><button id="systemHealthButton" type="button"><i>✓</i><span><b>System Health</b><small>Sheets, Drive and backups</small></span></button><button id="changeAdministratorLogin" type="button"><i>⚿</i><span><b>Login &amp; email OTP</b><small>Administrator security</small></span></button><button id="idleSignoutSetting" type="button"><i>⏻</i><span><b>Auto sign-out</b><small>${idleLabel(idleMinutes)} for everyone</small></span></button>${hiddenTripsBar(trips)}<button id="resetTripOrder" type="button"><i>↕</i><span><b>Reset trip order</b><small>Restore automatic order</small></span></button></div></section>`;
-    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div>${commandCentre}<div class="all-trips-modal"><div class="all-trips-summary compact"><i class="avatar-edit admin-avatar" data-photo-upload="admin" title="Change the Administrator photo">${avatarSlot({ name: state.currentUser || "Administrator", isAdmin: true })}<em>📷</em></i><span><small>TRIP LIBRARY</small><b>${items.length} visible ${items.length === 1 ? "trip" : "trips"}</b></span></div><div class="trip-library admin-library">${cards || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip from the Control centre.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
+    $("#accountHubContent").innerHTML = `<section class="account-hub-shell"><div class="account-hub-hero admin"><div><span>ACCOUNT DASHBOARD</span><h1>All trips in one place</h1><p>Signed in as <b>${esc(state.accountUsername)}</b>. Open and manage every trip, traveller and permission from here.</p></div><strong>${items.length} ${items.length === 1 ? "TRIP" : "TRIPS"}</strong></div>${commandCentre}<div class="all-trips-modal"><div class="all-trips-summary compact"><i class="avatar-edit admin-avatar" data-photo-upload="admin" title="Change the Administrator photo">${avatarSlot({ name: state.currentUser || "Administrator", isAdmin: true })}<em>📷</em></i><span><small>TRIP LIBRARY</small><b>${items.length} visible ${items.length === 1 ? "trip" : "trips"}</b></span></div><div class="trip-library-tools" role="search" aria-label="Search and filter trips"><label class="trip-library-search"><span aria-hidden="true">⌕</span><input id="tripLibrarySearch" type="search" placeholder="Search trips, destinations or trip ID…" autocomplete="off" aria-label="Search trips"></label><label class="trip-library-filter"><span>STATUS</span><select id="tripLibraryStatus" aria-label="Filter trips by status"><option value="all">All trips</option><option value="active">Active</option><option value="upcoming">Upcoming</option><option value="completed">Completed</option><option value="disabled">Disabled</option></select></label><label class="trip-library-sort"><span>SORT BY</span><select id="tripLibrarySort" aria-label="Sort trips"><option value="default">Custom order</option><option value="date-new">Start date · Newest</option><option value="date-old">Start date · Oldest</option><option value="spent-high">Spending · Highest</option><option value="spent-low">Spending · Lowest</option><option value="budget-high">Budget · Highest</option><option value="budget-low">Budget · Lowest</option></select></label><span id="tripLibraryResultCount" class="trip-library-result-count">${items.length} trips</span></div><div class="trip-library admin-library">${cards || `<div class="empty-trips"><b>No trips yet</b><p>Create your first trip from the Control centre.</p></div>`}</div><p class="global-access-note">◆ This Administrator username and password control every trip. Traveller profiles can exist without a trip assignment.</p></div></section>`;
     $(".account-hub-hero.admin>div")?.insertAdjacentHTML("beforeend", contactVerificationBadges(state.accountProfile || {}));
+    const libraryGrid = $(".trip-library.admin-library");
+    const librarySearch = $("#tripLibrarySearch");
+    const libraryStatus = $("#tripLibraryStatus");
+    const librarySort = $("#tripLibrarySort");
+    const libraryCount = $("#tripLibraryResultCount");
+    const applyLibraryControls = () => {
+      if (!libraryGrid) return;
+      const query = String(librarySearch?.value || "").trim().toLocaleLowerCase();
+      const status = libraryStatus?.value || "all";
+      const sort = librarySort?.value || "default";
+      const todayKey = localDateKey();
+      const cardsNow = Array.from(libraryGrid.querySelectorAll(":scope > .trip-library-card"));
+      const matches = cardsNow.filter((card) => {
+        const enabled = card.dataset.tripEnabled === "true";
+        const start = card.dataset.tripStart || "";
+        const end = card.dataset.tripEnd || start;
+        const isCompleted = Boolean(end) && end < todayKey;
+        const isUpcoming = Boolean(start) && start > todayKey;
+        const statusMatch = status === "all"
+          || (status === "active" && enabled && !isCompleted)
+          || (status === "upcoming" && enabled && isUpcoming)
+          || (status === "completed" && isCompleted)
+          || (status === "disabled" && !enabled);
+        const searchMatch = !query || card.textContent.toLocaleLowerCase().includes(query);
+        return statusMatch && searchMatch;
+      });
+      const number = (card, key) => Number(card.dataset[key] || 0);
+      const date = (card) => card.dataset.tripStart || "";
+      matches.sort((a, b) => {
+        if (sort === "date-new") return date(b).localeCompare(date(a));
+        if (sort === "date-old") return date(a).localeCompare(date(b));
+        if (sort === "spent-high") return number(b, "tripSpent") - number(a, "tripSpent");
+        if (sort === "spent-low") return number(a, "tripSpent") - number(b, "tripSpent");
+        if (sort === "budget-high") return number(b, "tripBudget") - number(a, "tripBudget");
+        if (sort === "budget-low") return number(a, "tripBudget") - number(b, "tripBudget");
+        return number(a, "tripOrder") - number(b, "tripOrder");
+      });
+      const fragment = document.createDocumentFragment();
+      matches.forEach((card) => { card.hidden = false; fragment.appendChild(card); });
+      libraryGrid.appendChild(fragment);
+      cardsNow.filter((card) => !matches.includes(card)).forEach((card) => { card.hidden = true; libraryGrid.appendChild(card); });
+      if (libraryCount) libraryCount.textContent = `${matches.length} of ${cardsNow.length} trips`;
+      let empty = $("#tripLibraryNoResults");
+      if (!matches.length && cardsNow.length) {
+        if (!empty) {
+          empty = document.createElement("div");
+          empty.id = "tripLibraryNoResults";
+          empty.className = "trip-library-no-results";
+          empty.innerHTML = "<b>No matching trips</b><span>Try another search or change the status filter.</span>";
+          libraryGrid.appendChild(empty);
+        }
+        empty.hidden = false;
+      } else if (empty) empty.hidden = true;
+    };
+    [librarySearch, libraryStatus, librarySort].forEach((control) => {
+      control?.addEventListener(control === librarySearch ? "input" : "change", applyLibraryControls);
+    });
+    applyLibraryControls();
     $$('[data-move-trip]').forEach((button) => button.addEventListener("click", async () => {
       button.disabled = true;
       if (await moveTripInOrder(button.dataset.moveTrip, Number(button.dataset.direction), items)) { renderAllTrips(state.libraryTrips, administratorSecret, demoMode); toast("Trip order saved for everyone"); }
