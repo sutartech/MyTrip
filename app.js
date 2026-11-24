@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.68.0";
+  const frontendVersion = "4.69.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -1537,6 +1537,33 @@
   }, true);
   /* ---- v4.48.0: checklist · receipts · CSV ---- */
   const ckDone = (i) => String(i.done).toUpperCase() === "TRUE";
+  const checklistStarterPacks = {
+    packing: { title: "Packing essentials", items: ["Pack weather-appropriate clothes", "Pack comfortable walking shoes", "Pack toiletries and personal-care items", "Pack chargers, cables and power bank", "Carry reusable water bottles", "Pack a small day bag", "Pack essential medicines and prescriptions"] },
+    documents: { title: "Travel documents", items: ["Check tickets and travel dates", "Confirm hotel or accommodation bookings", "Carry valid photo ID for every traveller", "Save booking confirmations offline", "Share emergency contacts with the group", "Check travel insurance details (if applicable)", "Check passport and visa validity (if applicable)", "Keep digital and paper copies of key documents"] },
+    roadtrip: { title: "Road-trip readiness", items: ["Check vehicle documents and insurance", "Check driving licence validity", "Check tyre pressure, spare tyre and jack", "Check FASTag or toll payment balance", "Plan fuel and rest stops", "Keep first-aid kit and emergency tools", "Download offline maps for the route", "Carry drinking water and travel snacks"] }
+  };
+  function openChecklistTemplatePicker() {
+    const packs = Object.entries(checklistStarterPacks);
+    showModal("Checklist starter packs", `<div class="ck-template-picker"><p>Choose a ready-made list. Existing matching tasks are skipped, so you can safely use a pack more than once.</p>${packs.map(([key, pack]) => `<button type="button" class="ck-template-option" data-ck-template-pick="${key}"><span><b>${esc(pack.title)}</b><small>${pack.items.length} suggested tasks</small></span><em>＋</em></button>`).join("")}</div>`);
+    $("#modalBody").querySelectorAll("[data-ck-template-pick]").forEach((button) => button.addEventListener("click", () => addChecklistStarterPack(button.dataset.ckTemplatePick, button)));
+  }
+  async function addChecklistStarterPack(key, button) {
+    const pack = checklistStarterPacks[key];
+    if (!pack || !state.data) return;
+    const list = state.data.checklist || (state.data.checklist = []);
+    const existing = new Set(list.map((item) => String(item.text || "").trim().toLocaleLowerCase()));
+    const pending = pack.items.filter((item) => !existing.has(item.toLocaleLowerCase()));
+    if (!pending.length) { closeModal(); toast("All tasks in this starter pack are already on your checklist."); return; }
+    if (button) { button.disabled = true; button.textContent = "Adding…"; }
+    let saved = 0;
+    for (const text of pending) {
+      const rec = { id: "CHK-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text, assignee: "", day: "", done: "FALSE", doneBy: "", createdBy: String(state.currentUser || ""), createdAt: new Date().toISOString() };
+      list.push(rec);
+      try { if (!state.demoMode) await api("addChecklistItem", authPayload({ record: rec })); saved++; }
+      catch (error) { const index = list.findIndex((item) => String(item.id) === String(rec.id)); if (index >= 0) list.splice(index, 1); closeModal(); render(); toast(`${saved} tasks added. The next task could not be saved: ${error.message}`, true); return; }
+    }
+    closeModal(); render(); toast(`${saved} ${saved === 1 ? "task" : "tasks"} added from ${pack.title}.`);
+  }
   function renderChecklist() {
     const items = state.data.checklist || (state.data.checklist = []);
     const me = String(state.currentUser || ""); const f = state.ckFilter || "all";
@@ -1549,6 +1576,7 @@
     return `${heading("TRAVEL TOGETHER", "Checklist", "Packing and to-dos for everyone in this trip.")}
       <section class="ck-wrap"><div class="ck-progress"><b>${done} of ${items.length} done</b><span><i style="width:${pct}%"></i></span></div>
       <form id="ckAddForm" class="ck-add"><input name="text" placeholder="Add an item — e.g. Power bank" maxlength="200" required><select name="assignee"><option value="">Everyone</option>${people.map((p) => `<option>${esc(p)}</option>`).join("")}</select><input name="day" type="date" aria-label="Day (optional)"><button type="submit">＋ Add</button></form>
+      <div class="ck-starter-bar"><div><b>Start faster</b><small>Ready-made travel task lists</small></div><button type="button" data-ck-template="open">＋ Add starter pack</button></div>
       <div class="ck-chips">${chip("all", "All")}${chip("open", "To do")}${chip("mine", "Mine")}</div>
       ${rows ? `<ul class="ck-list">${rows}</ul>` : `<p class="ck-empty">Nothing here yet. Add the first item above.</p>`}</section>`;
   }
@@ -1590,10 +1618,11 @@
       try { await openDeviceCamera((file) => uploadSavedExpenseReceipt(id, file, block)); } catch (error) { toast(error.message, true); }
       return;
     }
-    const t = e.target.closest("[data-ck-filter],[data-ck-toggle],[data-ck-del],[data-receipt-open],[data-receipt-remove],[data-csv]"); if (!t || !state.data) return;
+    const t = e.target.closest("[data-ck-template],[data-ck-filter],[data-ck-toggle],[data-ck-del],[data-receipt-open],[data-receipt-remove],[data-csv]"); if (!t || !state.data) return;
     e.preventDefault(); e.stopPropagation();
     const list = state.data.checklist || (state.data.checklist = []);
     try {
+      if (t.dataset.ckTemplate) return openChecklistTemplatePicker();
       if (t.dataset.ckFilter) { state.ckFilter = t.dataset.ckFilter; return render(); }
       if (t.dataset.ckToggle) { const i = list.find((x) => String(x.id) === t.dataset.ckToggle); if (!i) return; const nd = !ckDone(i); i.done = nd ? "TRUE" : "FALSE"; i.doneBy = nd ? String(state.currentUser || "") : ""; render(); try { navigator.vibrate && navigator.vibrate(8); } catch {} if (!state.demoMode) await api("updateChecklistItem", authPayload({ id: i.id, record: { done: i.done, doneBy: i.doneBy } })); return; }
       if (t.dataset.ckDel) { const k = list.findIndex((x) => String(x.id) === t.dataset.ckDel); if (k < 0) return; const [gone] = list.splice(k, 1); render(); if (!state.demoMode) await api("deleteChecklistItem", authPayload({ id: gone.id })); return toast("Item deleted"); }
