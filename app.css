@@ -5688,3 +5688,24 @@ html body #view section.permission-banner.admin > div.permission-banner-actions 
 .overview-contribution-row>strong.settled{color:#64748b}
 .overview-contribution-more{display:block;margin:8px 0;color:var(--muted);font-size:9px}
 .overview-contribution-panel>.ghost-button{margin-top:10px}
+
+
+/* MyTrip 4.85.0 — interactive saved-place and itinerary map */
+.places-map-panel{margin:14px 0 18px;padding:12px;border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:0 8px 24px rgba(25,48,66,.06)}
+.places-map-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.places-map-head>div{display:grid;gap:3px}
+.places-map-head b{color:var(--ink);font-size:13px;font-weight:900}
+.places-map-head small,.places-map-head>span{color:var(--muted);font-size:10px;font-weight:750}
+.places-map{height:clamp(260px,42vw,430px);min-height:260px;border-radius:13px;overflow:hidden;background:#e8eff0;z-index:0}
+.places-map-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 2px 0;color:var(--muted);font-size:10px;font-weight:750}
+.places-map-legend span{display:inline-flex;align-items:center;gap:6px}
+.places-map-legend i{display:inline-block;width:9px;height:9px;border-radius:50%;background:#0f8b83}
+.places-map-legend i.plan{background:#d58a2b}
+.places-map-legend a{margin-left:auto;color:var(--accent);font-weight:850}
+.places-pin-wrap{background:transparent;border:0}
+.places-pin{display:grid;place-items:center;width:29px;height:29px;border:2px solid #fff;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);background:#0f8b83;color:#fff;font-size:11px;font-weight:900;box-shadow:0 3px 10px #102b3a55}
+.places-pin.plan{background:#d58a2b}
+.places-pin::first-letter{transform:rotate(45deg)}
+.places-map-panel .leaflet-popup-content{line-height:1.5}
+.places-map-panel .leaflet-popup-content a{color:#0f766e;font-weight:800}
+@media(max-width:640px){.places-map-panel{padding:9px;border-radius:14px}.places-map{height:300px;min-height:260px}.places-map-head{align-items:flex-start}.places-map-head>span{text-align:right}}
