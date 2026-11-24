@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.74.0";
+  const frontendVersion = "4.75.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -6426,11 +6426,11 @@
     const sidePhotos = $('#mainNav [data-tab="photos"]'); if (sidePhotos) allowed.photos = !sidePhotos.hidden && getComputedStyle(sidePhotos).display !== "none";
     const addType = state.tab === "expenses" ? (allowed.expenses ? "expense" : "") : state.tab === "places" ? (allowed.places ? "place" : "") : state.tab === "experiences" ? (allowed.experiences ? "experience" : "") : (state.tab === "overview" || state.tab === "itinerary") && allowed.itinerary ? "plan" : "";
     fab.dataset.add = addType; fab.hidden = !addType || !state.data;
-    const plus = bar.querySelector("[data-mt-plus]"); if (plus) plus.hidden = !((allowed.expenses && canAdd("expense")) || (allowed.itinerary && canAdd("plan")));
+    const plus = bar.querySelector("[data-mt-plus]"); if (plus) { const canExpense = allowed.expenses && canAdd("expense"), canPlan = allowed.itinerary && canAdd("plan"); plus.hidden = !(canExpense || canPlan); plus.setAttribute("aria-label", canExpense && canPlan ? "Add expense; hold to add itinerary plan" : canExpense ? "Add expense" : canPlan ? "Add itinerary plan" : "Add unavailable"); plus.title = canExpense && canPlan ? "Tap to add expense · hold to add plan" : canExpense ? "Add expense" : "Add itinerary plan"; }
     bar.hidden = !state.data;
     const quick = $("#globalQuickAdd"); if (quick) quick.classList.toggle("hidden", !state.data || !["plan", "expense", "place", "experience"].some(canAdd));
     document.body.classList.toggle("mt-has-tabbar", Boolean(state.data));
-    const inMore = ["experiences", "photos", "places", "people", "checklist", "print"].includes(state.tab);
+    const inMore = ["experiences", "photos", "places", "people", "checklist", "print", "help"].includes(state.tab);
     bar.querySelector("[data-mt-more]").classList.toggle("active", inMore);
   }
   function openMoreSheet() {
