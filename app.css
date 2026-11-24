@@ -5617,3 +5617,42 @@ html body #view>.permission-banner.admin>.permission-banner-actions .permission-
   html body #view>.permission-banner.admin>.permission-banner-actions{gap:3px!important}
   html body #view>.permission-banner.admin>.permission-banner-actions>button{font-size:8px!important}
 }
+
+
+/* MyTrip 4.81.0 — hard override: administrator actions must occupy the entire banner row.
+   Flex layout avoids the legacy nested-grid rules that kept producing a 2×2 block. */
+html body #view section.permission-banner.admin{
+  display:block!important;position:relative!important;width:100%!important;max-width:none!important;
+  box-sizing:border-box!important;padding:10px 12px!important;
+}
+html body #view section.permission-banner.admin > div.permission-banner-actions{
+  display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
+  align-items:stretch!important;justify-content:stretch!important;
+  width:100%!important;max-width:none!important;min-width:0!important;
+  flex:0 0 100%!important;box-sizing:border-box!important;
+  gap:10px!important;margin:0!important;padding:0!important;
+  grid-column:auto!important;grid-row:auto!important;
+}
+html body #view section.permission-banner.admin > div.permission-banner-actions > button{
+  display:flex!important;flex:1 1 0!important;flex-basis:0!important;
+  width:0!important;max-width:none!important;min-width:0!important;
+  align-items:center!important;justify-content:center!important;
+  min-height:48px!important;padding:8px 5px!important;margin:0!important;
+  box-sizing:border-box!important;white-space:nowrap!important;
+  overflow:hidden!important;text-overflow:ellipsis!important;
+}
+html body #view section.permission-banner.admin > div.permission-banner-actions > button.permission-search{
+  grid-column:auto!important;flex:1 1 0!important;
+}
+@media(max-width:760px){
+  html body #view section.permission-banner.admin{padding:7px!important}
+  html body #view section.permission-banner.admin > div.permission-banner-actions{gap:5px!important}
+  html body #view section.permission-banner.admin > div.permission-banner-actions > button{
+    min-height:42px!important;padding:5px 2px!important;
+    font-size:clamp(8px,2.45vw,11px)!important;letter-spacing:-.2px!important;
+  }
+}
+@media(max-width:360px){
+  html body #view section.permission-banner.admin > div.permission-banner-actions{gap:3px!important}
+  html body #view section.permission-banner.admin > div.permission-banner-actions > button{font-size:8px!important}
+}
