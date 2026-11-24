@@ -5850,3 +5850,28 @@ html body .global-access-note{margin:9px 0 0!important;padding:8px 10px!importan
  html body .admin-command-actions>button>span{justify-items:center!important}
  html body .admin-command-actions>button small{display:none!important}
 }
+
+
+/* MyTrip v4.92.0 — fix hidden-trip control wrapping and balance final action row. */
+html body .admin-command-actions>#toggleHiddenTrips{
+  display:flex!important;align-items:center!important;justify-content:flex-start!important;
+  gap:8px!important;min-width:0!important;white-space:nowrap!important;
+}
+html body .admin-command-actions>#toggleHiddenTrips>i{
+  display:grid!important;place-items:center!important;flex:0 0 29px!important;
+  width:29px!important;height:29px!important;border-radius:9px!important;
+  background:#fff0dc!important;color:#a66a20!important;font-style:normal!important;
+}
+html body .admin-command-actions>#toggleHiddenTrips>span{
+  display:block!important;min-width:0!important;overflow:hidden!important;
+  text-overflow:ellipsis!important;white-space:nowrap!important;
+  font-size:10px!important;font-weight:850!important;
+}
+@media(min-width:761px){
+  html body .admin-command-actions>#resetTripOrder{grid-column:span 2!important}
+}
+@media(max-width:760px){
+  html body .admin-command-actions>#resetTripOrder{grid-column:auto!important}
+  html body .admin-command-actions>#toggleHiddenTrips{justify-content:center!important}
+  html body .admin-command-actions>#toggleHiddenTrips>span{font-size:9px!important}
+}
