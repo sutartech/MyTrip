@@ -5181,7 +5181,7 @@
           ["Trip budget variance"],["Trip","Budget","Actual spend","Variance"],...varianceRows.map((item)=>[item.name,item.budget,item.spend,item.variance])
         ];
         const downloadCsv = () => {
-          const csv = "\\ufeff" + reportRows.map((row)=>row.map(csvCell).join(",")).join("\\r\\n");
+          const csv = "\ufeff" + reportRows.map((row)=>row.map(csvCell).join(",")).join("\r\n");
           const url = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
           const link=document.createElement("a"); link.href=url; link.download="MyTrip-Travel-Analytics.csv"; document.body.appendChild(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
         };
