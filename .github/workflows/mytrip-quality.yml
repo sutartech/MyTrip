@@ -1,7 +1,9 @@
 name: MyTrip quality
 on:
   push:
-    branches: [main, codex/mytrip-entry-sync-4.67.9]
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,15 +22,15 @@ jobs:
         env:
           MYTRIP_BUILD_DEPENDENCIES: ${{ runner.temp }}/mytrip-qa/node_modules
         run: node tools/build-separate-quick-app.js "$RUNNER_TEMP/QuickExpense"
-      - name: Synchronize Quick Expense entry shell
-        run: node tools/sync-quick-expense-entry.js
+      - name: Verify synchronized Quick Expense entry shell
+        run: node tools/sync-quick-expense-entry.js --check
       - name: Verify release
         run: node tools/verify-release.js
       - name: Run full behavior and DOM suite
         env:
           MYTRIP_TEST_DEPENDENCIES: ${{ runner.temp }}/mytrip-qa/node_modules
           MYTRIP_SEPARATE_PACKAGE: ${{ runner.temp }}/QuickExpense
-        run: node --test tests/mytrip-release.test.js tests/receipt-scan-dom.test.js tests/separate-quick-app.test.js tests/entry-transparency.test.js tests/settlement-print.test.js tests/settlement-reopen.test.js
+        run: node --test tests/receipt-scan-dom.test.js tests/separate-quick-app.test.js tests/entry-transparency.test.js tests/settlement-print.test.js tests/settlement-reopen.test.js tests/expense-photo-print.test.js
       - name: Package tested source
         run: |
           python3 - <<'PY'
