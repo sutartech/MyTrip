@@ -38,7 +38,7 @@ const visibleVersions = [...html.matchAll(/v\d+\.\d+\.\d+/g)].map(match => match
 check(visibleVersions.every(version => version === `v${fe}`), "all visible HTML frontend version labels match the running bundle");
 const quickVisibleVersions = [...quickHtml.matchAll(/v\d+\.\d+\.\d+/g)].map(match => match[0]);
 check(quickHtml.includes(`config.js?v=${fe}`) && quickVisibleVersions.every(version => version === `v${fe}`), "Quick Expense version labels and config cache tag match the running bundle");
-check(quickInstall.includes('href="quick-expense/manifest.webmanifest"'), "Quick Expense installer links to the case-correct in-repository manifest");
+check(quickInstall.includes('href="../QuickExpense/manifest.webmanifest"'), "Quick Expense installer links to the case-correct in-repository manifest");
 check(quickSw.includes(`mytrip-quick-separate-v${fe}`) && quickSw.includes(`app.js?v=${fe}`) && quickSw.includes(`app.css?v=${fe}`), "separate Quick Expense worker references the current shared frontend assets");
 check(sw.includes(`mytrip-static-v${fe}`) && sw.includes(`app.js?v=${fe}`) && sw.includes(`app.css?v=${fe}`), "service-worker cache and asset versions match frontend");
 check(config.includes("https://script.google.com/macros/s/") && config.includes("/exec"), "Google Apps Script endpoint is configured");
