@@ -5947,3 +5947,54 @@ html body .trip-library-no-results>span{font-size:10px!important;color:#758b8d!i
  html body .trip-library-tools select{font-size:10px!important}
  html body .trip-library-result-count{grid-column:1/-1!important;justify-self:start!important;padding:5px 9px!important}
 }
+
+
+/* MyTrip v4.95.0 — Trip Intelligence Dashboard. */
+html body .trip-intelligence{display:grid!important;gap:12px!important;margin:0 0 13px!important;padding:15px!important;border:1px solid #dceae6!important;border-radius:18px!important;background:linear-gradient(140deg,#f4fbf8 0%,#f7f6ff 58%,#fffaf3 100%)!important;box-shadow:0 7px 22px rgba(22,61,69,.05)!important}
+html body .trip-intelligence>header{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:10px!important}
+html body .trip-intelligence>header>div>span,html body .trip-intel-chart>header>div>span{display:block!important;color:#168579!important;font-size:8px!important;font-weight:950!important;letter-spacing:1.25px!important}
+html body .trip-intelligence>header h2{margin:3px 0!important;color:#173b49!important;font-size:21px!important;line-height:1.2!important;font-weight:950!important;letter-spacing:-.45px!important}
+html body .trip-intelligence>header p{margin:0!important;color:#71848a!important;font-size:9px!important;font-weight:650!important}
+html body .trip-intel-period{padding:6px 9px!important;border:1px solid #d8e9e3!important;border-radius:99px!important;background:#fff!important;color:#58777a!important;font-size:7px!important;font-weight:950!important;letter-spacing:.6px!important;white-space:nowrap!important}
+html body .trip-intel-metrics{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important}
+html body .trip-intel-metrics>article{display:grid!important;align-content:start!important;gap:5px!important;min-width:0!important;min-height:76px!important;padding:10px 11px!important;border:1px solid #dce9e6!important;border-radius:13px!important;background:rgba(255,255,255,.82)!important}
+html body .trip-intel-metrics>article:nth-child(2){background:#f1efff!important;border-color:#dfd8f6!important}
+html body .trip-intel-metrics>article:nth-child(3){background:#fff4e8!important;border-color:#f0dfc8!important}
+html body .trip-intel-metrics>article:nth-child(4){background:#eaf7f2!important;border-color:#d1e8dc!important}
+html body .trip-intel-metrics small{font-size:7px!important;font-weight:950!important;letter-spacing:.65px!important;color:#71868a!important}
+html body .trip-intel-metrics b{font-size:clamp(17px,2vw,23px)!important;line-height:1.1!important;color:#183c49!important;font-weight:950!important;overflow-wrap:anywhere!important}
+html body .trip-intel-metrics article>span{font-size:8px!important;color:#73878a!important;font-weight:700!important}
+html body .trip-intel-lower{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+html body .trip-intel-lower>article{display:grid!important;align-content:start!important;gap:5px!important;min-width:0!important;padding:11px 12px!important;border:1px solid #dce9e6!important;border-radius:13px!important;background:#fff!important}
+html body .trip-intel-lower>article>span{font-size:7px!important;letter-spacing:.8px!important;color:#168579!important;font-weight:950!important}
+html body .trip-intel-lower>article>b{font-size:14px!important;line-height:1.25!important;color:#1a3d49!important;font-weight:950!important}
+html body .trip-intel-lower>article>p{margin:0!important;color:#6d8288!important;font-size:9px!important;font-weight:700!important}
+html body .trip-intel-lower>article>strong{font-size:13px!important;color:#147e70!important;font-weight:950!important}
+html body .trip-intel-lower>article>small{font-size:8px!important;color:#8a999b!important;font-weight:650!important}
+html body .trip-intel-chart{display:grid!important;gap:9px!important;padding:11px 12px!important;border:1px solid #e0e9e7!important;border-radius:13px!important;background:rgba(255,255,255,.88)!important}
+html body .trip-intel-chart>header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important}
+html body .trip-intel-chart>header>div>b{display:block!important;margin-top:3px!important;color:#1c3f4b!important;font-size:12px!important;font-weight:950!important}
+html body .trip-intel-chart>header>small{font-size:8px!important;color:#879799!important;font-weight:750!important}
+html body .trip-intel-bar{display:grid!important;grid-template-columns:minmax(100px,.8fr) minmax(70px,1.5fr) auto!important;align-items:center!important;gap:9px!important;min-width:0!important}
+html body .trip-intel-bar>div{display:grid!important;min-width:0!important;gap:2px!important}
+html body .trip-intel-bar>div>b{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:9px!important;color:#31535c!important;font-weight:900!important}
+html body .trip-intel-bar>div>small{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:7px!important;color:#8a999b!important}
+html body .trip-intel-bar>span{height:8px!important;overflow:hidden!important;border-radius:99px!important;background:#edf2f0!important}
+html body .trip-intel-bar>span>i{display:block!important;height:100%!important;border-radius:99px!important;background:linear-gradient(90deg,#159b87,#7660c8)!important}
+html body .trip-intel-bar>strong{white-space:nowrap!important;color:#244b56!important;font-size:9px!important;font-weight:950!important}
+html body .trip-intel-footnote{margin:2px 0 0!important;color:#8a999b!important;font-size:7px!important;line-height:1.45!important}
+html body .trip-intel-empty{margin:0!important;padding:12px!important;color:#7d8d90!important;font-size:9px!important;text-align:center!important}
+@media(max-width:760px){
+ html body .trip-intelligence{gap:9px!important;margin-bottom:10px!important;padding:11px!important;border-radius:15px!important}
+ html body .trip-intelligence>header h2{font-size:18px!important}
+ html body .trip-intelligence>header p{font-size:8px!important;max-width:240px!important}
+ html body .trip-intel-period{font-size:6px!important;padding:5px 7px!important}
+ html body .trip-intel-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+ html body .trip-intel-metrics>article{min-height:67px!important;padding:9px!important}
+ html body .trip-intel-metrics b{font-size:19px!important}
+ html body .trip-intel-lower{grid-template-columns:minmax(0,1fr)!important;gap:7px!important}
+ html body .trip-intel-lower>article{padding:9px 10px!important}
+ html body .trip-intel-bar{grid-template-columns:minmax(80px,.85fr) minmax(45px,1fr) auto!important;gap:6px!important}
+ html body .trip-intel-bar>div>b{font-size:8px!important}
+ html body .trip-intel-bar>strong{font-size:8px!important}
+}
