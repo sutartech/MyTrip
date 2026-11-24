@@ -6035,3 +6035,10 @@ html body .trip-intel-destination>strong{color:#1f4c52!important;font-size:8px!i
 
 /* MyTrip v4.97.0 — clearer separation of total and dated expenditure. */
 @media(min-width:761px){html body .trip-intel-detail-metrics{grid-template-columns:repeat(5,minmax(0,1fr))!important}}
+
+
+/* MyTrip v4.98.0 — analytics report export actions. */
+html body .trip-intel-export-actions{display:flex!important;justify-content:flex-end!important;flex-wrap:wrap!important;gap:7px!important}
+html body .trip-intel-export-actions>button{min-height:35px!important;padding:7px 11px!important;border:1px solid #cfe2dc!important;border-radius:9px!important;background:#edf7f3!important;color:#176c62!important;font-size:9px!important;font-weight:900!important}
+html body .trip-intel-export-actions>button:last-child{border-color:#d9d5ed!important;background:#f3f0fb!important;color:#594a8a!important}
+@media(max-width:760px){html body .trip-intel-export-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}html body .trip-intel-export-actions>button{padding:7px 5px!important;font-size:8px!important;white-space:normal!important}}
