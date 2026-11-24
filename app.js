@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.96.0";
+  const frontendVersion = "4.97.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -5131,7 +5131,7 @@
       output.innerHTML = '<p class="trip-intel-loading">Loading dated expense records securely from each trip…</p>';
       try {
         const monthly = new Map(), destinations = new Map();
-        let actualSpend = 0, datedRows = 0, totalExpenseRows = 0;
+        let actualSpend = 0, allExpenseSpend = 0, datedRows = 0, totalExpenseRows = 0, loadedTripCount = 0, loadedTravelDays = 0;
         const varianceRows = [];
         for (let index = 0; index < trips.length; index++) {
           const trip = trips[index];
@@ -5139,7 +5139,11 @@
             ? (String(demo.trip.tripId) === String(trip.tripId) ? demo : null)
             : await api("getTrip", { tripId: trip.tripId, username: state.accountUsername, password: administratorSecret, pin: administratorSecret });
           if (!bundle || !Array.isArray(bundle.expenses)) continue;
+          loadedTripCount++;
+          const tripStart = String((bundle.trip && bundle.trip.startDate) || trip.startDate || ""), tripEnd = String((bundle.trip && bundle.trip.endDate) || trip.endDate || tripStart);
+          if (/^\\d{4}-\\d{2}-\\d{2}$/.test(tripStart) && /^\\d{4}-\\d{2}-\\d{2}$/.test(tripEnd)) loadedTravelDays += Math.max(1, daysBetween(tripStart, tripEnd) + 1);
           const tripSpend = bundle.expenses.reduce((sum, expense) => sum + Math.max(0, Number(expense.amount || 0)), 0);
+          allExpenseSpend += tripSpend;
           const budget = Math.max(0, Number((bundle.trip && bundle.trip.budget) || trip.budget || 0));
           varianceRows.push({ name: trip.name || trip.tripId, budget, spend: tripSpend, variance: budget - tripSpend });
           const destination = String((bundle.trip && bundle.trip.destination) || trip.destination || "Unspecified").trim() || "Unspecified";
@@ -5169,7 +5173,7 @@
         const years = new Map();
         months.forEach((item) => { const year = item.key.slice(0, 4); years.set(year, (years.get(year) || 0) + item.spend); });
         const annualRows = [...years.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([year, amount]) => `<div class="trip-intel-destination"><b>${year}</b><span>Recorded expenses</span><strong>${money.format(amount)}</strong></div>`).join("");
-        output.innerHTML = `<div class="trip-intel-detail-metrics"><article><small>DATED EXPENDITURE</small><b>${money.format(actualSpend)}</b></article><article><small>AVERAGE / TRIP</small><b>${money.format(averageTripSpend)}</b></article><article><small>AVERAGE / TRAVEL DAY</small><b>${money.format(averageDailySpend)}</b></article><article><small>BUDGET VARIANCE</small><b class="${totalBudgetVariance < 0 ? "negative" : "positive"}">${money.format(totalBudgetVariance)}</b></article></div><div class="trip-intel-detail-grid"><article><header><b>Monthly expenditure</b><small>Last 12 months with dated expenses</small></header>${monthBars || '<p class="trip-intel-empty">No dated expenses found.</p>'}</article><article><header><b>Destination-wise spending</b><small>Top five destinations</small></header>${destRows || '<p class="trip-intel-empty">No expense data found.</p>'}</article><article><header><b>Annual expenditure</b><small>Calendar year totals</small></header>${annualRows || '<p class="trip-intel-empty">No dated expenses found.</p>'}</article></div><p class="trip-intel-footnote">Analysed ${datedRows} dated expense entries from ${trips.length} trips. ${totalExpenseRows - datedRows} entries without a valid date were excluded from monthly and annual totals. Average per trip uses all listed trips; average per travel day uses recorded trip date ranges.</p>`;
+        output.innerHTML = `<div class="trip-intel-detail-metrics"><article><small>TOTAL EXPENDITURE</small><b>${money.format(allExpenseSpend)}</b></article><article><small>DATED EXPENDITURE</small><b>${money.format(actualSpend)}</b></article><article><small>AVERAGE / TRIP</small><b>${money.format(averageTripSpend)}</b></article><article><small>AVERAGE / TRAVEL DAY</small><b>${money.format(averageDailySpend)}</b></article><article><small>BUDGET VARIANCE</small><b class="${totalBudgetVariance < 0 ? "negative" : "positive"}">${money.format(totalBudgetVariance)}</b></article></div><div class="trip-intel-detail-grid"><article><header><b>Monthly expenditure</b><small>Last 12 months with dated expenses</small></header>${monthBars || '<p class="trip-intel-empty">No dated expenses found.</p>'}</article><article><header><b>Destination-wise spending</b><small>Top five destinations</small></header>${destRows || '<p class="trip-intel-empty">No expense data found.</p>'}</article><article><header><b>Annual expenditure</b><small>Calendar year totals</small></header>${annualRows || '<p class="trip-intel-empty">No dated expenses found.</p>'}</article></div><p class="trip-intel-footnote">Analysed ${datedRows} dated expense entries from ${loadedTripCount} of ${trips.length} trips. ${totalExpenseRows - datedRows} entries without a valid date were excluded from monthly and annual totals. Average per trip uses all listed trips; average per travel day uses recorded trip date ranges.</p>`;
         datedAnalyticsButton.textContent = "Refresh detailed analytics";
       } catch (error) {
         output.innerHTML = `<p class="trip-intel-loading">Analytics could not be loaded: ${esc(error.message || "Please try again.")}</p>`;
