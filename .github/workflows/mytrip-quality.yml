@@ -20,6 +20,8 @@ jobs:
         env:
           MYTRIP_BUILD_DEPENDENCIES: ${{ runner.temp }}/mytrip-qa/node_modules
         run: node tools/build-separate-quick-app.js "$RUNNER_TEMP/QuickExpense"
+      - name: Synchronize Quick Expense entry shell
+        run: node tools/sync-quick-expense-entry.js
       - name: Verify release
         run: node tools/verify-release.js
       - name: Run full behavior and DOM suite
