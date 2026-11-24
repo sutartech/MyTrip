@@ -6178,3 +6178,31 @@ html body .trip-intel-export-actions>button:last-child{border-color:#d9d5ed!impo
   html body .trip-announcement:hover .announcement-track,
   html body .trip-announcement:focus-within .announcement-track{animation-play-state:paused!important}
 }
+
+
+/* Final mobile ticker safeguard: prevent sticky touch-hover/focus and OS-level
+   reduced-motion CSS from freezing the explicitly requested notice marquee. */
+@media(max-width:760px){
+  html body #view .trip-announcement .announcement-window{
+    display:block!important;min-width:0!important;overflow:hidden!important;
+  }
+  html body #view .trip-announcement .announcement-track{
+    display:flex!important;width:max-content!important;
+    animation-name:mytrip-announcement-scroll!important;
+    animation-duration:var(--announcement-duration,20s)!important;
+    animation-timing-function:linear!important;
+    animation-iteration-count:infinite!important;
+    animation-direction:normal!important;
+    animation-play-state:running!important;
+    transform:translate3d(0,0,0);
+  }
+  html body #view .trip-announcement .announcement-copy,
+  html body #view .trip-announcement .announcement-copy[aria-hidden="true"]{
+    display:inline-flex!important;flex-wrap:nowrap!important;
+    white-space:nowrap!important;
+  }
+  html body #view .trip-announcement:hover .announcement-track,
+  html body #view .trip-announcement:focus-within .announcement-track{
+    animation-play-state:running!important;
+  }
+}
