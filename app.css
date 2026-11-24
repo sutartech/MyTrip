@@ -6192,3 +6192,26 @@ html body .trip-intel-export-actions>button:last-child{border-color:#d9d5ed!impo
   html body .trip-announcement:hover .announcement-track,
   html body .trip-announcement:focus-within .announcement-track{animation-play-state:paused!important}
 }
+
+
+/* Final mobile notice layout: keep Manage beside the ticker, never below it. */
+@media(max-width:760px){
+  html body #view>.trip-announcement{
+    grid-template-columns:30px minmax(0,1fr) auto!important;
+    grid-template-rows:minmax(36px,auto)!important;
+    align-items:center!important;gap:7px!important;
+  }
+  html body #view>.trip-announcement>.announcement-icon{
+    grid-column:1!important;grid-row:1!important;
+  }
+  html body #view>.trip-announcement>.announcement-window{
+    grid-column:2!important;grid-row:1!important;min-width:0!important;
+  }
+  html body #view>.trip-announcement>button{
+    grid-column:3!important;grid-row:1!important;
+    justify-self:end!important;align-self:center!important;
+    width:auto!important;min-width:0!important;min-height:30px!important;height:30px!important;
+    padding:5px 9px!important;border-radius:9px!important;
+    font-size:10px!important;line-height:1!important;white-space:nowrap!important;
+  }
+}
