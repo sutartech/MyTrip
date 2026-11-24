@@ -5364,3 +5364,81 @@ html body #view>.permission-banner.admin .dashboard-inline-version{
     min-height:40px!important;
   }
 }
+
+
+/* MyTrip 4.77.0 — four administrator actions in one horizontal row */
+html body #view>.permission-banner.admin{
+  display:block!important;
+  min-width:0!important;
+  min-height:0!important;
+  height:auto!important;
+  padding:10px 12px!important;
+  margin:0 0 10px!important;
+}
+html body #view>.permission-banner.admin>.permission-copy,
+html body #view>.permission-banner.admin>i,
+html body #view>.permission-banner.admin>.permission-role-pill,
+html body #view>.permission-banner.admin>.dashboard-inline-version{
+  display:none!important;
+}
+html body #view>.permission-banner.admin .permission-banner-actions{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  grid-auto-flow:column!important;
+  align-items:stretch!important;
+  gap:8px!important;
+  width:100%!important;
+  min-width:0!important;
+  margin:0!important;
+}
+html body #view>.permission-banner.admin .permission-banner-actions>button{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:100%!important;
+  min-width:0!important;
+  min-height:40px!important;
+  padding:7px 6px!important;
+  border-radius:10px!important;
+  font-size:clamp(9px,1.05vw,12px)!important;
+  line-height:1.15!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+html body #view>.permission-banner.admin .permission-banner-actions .permission-search{
+  gap:5px!important;
+}
+html body #view>.permission-banner.admin .permission-banner-actions .permission-search kbd{
+  display:none!important;
+}
+@media(max-width:760px){
+  html body #view>.permission-banner.admin{
+    display:block!important;
+    padding:8px 9px!important;
+  }
+  html body #view>.permission-banner.admin .permission-banner-actions{
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+    grid-auto-flow:column!important;
+    gap:5px!important;
+  }
+  html body #view>.permission-banner.admin .permission-banner-actions>button{
+    min-height:38px!important;
+    padding:6px 3px!important;
+    font-size:clamp(8px,2.35vw,10px)!important;
+    letter-spacing:-.15px!important;
+    border-radius:9px!important;
+  }
+  html body #view>.permission-banner.admin .permission-banner-actions .permission-search{
+    gap:3px!important;
+  }
+  html body #view>.permission-banner.admin .permission-banner-actions .permission-search>span{
+    font-size:11px!important;
+  }
+}
+@media(max-width:360px){
+  html body #view>.permission-banner.admin .permission-banner-actions{gap:3px!important}
+  html body #view>.permission-banner.admin .permission-banner-actions>button{
+    font-size:8px!important;padding:5px 2px!important;
+  }
+}
