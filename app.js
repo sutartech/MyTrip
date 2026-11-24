@@ -7147,10 +7147,10 @@
     return `<details class="plan-print-menu"${state.printMenuOpen ? " open" : ""}><summary class="plan-tool">▤ Print options</summary><div class="plan-print-panel"><label class="plan-print-line"><span>Text size</span><span class="plan-width-control"><button type="button" data-print-width="-1" aria-label="Smaller">−</button><b>${printPlanScale()}pt</b><button type="button" data-print-width="1" aria-label="Larger">＋</button></span></label><label class="plan-print-line"><span>Wrap long text</span><button type="button" class="plan-switch${printPlanWrap() ? " on" : ""}" data-print-wrap aria-pressed="${printPlanWrap()}">${printPlanWrap() ? "On" : "Off"}</button></label><label class="plan-print-line"><span>Page layout</span><span class="plan-seg">${[["portrait", "▯ Portrait"], ["landscape", "▭ Landscape"]].map(([value, label]) => `<button type="button" data-print-layout="${value}" class="${printPlanLayout() === value ? "on" : ""}">${label}</button>`).join("")}</span></label><label class="plan-print-line"><span>Alignment</span><span class="plan-seg">${[["left", "⇤ Left"], ["center", "⇔ Centre"], ["right", "⇥ Right"]].map(([value, label]) => `<button type="button" data-print-align="${value}" class="${printPlanAlign() === value ? "on" : ""}" title="Align ${value}">${label}</button>`).join("")}</span></label>${extra}</div></details>`;
   }
 
-  /* Phone only: compact timeline cards (default) or the full desktop table
-     scrolled sideways. Remembered per browser. */
+  /* Itinerary opens in the full table by default. Users can switch to
+     compact cards; that explicit preference is remembered per browser. */
   const planViewKey = "mytrip_plan_view_v1";
-  function planWideView() { return localStorage.getItem(planViewKey) === "table"; }
+  function planWideView() { return localStorage.getItem(planViewKey) !== "cards"; }
   function togglePlanView() {
     try { localStorage.setItem(planViewKey, planWideView() ? "cards" : "table"); } catch {}
     render();
