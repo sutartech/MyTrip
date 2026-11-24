@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.87.0";
+  const frontendVersion = "4.88.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -276,7 +276,7 @@
   let activeRequests = 0;
   let quickFindVisibleResults = [];
   let printAreaDirty = true;
-  const labels = { overview: "Overview", itinerary: "Itinerary", experiences: "Experiences", photos: "Trip Photos", places: "Places & Map", expenses: "Expenses", people: "Travellers", checklist: "Checklist", print: "Print & Export", help: "Help & Feedback" };
+  const labels = { overview: "Overview", itinerary: "Itinerary", experiences: "Experiences", photos: "Trip Photos", places: "Places & Map", expenses: "Expenses", people: "Travellers", checklist: "Checklist", documents: "Document Vault", print: "Print & Export", help: "Help & Feedback" };
   const demoTrips = [
     { tripId: "GOA26", name: "Goa Escape", destination: "Goa", startDate: "2026-11-19", endDate: "2026-11-23", budget: 85000, spent: 32450, travellerCount: 6, assignedTravellerCount: 3, assignedTravellerIds: ["ANITA-101", "ROHAN-202", "MEERA-303"], enabled: true, createdBy: "Sarada" },
     { tripId: "KER27", name: "Kerala Backwaters", destination: "Alappuzha", startDate: "2027-01-14", endDate: "2027-01-18", budget: 72000, spent: 8400, travellerCount: 4, assignedTravellerCount: 1, assignedTravellerIds: ["ANITA-101"], enabled: true, createdBy: "Sarada" },
@@ -1052,7 +1052,7 @@
   }
 
   function setTab(tab) {
-    const allowed = { itinerary: canViewItinerary(), experiences: canViewExperiences(), photos: true, places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() };
+    const allowed = { itinerary: canViewItinerary(), documents: canViewItinerary(), experiences: canViewExperiences(), photos: true, places: canViewPlaces(), expenses: canViewExpenses(), people: canViewTravellers(), print: canPrintReports() };
     if (allowed[tab] === false) return toast("This feature is hidden for your Traveller ID by the Administrator", true);
     state.tab = tab; persistSession(true); mtFadeView(); try { (document.scrollingElement || document.documentElement).scrollTo({ top: 0, behavior: "instant" in document.documentElement.style ? "instant" : "auto" }); } catch { try { window.scrollTo(0, 0); } catch {} } $("#crumbLabel").textContent = labels[tab];
     $$('[data-tab]').forEach((button) => {
@@ -1060,7 +1060,7 @@
       button.classList.toggle("active", active);
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     });
-    render(); window.scrollTo({ top: 0, behavior: "auto" }); loadTripSection(tab);
+    render(); window.scrollTo({ top: 0, behavior: "auto" }); if (tab === "documents") loadTripDocuments(true); else loadTripSection(tab);
   }
 
   function heading(kicker, title, action = "", add = "") { return `<div class="view-head"><div><span class="kicker">${kicker}</span><h2>${title}</h2><p>${action}</p></div>${add && canAdd(add) ? `<button class="primary" data-add="${add}">＋ Add ${add}</button>` : ""}</div>`; }
@@ -1584,6 +1584,70 @@
     }
     closeModal(); render(); toast(`${saved} ${saved === 1 ? "task" : "tasks"} added from ${pack.title}.`);
   }
+
+  async function loadTripDocuments(force = false) {
+    if (!state.data || state.demoMode || !apiUrlReady() || navigator.onLine === false) return;
+    const age = Date.now() - Number(state.sectionLoadedAt.documents || 0);
+    if (!force && age < 45000 && Array.isArray(state.data.documents)) return;
+    const tripId = String(state.data.trip.tripId), principal = `${state.accessRole}:${state.accountUsername}:${state.travellerId}`;
+    try {
+      const docs = await api("listTripDocuments", authPayload());
+      if (!state.data || String(state.data.trip.tripId) !== tripId || principal !== `${state.accessRole}:${state.accountUsername}:${state.travellerId}`) return;
+      state.data.documents = Array.isArray(docs) ? docs : [];
+      state.sectionLoadedAt.documents = Date.now();
+      if (state.tab === "documents") render();
+    } catch (error) { if (force) toast(error.message, true); }
+  }
+  function renderDocuments() {
+    const docs = Array.isArray(state.data.documents) ? state.data.documents : [];
+    const totalBytes = docs.reduce((n, d) => n + Number(d.sizeBytes || 0), 0);
+    const fmt = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+    const rows = docs.length ? docs.map(d => `<article class="doc-row"><div class="doc-file-icon">${String(d.mimeType || "").includes("pdf") ? "PDF" : String(d.mimeType || "").includes("image") ? "IMG" : "FILE"}</div><div class="doc-main"><b>${esc(d.name)}</b><span>${esc(d.category || "Other")} · ${fmt(d.sizeBytes)} · ${esc(d.uploadedBy || "Administrator")}</span>${d.description ? `<small>${esc(d.description)}</small>` : ""}<small>Added ${esc(d.createdAt ? displayDate(String(d.createdAt).slice(0,10), {day:"numeric",month:"short",year:"numeric"}) : "—")}</small></div><div class="doc-actions"><button type="button" data-doc-download="${esc(d.id)}">Download</button>${isAdmin() ? `<button type="button" class="doc-delete" data-doc-delete="${esc(d.id)}">Delete</button>` : ""}</div></article>`).join("") : `<div class="doc-empty"><span>▤</span><b>No trip documents yet</b><p>Keep tickets, hotel confirmations, permits and other trip files together.</p>${isAdmin() ? `<button type="button" class="primary" data-doc-upload>＋ Upload first document</button>` : ""}</div>`;
+    return `<section class="doc-vault"><div class="view-head"><div><span class="kicker">PRIVATE TRIP FILES</span><h2>Document Vault</h2><p>Trip documents in one place. Files are stored privately in the trip’s Google Drive folder.</p></div>${isAdmin() ? `<button type="button" class="primary" data-doc-upload>＋ Upload document</button>` : ""}</div><div class="doc-summary"><div><b>${docs.length}</b><span>${docs.length === 1 ? "document" : "documents"}</span></div><div><b>${fmt(totalBytes)}</b><span>stored</span></div><div><b>5 MB</b><span>maximum per file</span></div></div><div class="doc-security-note"><span>🔒</span><p><b>Private storage</b><br>Documents are not published as public links. Access follows this trip’s itinerary-view permission; only the Global Administrator can upload or delete.</p></div><div class="doc-list">${rows}</div><p class="doc-footnote">Supported: PDF, JPG, PNG, WebP, DOCX, XLSX, PPTX and TXT. Maximum 5 MB per file.</p></section>`;
+  }
+  function showDocumentUpload() {
+    if (!isAdmin()) return toast("Global Administrator access is required to upload documents", true);
+    showModal("Upload trip document", `<form id="tripDocumentForm" class="modal-form"><label>Choose file<input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx,.pptx,.txt,application/pdf,image/jpeg,image/png,image/webp"></label><label>Category<select name="category"><option>Booking</option><option>Travel tickets</option><option>Accommodation</option><option>Identity &amp; permits</option><option>Insurance</option><option>Itinerary</option><option>Other</option></select></label><label>Description (optional)<input name="description" maxlength="300" placeholder="e.g. Return flight confirmation"></label><p class="doc-footnote">Maximum 5 MB. Upload only files appropriate for sharing with authorised trip viewers.</p><div class="form-actions"><button type="button" data-cancel>Cancel</button><button type="submit" class="primary">Upload securely</button></div></form>`);
+    $("#modalBody").querySelector('[data-cancel]').addEventListener("click", closeModal);
+  }
+  async function submitDocumentUpload(event) {
+    event.preventDefault();
+    if (!isAdmin()) return toast("Global Administrator access is required", true);
+    const form = event.target, file = form.elements.file.files && form.elements.file.files[0];
+    if (!file) return toast("Choose a file first", true);
+    if (file.size > 5 * 1024 * 1024) return toast("File exceeds the 5 MB limit", true);
+    const allowed = ["application/pdf","image/jpeg","image/png","image/webp","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","application/vnd.openxmlformats-officedocument.presentationml.presentation","text/plain"];
+    const mime = file.type || ({pdf:"application/pdf",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",txt:"text/plain"}[file.name.split(".").pop().toLowerCase()] || "");
+    if (!allowed.includes(mime)) return toast("This file type is not supported", true);
+    const reader = new FileReader();
+    reader.onerror = () => toast("Could not read the selected file", true);
+    reader.onload = async () => {
+      try {
+        const data = String(reader.result).split(",")[1] || "";
+        await api("uploadTripDocument", authPayload({file:{name:file.name,type:mime,data},record:{category:form.elements.category.value,description:form.elements.description.value,uploadedBy:state.currentUser || "Administrator"}}));
+        closeModal(); state.sectionLoadedAt.documents = 0; await loadTripDocuments(true); render(); toast("Document uploaded securely");
+      } catch (error) { toast(error.message, true); }
+    };
+    reader.readAsDataURL(file);
+  }
+  async function downloadTripDocument(id) {
+    try {
+      const result = await api("downloadTripDocument", authPayload({id}));
+      const raw = atob(result.data), bytes = new Uint8Array(raw.length);
+      for (let i=0;i<raw.length;i++) bytes[i] = raw.charCodeAt(i);
+      const blob = new Blob([bytes], {type:result.type || "application/octet-stream"});
+      const url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = result.name || "trip-document"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (error) { toast(error.message, true); }
+  }
+  async function deleteTripDocument(id) {
+    if (!isAdmin()) return toast("Global Administrator access is required to delete documents", true);
+    const item = (state.data.documents || []).find(d => String(d.id) === String(id));
+    if (!item || !confirm(`Move “${item.name}” to Google Drive trash and remove it from this trip?`)) return;
+    try { await api("deleteTripDocument", authPayload({id})); state.data.documents = (state.data.documents || []).filter(d => String(d.id) !== String(id)); render(); toast("Document deleted"); }
+    catch (error) { toast(error.message, true); }
+  }
+
   function renderChecklist() {
     const items = state.data.checklist || (state.data.checklist = []);
     const me = String(state.currentUser || ""); const f = state.ckFilter || "all";
@@ -3959,7 +4023,7 @@
   function renderInner() {
     if (!state.data) { try { hideTabbar(); } catch (error) {} return; }
     updateTripHeaderCollage();
-    const renderers = { overview: renderOverview, itinerary: renderItinerary, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, checklist: renderChecklist, print: renderPrint, help: renderHelp };
+    const renderers = { overview: renderOverview, itinerary: renderItinerary, documents: renderDocuments, experiences: renderExperiences, photos: renderPhotos, places: renderPlaces, expenses: renderExpenses, people: renderPeople, checklist: renderChecklist, print: renderPrint, help: renderHelp };
     $("#view").innerHTML = accessNotice() + tripAnnouncementTicker() + (state.tab === "overview" ? greetingStrip() + rateReminder() + weatherSlot() : "") + renderers[state.tab]();
     if (state.tab === "expenses" && isAdmin()) {
       const anchor = $("#view .text-import-strip") || $("#view .mt-money-actions") || $("#view .page-heading") || $("#view .mt-money-strip");
@@ -3979,6 +4043,9 @@
     const button = event.target.closest("button,[data-map]");
     if (!button || !$("#view").contains(button)) return;
     if (button.dataset.go) return setTab(button.dataset.go);
+    if (button.hasAttribute("data-doc-upload")) return showDocumentUpload();
+    if (button.dataset.docDownload) return downloadTripDocument(button.dataset.docDownload);
+    if (button.dataset.docDelete) return deleteTripDocument(button.dataset.docDelete);
     if (button.dataset.routeMode && planTravelModes.includes(button.dataset.routeMode)) { try { localStorage.setItem(planTravelModeKey, button.dataset.routeMode); } catch {} return render(); }
     if (button.dataset.add) return showAddModal(button.dataset.add);
     if (button.dataset.print === "expenses" && !button.hasAttribute("data-xp-go")) { if (proLocked("personPrint")) state.printPerson = ""; return showExpensePrintSheet(); }
@@ -4042,6 +4109,7 @@
   }
 
   function handleViewSubmit(event) {
+    if (event.target.id === "tripDocumentForm") return submitDocumentUpload(event);
     if (event.target.matches("[data-expense-row-form]")) saveExpenseRow(event);
     if (event.target.matches("[data-plan-row-form]")) savePlanRow(event);
   }
@@ -6506,12 +6574,12 @@
     bar.hidden = !state.data;
     const quick = $("#globalQuickAdd"); if (quick) quick.classList.toggle("hidden", !state.data || !["plan", "expense", "place", "experience"].some(canAdd));
     document.body.classList.toggle("mt-has-tabbar", Boolean(state.data));
-    const inMore = ["experiences", "photos", "places", "people", "checklist", "print", "help"].includes(state.tab);
+    const inMore = ["experiences", "photos", "places", "people", "checklist", "documents", "print", "help"].includes(state.tab);
     bar.querySelector("[data-mt-more]").classList.toggle("active", inMore);
   }
   function openMoreSheet() {
     const allowed = mtAllowed();
-    const items = [["experiences", "Experiences"], ["photos", "Trip photos"], ["places", "Places & map"], ["people", "Travellers"], ["checklist", "Checklist"], ["print", "Print & export"], ["help", "Help & feedback"]]
+    const items = [["experiences", "Experiences"], ["photos", "Trip photos"], ["places", "Places & map"], ["people", "Travellers"], ["checklist", "Checklist"], ...(allowed.itinerary ? [["documents", "Document vault"]] : []), ["print", "Print & export"], ["help", "Help & feedback"]]
       .filter(([tab]) => allowed[tab] !== false).map(([tab, label]) => `<button type="button" class="mt-more-row" data-mt-go="${tab}">${mtIcon(tab)}<span>${label}</span><em>›</em></button>`).join("");
     const trips = state.travellerId && !isAdmin() ? `<button type="button" class="mt-more-row" data-mt-action="mytrips">${mtIcon("trips")}<span>My trips</span><em>›</em></button>` : (isAdmin() ? `<button type="button" class="mt-more-row" data-mt-action="alltrips">${mtIcon("trips")}<span>All trips</span><em>›</em></button>` : "");
     const size = $("#textSizeValue") ? $("#textSizeValue").textContent : "100%";
