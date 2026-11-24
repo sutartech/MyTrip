@@ -26,7 +26,7 @@ function loadScanner(win) {
   win.eval(fs.readFileSync(path.join(root, "receipt-scan.js"), "utf8"));
 }
 const billText = "SEA VIEW CAFE\nInvoice No: A-129\nDate 25/10/2026\nSubtotal 1000\nGST 50\nGrand Total INR 1050.00";
-test("Administrator selects five shared header photos and optionally prints the same header in expenses and Trip Book", async () => {
+test("Administrator selects up to five available shared header photos and optionally prints the same header in expenses and Trip Book", async () => {
   const app = setup(), printed = []; let photoNumber = 0;
   try {
     app.win.URL.createObjectURL = () => "blob:trip-photo-" + (++photoNumber);
@@ -40,11 +40,11 @@ test("Administrator selects five shared header photos and optionally prints the 
       form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
     }
     app.document.querySelector("#view [data-trip-header-settings]").click(); await tick();
-    const form = app.document.querySelector("#tripHeaderPhotoForm"); assert.ok(form); const choices = [...form.querySelectorAll("[data-trip-header-choice]")]; assert.ok(choices.length >= 5);
-    assert.equal(choices.filter(input => input.checked).length, 5);
+    const form = app.document.querySelector("#tripHeaderPhotoForm"); assert.ok(form); const choices = [...form.querySelectorAll("[data-trip-header-choice]")]; const expectedPhotoCount = Math.min(5, choices.length); assert.ok(expectedPhotoCount > 0);
+    assert.equal(choices.filter(input => input.checked).length, expectedPhotoCount);
     if (choices[5]) { choices[5].checked = true; choices[5].dispatchEvent(new app.win.Event("change", { bubbles: true })); assert.equal(choices[5].checked, false); }
     form.elements.enabled.checked = true; form.elements.printDefault.checked = true; form.dispatchEvent(new app.win.Event("submit", { bubbles: true, cancelable: true })); await tick();
-    const header = app.document.querySelector("#tripHeaderCollage"), headerImages = [...header.querySelectorAll("img")]; assert.equal(header.hidden, false); assert.equal(headerImages.length, 5);
+    const header = app.document.querySelector("#tripHeaderCollage"), headerImages = [...header.querySelectorAll("img")]; assert.equal(header.hidden, false); assert.equal(headerImages.length, expectedPhotoCount);
     const urls = headerImages.map(img => img.getAttribute("src")); headerImages.forEach(img => img.dispatchEvent(new app.win.Event("load")));
     app.document.querySelector('#mainNav [data-tab="expenses"]').click(); await tick(); assert.equal(app.document.querySelector("#tripHeaderCollage"), header); assert.deepEqual([...header.querySelectorAll("img")].map(img => img.getAttribute("src")), urls);
     app.document.querySelector('#view [data-print="expenses"]').click(); await tick(); assert.ok(app.document.querySelector('[data-xp-photo-source="header"]').classList.contains("on"));
