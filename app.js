@@ -3473,6 +3473,7 @@
     const all = sortedPlans();
     const items = planMapPoints(state.planDayFilter ? all.filter((i) => i.date === state.planDayFilter) : all);
     const status = $("#planMapStatus");
+    if (points.length > 25) points.length = 25;
     let L;
     try { L = await loadLeaflet(); } catch (error) { if (status) status.textContent = error.message; return; }
     if (run !== planMapRun || !document.body.contains(el)) return;
@@ -3552,13 +3553,12 @@
       if (run !== placesMapRun) return;
       if (!coordinates) continue;
       found++; bounds.push(coordinates);
-      const icon = L.divIcon({ className: "places-pin-wrap", html: `<span class="places-pin ${point.kind}">${n + 1}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
+      const icon = L.divIcon({ className: "places-pin-wrap", html: `<span class="places-pin ${point.kind}"><b>${n + 1}</b></span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
       const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(point.query)}`;
       L.marker(coordinates, { icon }).addTo(layer).bindPopup(`<b>${esc(point.title)}</b><br><small>${esc(point.detail || point.query)}</small><br><a href="${directions}" target="_blank" rel="noopener noreferrer">Directions ↗</a>`);
     }
-    if (bounds.length > 1) L.polyline(bounds, { color: "#0F6E6A", weight: 3, opacity: .55, dashArray: "6 7" }).addTo(layer);
     if (bounds.length) map.fitBounds(L.latLngBounds(bounds).pad(.22), { maxZoom: 14 });
-    if (status) status.textContent = points.length ? `${found} of ${points.length} stops mapped${found < points.length ? " · refine any unclear place names" : ""}` : "Add saved places or itinerary stops to populate this map";
+    if (status) status.textContent = points.length ? `${found} of ${points.length} stops mapped${found < points.length ? " · refine any unclear place names" : ""}${(state.data.places || []).length + (sortedPlans() || []).length > 25 ? " · showing first 25" : ""}` : "Add saved places or itinerary stops to populate this map";
     setTimeout(() => { try { map.invalidateSize(); } catch {} }, 120);
   }
 
@@ -3957,7 +3957,8 @@
       if (anchor) anchor.insertAdjacentHTML("afterend", quickExpenseAdminCard());
     }
     maybeWelcome(); if (state.tab === "overview") loadWeather();
-    if (state.tab === "itinerary" && planMapOpen()) { try { initPlanMap(); } catch (error) {} }\n    if (state.tab === "places") { try { initPlacesMap(); } catch (error) {} }
+    if (state.tab === "itinerary" && planMapOpen()) { try { initPlanMap(); } catch (error) {} }
+    if (state.tab === "places") { try { initPlacesMap(); } catch (error) {} }
     try { applyLineIcons(); } catch {} try { updateTabbar(); } catch {}
     if (state.tab === "itinerary") { bindPlanColumnResizers(); bindPlanRowDragging(); }
     if (state.tab === "expenses") bindExpenseColumnResizers();
