@@ -6180,3 +6180,66 @@ html body .trip-intel-export-actions>button:last-child{border-color:#d9d5ed!impo
   html body .trip-announcement:hover .announcement-track,
   html body .trip-announcement:focus-within .announcement-track{animation-play-state:paused!important}
 }
+
+
+/* MyTrip mobile header visibility correction.
+   Later compact-header rules hid both trip summary and date/time; restore them
+   explicitly in a compact three-row layout on the live dashboard. */
+@media(max-width:760px){
+  html body .dashboard:not(.hidden) .workspace>.topbar{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    grid-template-rows:auto auto auto!important;
+    align-items:center!important;
+    justify-content:stretch!important;
+    gap:6px 9px!important;
+    height:auto!important;min-height:0!important;
+    padding:9px 12px 10px!important;
+    overflow:visible!important;
+  }
+  html body .dashboard:not(.hidden) .workspace>.topbar>.mobile-brand{
+    display:flex!important;grid-column:1!important;grid-row:1!important;
+    align-items:center!important;justify-self:start!important;
+  }
+  html body .dashboard:not(.hidden) .workspace>.topbar>.top-actions{
+    display:flex!important;grid-column:2!important;grid-row:1!important;
+    justify-self:end!important;align-self:center!important;
+    width:auto!important;margin:0!important;
+  }
+  html body .dashboard:not(.hidden) .workspace>.topbar>.top-trip-summary{
+    display:flex!important;grid-column:1/-1!important;grid-row:2!important;
+    align-items:center!important;gap:8px!important;
+    width:100%!important;min-width:0!important;
+    padding:7px 0 2px!important;border-top:1px solid #e7ecef!important;
+  }
+  html body .dashboard:not(.hidden) .workspace>.topbar>.top-trip-summary .trip-status{
+    display:inline-flex!important;flex:0 0 auto!important;font-size:8px!important;
+  }
+  html body .dashboard:not(.hidden) .workspace>.topbar>.top-trip-summary .trip-id-chip{
+    display:inline-flex!important;flex:0 0 auto!important;gap:5px!important;
+    padding:5px 7px!important;
+  }
+  html body .dashboard:not(.hidden) .workspace>.topbar>.top-trip-summary .trip-id-chip small{
+    display:inline!important;font-size:7px!important;
+  }
+  html body .dashboard:not(.hidden) .workspace>.topbar>.top-trip-summary .top-trip-copy{
+    display:flex!important;flex:1 1 auto!important;min-width:0!important;
+  }
+  html body .dashboard:not(.hidden) .workspace>.topbar>.top-trip-summary .top-trip-copy>strong{
+    display:block!important;font-size:12px!important;
+  }
+  html body .dashboard:not(.hidden) .workspace>.topbar>.top-trip-summary .top-trip-copy>small{
+    display:block!important;font-size:8px!important;white-space:normal!important;
+  }
+  html body .dashboard:not(.hidden) .workspace>.topbar>.header-date-time{
+    display:inline-flex!important;grid-column:1/-1!important;grid-row:3!important;
+    justify-self:center!important;align-self:center!important;
+    width:auto!important;max-width:100%!important;min-height:32px!important;
+    height:auto!important;padding:7px 12px!important;font-size:10px!important;
+    white-space:nowrap!important;
+  }
+}
+@media(max-width:390px){
+  html body .dashboard:not(.hidden) .workspace>.topbar>.top-trip-summary .trip-status{display:none!important}
+  html body .dashboard:not(.hidden) .workspace>.topbar>.top-trip-summary .top-trip-copy>small{font-size:7px!important}
+}
