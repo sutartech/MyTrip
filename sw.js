@@ -1,6 +1,6 @@
 "use strict";
 
-const STATIC_CACHE = "mytrip-static-v4.77.0";
+const STATIC_CACHE = "mytrip-static-v4.77.1";
 const VERSIONED_ASSETS = [
   "./index.html",
   "./app.css?v=4.77.0",
@@ -24,20 +24,27 @@ async function navigationResponse(event) {
   const pathname = new URL(request.url).pathname;
   const key = pathname.endsWith('/quick-expense/install.html') ? './quick-expense/install.html' : pathname.endsWith('/quick-expense/index.html') || pathname.endsWith('/quick-expense/') ? './quick-expense/index.html' : pathname.endsWith('/quick-expense-install.html') ? './quick-expense-install.html' : pathname.endsWith('/repair.html') ? './repair.html' : './index.html';
   const cached = await cache.match(key);
-  const update = fetch(request).then(async response => { if (response?.ok) await cache.put(key, response.clone()); return response; });
-  if (cached) { event.waitUntil(update.catch(() => {})); return cached; }
+
+  /* Network-first navigation prevents an installed PWA from repeatedly
+     rendering an old dashboard shell after a GitHub Pages release. Keep the
+     last verified shell as an offline/timeout fallback. */
   try {
     const response = await Promise.race([
-      update,
+      fetch(request),
       new Promise((_, reject) => setTimeout(() => reject(new Error("navigation timeout")), 8000))
     ]);
-    return response;
+    if (response && response.ok) {
+      await cache.put(key, response.clone());
+      return response;
+    }
+    if (cached) return cached;
+    return response || Response.error();
   } catch {
     return cached || Response.error();
   }
 }
 
-/* app.js and app\.css are fetched fresh first: a stale copy on a slow mobile
+/* app.js and app\\.css are fetched fresh first: a stale copy on a slow mobile
    link used to keep the old build running for days. Everything else stays
    cache-first for speed. */
 async function staticResponse(event, freshFirst) {
