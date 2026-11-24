@@ -5705,7 +5705,7 @@ html body #view section.permission-banner.admin > div.permission-banner-actions 
 .places-pin-wrap{background:transparent;border:0}
 .places-pin{display:grid;place-items:center;width:29px;height:29px;border:2px solid #fff;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);background:#0f8b83;color:#fff;font-size:11px;font-weight:900;box-shadow:0 3px 10px #102b3a55}
 .places-pin.plan{background:#d58a2b}
-.places-pin::first-letter{transform:rotate(45deg)}
+.places-pin>b{display:block;transform:rotate(45deg);font-size:11px;line-height:1}
 .places-map-panel .leaflet-popup-content{line-height:1.5}
 .places-map-panel .leaflet-popup-content a{color:#0f766e;font-weight:800}
 @media(max-width:640px){.places-map-panel{padding:9px;border-radius:14px}.places-map{height:300px;min-height:260px}.places-map-head{align-items:flex-start}.places-map-head>span{text-align:right}}
