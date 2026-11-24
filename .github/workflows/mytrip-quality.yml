@@ -1,7 +1,7 @@
 name: MyTrip quality
 on:
   push:
-    branches: [codex/mytrip-entry-sync-4.67.9]
+    branches: [main, codex/mytrip-entry-sync-4.67.9]
   workflow_dispatch:
 permissions:
   contents: read
@@ -49,7 +49,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: MyTrip-FE4.67.16-tested-packages
+          name: MyTrip-tested-packages
           path: ${{ runner.temp }}/mytrip-packages/*.zip
           retention-days: 14
 
