@@ -1,6 +1,6 @@
 "use strict";
 
-const STATIC_CACHE = "mytrip-static-v4.99.0";
+const STATIC_CACHE = "mytrip-static-v4.99.0-noticeboard1";
 const VERSIONED_ASSETS = [
   "./index.html",
   "./app.css?v=4.99.0",
