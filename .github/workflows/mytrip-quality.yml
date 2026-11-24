@@ -26,11 +26,44 @@ jobs:
         run: node tools/sync-quick-expense-entry.js --check
       - name: Verify release
         run: node tools/verify-release.js
-      - name: Run full behavior and DOM suite
+      - name: Receipt scanner DOM tests
+        id: receipt
+        continue-on-error: true
+        env:
+          MYTRIP_TEST_DEPENDENCIES: ${{ runner.temp }}/mytrip-qa/node_modules
+        run: node --test tests/receipt-scan-dom.test.js
+      - name: Separate Quick Expense tests
+        id: quick
+        continue-on-error: true
         env:
           MYTRIP_TEST_DEPENDENCIES: ${{ runner.temp }}/mytrip-qa/node_modules
           MYTRIP_SEPARATE_PACKAGE: ${{ runner.temp }}/QuickExpense
-        run: node --test tests/receipt-scan-dom.test.js tests/separate-quick-app.test.js tests/entry-transparency.test.js tests/settlement-print.test.js tests/settlement-reopen.test.js tests/expense-photo-print.test.js
+        run: node --test tests/separate-quick-app.test.js
+      - name: Expense transparency tests
+        id: transparency
+        continue-on-error: true
+        run: node --test tests/entry-transparency.test.js
+      - name: Settlement print tests
+        id: settlement_print
+        continue-on-error: true
+        run: node --test tests/settlement-print.test.js
+      - name: Settlement reopen tests
+        id: settlement_reopen
+        continue-on-error: true
+        run: node --test tests/settlement-reopen.test.js
+      - name: Expense photo print tests
+        id: photo_print
+        continue-on-error: true
+        run: node --test tests/expense-photo-print.test.js
+      - name: Require every regression suite to pass
+        if: always()
+        run: |
+          test "${{ steps.receipt.outcome }}" = success
+          test "${{ steps.quick.outcome }}" = success
+          test "${{ steps.transparency.outcome }}" = success
+          test "${{ steps.settlement_print.outcome }}" = success
+          test "${{ steps.settlement_reopen.outcome }}" = success
+          test "${{ steps.photo_print.outcome }}" = success
       - name: Package tested source
         run: |
           python3 - <<'PY'
