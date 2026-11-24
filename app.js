@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.85.0";
+  const frontendVersion = "4.86.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -3421,15 +3421,19 @@
   function planMapPoints(items) {
     return items.filter((item) => String(item.place || item.title || "").trim()).slice(0, 25);
   }
+  const planTravelModeKey = "mytrip_plan_travel_mode_v1";
+  const planTravelModes = ["driving", "walking", "bicycling", "transit"];
+  function planTravelMode() { try { const value = localStorage.getItem(planTravelModeKey); return planTravelModes.includes(value) ? value : "driving"; } catch { return "driving"; } }
   function planDirectionsAction(items) {
     if (!state.planDayFilter) return "";
     const stops = planMapPoints(items).map((item) => String(item.place || item.title || "").trim()).filter(Boolean);
     if (stops.length < 2) return "";
-    const selected = stops.slice(0, 10);
-    const params = ["api=1", "origin=" + encodeURIComponent(selected[0]), "destination=" + encodeURIComponent(selected[selected.length - 1]), "travelmode=driving"];
+    const selected = stops.slice(0, 10), mode = planTravelMode();
+    const params = ["api=1", "origin=" + encodeURIComponent(selected[0]), "destination=" + encodeURIComponent(selected[selected.length - 1]), "travelmode=" + mode];
     if (selected.length > 2) params.push("waypoints=" + encodeURIComponent(selected.slice(1, -1).join("|")));
     const url = "https://www.google.com/maps/dir/?" + params.join("&");
-    return `<a class="plan-tool plan-directions-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Open this day's stops in Google Maps">↗ ${stops.length > 10 ? "Route · first 10 stops" : "Open day route"}</a>`;
+    const modes = [["driving", "Drive", "🚗"], ["walking", "Walk", "🚶"], ["bicycling", "Cycle", "🚲"], ["transit", "Transit", "🚌"]];
+    return `<span class="plan-route-tools"><span class="plan-route-modes" role="group" aria-label="Route travel mode">${modes.map(([value, label, icon]) => `<button type="button" class="plan-route-mode${mode === value ? " active" : ""}" data-route-mode="${value}" aria-pressed="${mode === value}">${icon} <span>${label}</span></button>`).join("")}</span><a class="plan-tool plan-directions-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Open this day's stops in Google Maps using the selected travel mode">↗ ${stops.length > 10 ? "Route · first 10 stops" : "Open route"}</a></span>`;
   }
   function planMapSlot(items) {
     const pts = planMapPoints(items);
@@ -3970,6 +3974,7 @@
     const button = event.target.closest("button,[data-map]");
     if (!button || !$("#view").contains(button)) return;
     if (button.dataset.go) return setTab(button.dataset.go);
+    if (button.dataset.routeMode && planTravelModes.includes(button.dataset.routeMode)) { try { localStorage.setItem(planTravelModeKey, button.dataset.routeMode); } catch {} return render(); }
     if (button.dataset.add) return showAddModal(button.dataset.add);
     if (button.dataset.print === "expenses" && !button.hasAttribute("data-xp-go")) { if (proLocked("personPrint")) state.printPerson = ""; return showExpensePrintSheet(); }
     if (button.dataset.print) { if (button.hasAttribute("data-xp-go")) closeModal(); return printReport(button.dataset.print); }
