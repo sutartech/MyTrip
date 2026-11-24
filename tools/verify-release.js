@@ -28,8 +28,8 @@ for (const file of ["manifest.webmanifest", "quick-expense.webmanifest", "quick-
   catch (error) { check(false, `${file} JSON: ${error.message}`); }
 }
 const app = read("app.js"), html = read("index.html"), sw = read("sw.js"), config = read("config.js");
-const fe = (app.match(/frontendVersion\\s*=\\s*"([^"]+)"/) || [])[1];
-const be = (app.match(/requiredBackendVersion\\s*=\\s*"([^"]+)"/) || [])[1];
+const fe = app.split('const frontendVersion = "')[1]?.split('"')[0];
+const be = app.split('const requiredBackendVersion = "')[1]?.split('"')[0];
 check(Boolean(fe), `frontend version is declared (${fe || "missing"})`);
 check(Boolean(be), `minimum backend compatibility version is declared (${be || "missing"})`);
 check(html.includes(`app.js?v=${fe}`) && html.includes(`app.css?v=${fe}`), "HTML cache-bust versions match frontend");
