@@ -5709,3 +5709,12 @@ html body #view section.permission-banner.admin > div.permission-banner-actions 
 .places-map-panel .leaflet-popup-content{line-height:1.5}
 .places-map-panel .leaflet-popup-content a{color:#0f766e;font-weight:800}
 @media(max-width:640px){.places-map-panel{padding:9px;border-radius:14px}.places-map{height:300px;min-height:260px}.places-map-head{align-items:flex-start}.places-map-head>span{text-align:right}}
+
+
+/* MyTrip 4.86.0 — selectable travel modes for day routes */
+.plan-route-tools{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap}
+.plan-route-modes{display:inline-flex;align-items:center;gap:3px;padding:3px;border:1px solid var(--line);border-radius:11px;background:var(--panel)}
+.plan-route-mode{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:29px;padding:4px 7px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:10px;font-weight:800;cursor:pointer}
+.plan-route-mode.active{background:var(--accent-soft,#d9efeb);color:var(--accent,#0f6e6a);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent,#0f6e6a) 20%,transparent)}
+.plan-route-mode:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:680px){.plan-route-tools{width:100%;justify-content:space-between}.plan-route-modes{flex:1;justify-content:space-between}.plan-route-mode{flex:1;padding:5px 3px}.plan-route-mode span{font-size:9px}.plan-directions-link{white-space:nowrap}}
