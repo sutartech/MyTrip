@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.79.0";
+  const frontendVersion = "4.80.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
