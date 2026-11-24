@@ -5734,3 +5734,40 @@ html body #view section.permission-banner.admin > div.permission-banner-actions 
 /* Document Vault · v4.88.0 */
 .doc-vault{display:grid;gap:16px}.doc-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.doc-summary>div{background:var(--panel,rgba(120,130,150,.08));border:1px solid var(--line,rgba(120,130,150,.18));border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:3px}.doc-summary b{font-size:1.25rem}.doc-summary span,.doc-footnote{font-size:.82rem;color:var(--muted,#778)}.doc-security-note{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border:1px solid rgba(40,150,110,.25);background:rgba(40,150,110,.07);border-radius:14px}.doc-security-note>span{font-size:1.25rem}.doc-security-note p{margin:0;font-size:.88rem;line-height:1.5}.doc-list{display:grid;gap:9px}.doc-row{display:flex;align-items:center;gap:13px;padding:14px;border:1px solid var(--line,rgba(120,130,150,.18));border-radius:14px;background:var(--card,#fff);min-width:0}.doc-file-icon{width:42px;height:46px;flex:0 0 42px;border-radius:10px;background:rgba(70,110,210,.1);display:grid;place-items:center;font-size:.68rem;font-weight:800;color:var(--accent,#456bd0)}.doc-main{display:grid;gap:4px;min-width:0;flex:1}.doc-main b{overflow-wrap:anywhere}.doc-main span,.doc-main small{font-size:.78rem;color:var(--muted,#778)}.doc-actions{display:flex;gap:7px;flex-wrap:wrap}.doc-actions button{border:1px solid var(--line,rgba(120,130,150,.2));border-radius:9px;padding:8px 11px;background:transparent}.doc-actions .doc-delete{color:#b34b4b}.doc-empty{display:grid;justify-items:center;text-align:center;gap:8px;padding:36px 18px;border:1px dashed var(--line,rgba(120,130,150,.3));border-radius:16px}.doc-empty>span{font-size:2rem}.doc-empty p{margin:0 0 8px;color:var(--muted,#778);max-width:420px}.doc-footnote{margin:0;line-height:1.5}
 @media(max-width:600px){.doc-summary{gap:7px}.doc-summary>div{padding:11px 9px}.doc-summary b{font-size:1.05rem}.doc-row{align-items:flex-start;flex-wrap:wrap;padding:12px}.doc-main{flex-basis:calc(100% - 60px)}.doc-actions{width:100%;padding-left:55px}.doc-actions button{flex:1}}
+
+
+/* MyTrip v4.89.0 — compact Global Administrator action strip.
+   Remove the explanatory block without removing or changing any action handlers. */
+html body #view>.permission-banner.admin{
+  display:block!important;min-height:0!important;height:auto!important;
+  margin:0 0 10px!important;padding:7px!important;
+  border-radius:13px!important;box-sizing:border-box!important;
+}
+html body #view>.permission-banner.admin>i,
+html body #view>.permission-banner.admin>.permission-copy,
+html body #view>.permission-banner.admin>.permission-role-pill,
+html body #view>.permission-banner.admin>.dashboard-inline-version{display:none!important}
+html body #view>.permission-banner.admin .permission-banner-actions{
+  display:flex!important;flex-flow:row nowrap!important;align-items:stretch!important;
+  justify-content:stretch!important;gap:7px!important;width:100%!important;
+  max-width:none!important;margin:0!important;padding:0!important;
+}
+html body #view>.permission-banner.admin .permission-banner-actions>button{
+  display:flex!important;flex:1 1 0!important;width:0!important;min-width:0!important;
+  max-width:none!important;min-height:39px!important;padding:7px 4px!important;
+  align-items:center!important;justify-content:center!important;text-align:center!important;
+  white-space:nowrap!important;font-size:clamp(8px,1vw,10px)!important;
+  line-height:1.1!important;overflow:hidden!important;text-overflow:ellipsis!important;
+}
+html body #view>.permission-banner.admin .permission-banner-actions .permission-search>kbd{display:none!important}
+@media(max-width:760px){
+  html body #view>.permission-banner.admin{padding:6px!important;margin-bottom:9px!important}
+  html body #view>.permission-banner.admin .permission-banner-actions{
+    display:flex!important;flex-flow:row nowrap!important;gap:5px!important;
+  }
+  html body #view>.permission-banner.admin .permission-banner-actions>button{
+    flex:1 1 0!important;min-width:0!important;min-height:37px!important;
+    padding:6px 2px!important;font-size:clamp(7px,2.45vw,9px)!important;
+    letter-spacing:-.1px!important;
+  }
+}
