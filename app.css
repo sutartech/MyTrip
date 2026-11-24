@@ -5771,3 +5771,23 @@ html body #view>.permission-banner.admin .permission-banner-actions .permission-
     letter-spacing:-.1px!important;
   }
 }
+
+
+/* MyTrip v4.90.0 — remove the redundant Global Administrator title block
+   from the All Trips control panel; retain the Create Trip action and all stats/actions. */
+html body .admin-command-center>header{
+  display:flex!important;align-items:center!important;justify-content:flex-end!important;
+  gap:0!important;margin:0!important;padding:0!important;
+}
+html body .admin-command-center>header>div{display:none!important}
+html body .admin-command-center>header>button{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  min-height:42px!important;padding:9px 18px!important;
+}
+@media(max-width:760px){
+  html body .admin-command-center{gap:11px!important}
+  html body .admin-command-center>header{display:flex!important;justify-content:stretch!important}
+  html body .admin-command-center>header>button{
+    width:100%!important;min-height:42px!important;padding:9px 14px!important;
+  }
+}
