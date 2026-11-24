@@ -5296,3 +5296,71 @@ body{background:#f2f5f9;color:var(--ink);font-family:"Plus Jakarta Sans",Inter,u
   html body #view>.permission-banner.admin .permission-banner-actions>button{font-size:9px!important}
   html body #view>.trip-announcement .announcement-copy{font-size:10px!important}
 }
+
+
+/* MyTrip 4.77.0 — remove the redundant administrator explanation; retain all controls */
+html body #view>.permission-banner.admin{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  grid-template-rows:auto!important;
+  align-items:center!important;
+  gap:8px 12px!important;
+  min-height:0!important;
+  height:auto!important;
+  padding:11px 14px!important;
+  margin:0 0 10px!important;
+}
+html body #view>.permission-banner.admin>.permission-copy{
+  display:none!important;
+}
+html body #view>.permission-banner.admin>i{
+  display:none!important;
+}
+html body #view>.permission-banner.admin>.permission-role-pill{
+  display:inline-flex!important;
+  grid-column:2!important;
+  grid-row:1!important;
+  justify-self:end!important;
+  align-self:center!important;
+}
+html body #view>.permission-banner.admin .permission-banner-actions{
+  grid-column:1!important;
+  grid-row:1!important;
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:7px!important;
+  width:100%!important;
+  min-width:0!important;
+  justify-content:stretch!important;
+}
+html body #view>.permission-banner.admin .permission-banner-actions>button{
+  width:100%!important;
+  min-width:0!important;
+  min-height:38px!important;
+  padding:8px 10px!important;
+  white-space:nowrap!important;
+}
+html body #view>.permission-banner.admin .dashboard-inline-version{
+  display:none!important;
+}
+@media(max-width:760px){
+  html body #view>.permission-banner.admin{
+    grid-template-columns:minmax(0,1fr) auto!important;
+    grid-template-rows:auto auto!important;
+    gap:7px 8px!important;
+    padding:10px 11px!important;
+  }
+  html body #view>.permission-banner.admin>.permission-role-pill{
+    grid-column:2!important;
+    grid-row:1!important;
+  }
+  html body #view>.permission-banner.admin .permission-banner-actions{
+    grid-column:1/-1!important;
+    grid-row:2!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:6px!important;
+  }
+  html body #view>.permission-banner.admin .permission-banner-actions>button{
+    min-height:40px!important;
+  }
+}
