@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.67.31";
+  const frontendVersion = "4.68.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -1344,11 +1344,7 @@
     const statsHtml = `<section class="stats"><article class="stat"><i>◫</i><div><small>TRIP LENGTH</small><strong>${nights()} nights</strong><span>${displayDate(state.data.trip.startDate, { day: "numeric", month: "short" })}–${displayDate(state.data.trip.endDate, { day: "numeric", month: "short" })}</span></div></article>${expenseStat}${placeStat}${peopleStat}${notesStat}</section>`;
     const gridHtml = `<section class="main-grid overview-grid ${canViewExpenses() ? "" : "no-expenses"}">${itineraryPanel}${expensePanels}</section>`;
     const quick = `<section class="quick-actions overview-primary-actions" aria-label="Quick actions">${planQuickAction}${expenseQuickAction}${placeQuickAction}${peopleQuickAction}${experienceQuickAction}${printQuickAction}</section>`;
-    if (mtIsPhone() && stage === "active") {
-      const fold = (title, sub, body, open) => body ? `<details class="mt-fold"${open ? " open" : ""}><summary><span><b>${title}</b><small>${sub}</small></span><i>⌄</i></summary><div class="mt-fold-body">${body}</div></details>` : "";
-      return `${mtTodayBlock(today, sortedItinerary)}${fold("Trip status", "Journey, weather & reminders", renderJourneyStage(today))}${fold("Spending & next plans", "Budget, recent payments, coming up", gridHtml)}${fold("Settle up status", "Still to pay and paid back", renderSettleStatusCard())}${fold("Trip photo & stats", "Cover, length, places, members", cover + statsHtml)}${fold("More shortcuts", "Places, journal, print", quick)}`;
-    }
-    return `${renderJourneyStage(today)}${quick}${cover}${statsHtml}${renderSettleStatusCard()}${gridHtml}`;
+    return `${renderJourneyStage(today)}${cover}${statsHtml}${quick}${renderSettleStatusCard()}${gridHtml}`;
   }
 
   /* ---- drag-resizable itinerary columns ---- */
