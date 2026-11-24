@@ -6031,3 +6031,7 @@ html body .trip-intel-destination>strong{color:#1f4c52!important;font-size:8px!i
  html body .trip-intel-detail-grid{grid-template-columns:minmax(0,1fr)!important;gap:7px!important}
  html body .trip-intel-dated>header>button{font-size:8px!important;padding:7px 8px!important}
 }
+
+
+/* MyTrip v4.97.0 — clearer separation of total and dated expenditure. */
+@media(min-width:761px){html body .trip-intel-detail-metrics{grid-template-columns:repeat(5,minmax(0,1fr))!important}}
