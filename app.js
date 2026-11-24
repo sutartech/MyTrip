@@ -5164,12 +5164,8 @@
         const monthBars = months.slice(-12).map((item) => `<div class="trip-intel-bar"><div><b>${esc(new Date(item.key + "-15T12:00:00").toLocaleDateString("en-IN", { month: "short", year: "2-digit" }))}</b><small>${item.count} dated entries</small></div><span><i style="width:${Math.max(2, item.spend / monthMax * 100)}%"></i></span><strong>${money.format(item.spend)}</strong></div>`).join("");
         const destRows = [...destinations.values()].sort((a, b) => b.spend - a.spend).slice(0, 5).map((item) => `<div class="trip-intel-destination"><b>${esc(item.name)}</b><span>${item.count} expenses</span><strong>${money.format(item.spend)}</strong></div>`).join("");
         const totalBudgetVariance = varianceRows.reduce((sum, item) => sum + item.variance, 0);
-        const travelDays = trips.reduce((sum, trip) => {
-          const start = String(trip.startDate || ""), end = String(trip.endDate || trip.startDate || "");
-          return sum + (/^\d{4}-\d{2}-\d{2}$/.test(start) && /^\d{4}-\d{2}-\d{2}$/.test(end) ? Math.max(1, daysBetween(start, end) + 1) : 0);
-        }, 0);
-        const averageTripSpend = trips.length ? actualSpend / trips.length : 0;
-        const averageDailySpend = travelDays ? actualSpend / travelDays : 0;
+        const averageTripSpend = loadedTripCount ? allExpenseSpend / loadedTripCount : 0;
+        const averageDailySpend = loadedTravelDays ? allExpenseSpend / loadedTravelDays : 0;
         const years = new Map();
         months.forEach((item) => { const year = item.key.slice(0, 4); years.set(year, (years.get(year) || 0) + item.spend); });
         const annualRows = [...years.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([year, amount]) => `<div class="trip-intel-destination"><b>${year}</b><span>Recorded expenses</span><strong>${money.format(amount)}</strong></div>`).join("");
