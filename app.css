@@ -5656,3 +5656,8 @@ html body #view section.permission-banner.admin > div.permission-banner-actions 
   html body #view section.permission-banner.admin > div.permission-banner-actions{gap:3px!important}
   html body #view section.permission-banner.admin > div.permission-banner-actions > button{font-size:8px!important}
 }
+
+
+/* MyTrip 4.82.0 — compact trip budget balance and admin action row support */
+.trip-budget-remaining{display:block!important;margin:4px 0 8px!important;color:#607487!important;font-size:10px!important;font-weight:800!important;line-height:1.35!important}
+.trip-budget-remaining.over{color:#b54736!important}
