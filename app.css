@@ -6274,3 +6274,30 @@ html body .itinerary-overview .timeline-row p{
   html body .itinerary-overview .timeline-row h3{font-size:13px!important;line-height:1.35!important;margin:0 0 4px!important}
   html body .itinerary-overview .timeline-row p{font-size:10px!important;line-height:1.45!important}
 }
+
+
+/* MyTrip v4.99.2 — hard-pin all three itinerary columns on narrow phones. */
+@media(max-width:760px){
+ html body .itinerary-overview .timeline-row{
+  grid-template-columns:58px 92px minmax(0,1fr)!important;
+  grid-auto-flow:row!important;
+  align-items:start!important;
+ }
+ html body .itinerary-overview .timeline-row>.date{
+  grid-column:1!important;grid-row:1!important;
+ }
+ html body .itinerary-overview .timeline-row>time{
+  grid-column:2!important;grid-row:1!important;
+ }
+ html body .itinerary-overview .timeline-row>span:nth-child(3){
+  grid-column:3!important;grid-row:1!important;
+  display:block!important;min-width:0!important;width:100%!important;
+  align-self:start!important;
+ }
+ html body .itinerary-overview .timeline-row>a{display:none!important}
+}
+@media(max-width:390px){
+ html body .itinerary-overview .timeline-row{
+  grid-template-columns:52px 82px minmax(0,1fr)!important;gap:7px!important;
+ }
+}
