@@ -8,7 +8,7 @@
   const legacySavedLoginStorageKey = "mytrip_saved_account_login_v1";
   const obsoleteTabPasswordStorageKey = "mytrip_tab_password_v1";
   const quickExpenseShortcutStorageKey = quickExpenseStandalone ? "mytrip_separate_quick_expense_v1" : "mytrip_quick_expense_shortcut_v1";
-  const frontendVersion = "4.69.0";
+  const frontendVersion = "4.70.0";
   const requiredBackendVersion = "4.32.2";
   const minimumCompatibleBackendVersion = "4.32.1";
   let deferredQuickExpenseInstallPrompt = null;
@@ -2256,7 +2256,7 @@
         : `<div class="plan-add-row"><button type="button" data-add-plan-row="${esc(state.planDayFilter || state.data.trip.startDate || "")}">＋ Add itinerary row</button><span>Type straight into the row — no dialog needed.</span></div>`)
       : "";
 
-    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}${canAdd("plan") ? quickAddBar() + textImportStrip("auto") : ""}${planMapOpen() ? planMapSlot(items) : ""}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool${planMapOpen() ? " active" : ""}" data-plan-map title="Show the day on a map">⌖ ${planMapOpen() ? "Hide map" : "Map"}</button><button type="button" class="plan-tool plan-view-toggle" data-plan-view title="Switch between compact cards and the full table">${planWideView() ? "☰ Card view" : "▦ Table view"}</button><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button>${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label>`)}${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table${planWideView() ? " plan-table-wide" : ""}" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
+    return `${heading("DAY BY DAY", "Trip itinerary", "Add, edit, reorder and delete rows in place. Use the header grips to size columns.", "plan")}${filterRow}${canAdd("plan") ? quickAddBar() + textImportStrip("auto") : ""}${planMapOpen() ? planMapSlot(items) : ""}<section class="table-panel plan-record-panel"><div class="table-headline"><div><span class="kicker">DAY PLANNER</span><h2>Itinerary table</h2><p>${all.length} ${all.length === 1 ? "plan" : "plans"} across ${days.length} ${days.length === 1 ? "day" : "days"}${plannedTotal ? " · " + money.format(plannedTotal) + " planned cost" : ""}.</p></div><span class="plan-table-tools"><button type="button" class="plan-tool${planMapOpen() ? " active" : ""}" data-plan-map title="Show the day on a map">⌖ ${planMapOpen() ? "Hide map" : "Map"}</button>${planDirectionsAction(items)}<button type="button" class="plan-tool plan-view-toggle" data-plan-view title="Switch between compact cards and the full table">${planWideView() ? "☰ Card view" : "▦ Table view"}</button><button type="button" class="plan-tool" data-sort-plan-time="${esc(state.planDayFilter || "")}" title="Put rows in clock order">⏱ Sort by time</button>${printOptionsMenu(`<label class="plan-print-line"><span>Column widths</span><button type="button" class="plan-tool" data-reset-plan-columns>⇔ Reset</button></label>`)}${canPrintReports() ? `<button class="plan-tool primary-tool" data-print="itinerary">▤ Print itinerary</button>` : ""}</span></div><div class="plan-table${planWideView() ? " plan-table-wide" : ""}" style="${planColumnStyle()}"><div class="plan-table-header">${planColumnLabels.map((label, index) => `<span>${label}${index < planColumnLabels.length - 1 ? `<i class="plan-col-grip" data-plan-col="${index}" title="Drag to resize this column"></i>` : ""}</span>`).join("")}</div>${rows || `<div class="plan-empty-row"><b>No itinerary added yet</b><p>Add the first plan for this trip.</p></div>`}${newRow}</div></section>`;
   }
 
   function renderExperiences() {
@@ -3405,6 +3405,16 @@
   function planMapOpen() { try { return localStorage.getItem(planMapKey) === "1"; } catch { return false; } }
   function planMapPoints(items) {
     return items.filter((item) => String(item.place || item.title || "").trim()).slice(0, 25);
+  }
+  function planDirectionsAction(items) {
+    if (!state.planDayFilter) return "";
+    const stops = planMapPoints(items).map((item) => String(item.place || item.title || "").trim()).filter(Boolean);
+    if (stops.length < 2) return "";
+    const selected = stops.slice(0, 10);
+    const params = ["api=1", "origin=" + encodeURIComponent(selected[0]), "destination=" + encodeURIComponent(selected[selected.length - 1]), "travelmode=driving"];
+    if (selected.length > 2) params.push("waypoints=" + encodeURIComponent(selected.slice(1, -1).join("|")));
+    const url = "https://www.google.com/maps/dir/?" + params.join("&");
+    return `<a class="plan-tool plan-directions-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Open this day's stops in Google Maps">↗ ${stops.length > 10 ? "Route · first 10 stops" : "Open day route"}</a>`;
   }
   function planMapSlot(items) {
     const pts = planMapPoints(items);
